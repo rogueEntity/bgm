@@ -1,0 +1,52 @@
+# =========================
+# 1. 환경 변수 및 시크릿 (보안 - 절대 깃허브에 올라가면 안 됨!)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# 2. Python & FastAPI (가상환경 및 실행 캐시)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+pip-log.txt
+
+# =========================
+# 3. IDE (PyCharm, VSCode 설정 파일)
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# =========================
+# 4. OS (운영체제 찌꺼기 파일)
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# 5. Logs & Test (로그 파일)
+# =========================
+*.log
+htmlcov/
+.tox/
+.coverage
+.pytest_cache/
+
+# =========================
+# 6. 프론트엔드 (Next.js & Node.js - 미리 세팅)
+# =========================
+node_modules/
+.next/
+out/
+build/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
