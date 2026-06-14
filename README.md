@@ -27,3 +27,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 서버 구동 후 http://localhost:8000/docs에 접속하여 API 명세서를 확인할 수 있습니다.
+
+### 3. Prisma
+```bash
+# 데이터베이스에 이미 존재하는 테이블 구조를 읽어와 schema.prisma 파일에 구성
+npx prisma db pull --config ./prisma/schema.prisma.ts
+
+# schema.prisma를 바탕으로, 실제 프로젝트 코드에서 사용할 수 있는 Prisma Client(타입 정의 포함)를 생성
+npx prisma generate
+```

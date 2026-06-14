@@ -1,3 +1,4 @@
+# app/models.py
 import uuid
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -11,6 +12,7 @@ class User(Base):
     provider = Column(String(50), nullable=False)
     provider_id = Column(String(255), nullable=False)
     nickname = Column(String(100), nullable=False)
+    avatar_emoji = Column(String(1), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=text('CURRENT_TIMESTAMP'))
 
 

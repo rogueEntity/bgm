@@ -1,6 +1,3 @@
-ALTER DATABASE bgm SET TIMEZONE TO 'Asia/Seoul';
-SHOW TIMEZONE;
-
 -- UUID 자동 생성을 위한 확장 모듈 추가 (최초 1회 실행 필요)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -11,6 +8,7 @@ CREATE TABLE users (
     provider VARCHAR(50) NOT NULL,
     provider_id VARCHAR(255) NOT NULL,
     nickname VARCHAR(100) NOT NULL,
+    avatar_emoji VARCHAR(1) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(provider, provider_id)
 );
