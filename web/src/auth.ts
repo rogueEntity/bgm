@@ -25,6 +25,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, account }) {
       if (account) {
         token.providerId = account.providerAccountId;
+        token.provider = account.provider;
       }
 
       if (token.providerId) {
