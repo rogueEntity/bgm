@@ -23,18 +23,10 @@ export default function LoginPage() {
         </form>
 
         {/* 카카오 로그인 */}
-        <form action={async () => { "use server"; /* await signIn("kakao"); */ }}>
+        <form action={async () => { "use server"; await signIn("kakao"); }}>
           <button className="w-full flex items-center justify-center gap-3 bg-yellow-400 text-black py-3 px-4 rounded-lg font-bold hover:bg-yellow-500 transition">
             <span>K</span>
             카카오 로그인
-          </button>
-        </form>
-
-        {/* 네이버 로그인 */}
-        <form action={async () => { "use server"; /* await signIn("naver"); */ }}>
-          <button className="w-full flex items-center justify-center gap-3 bg-green-500 text-white py-3 px-4 rounded-lg font-bold hover:bg-green-600 transition">
-            <span>N</span>
-            네이버 로그인
           </button>
         </form>
       </div>

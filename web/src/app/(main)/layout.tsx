@@ -42,7 +42,7 @@ export default async function MainLayout({
           </div>
         </div>
 
-        <nav className="flex md:flex-col gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
+        <nav className="flex md:flex-col gap-2 overflow-x-auto p-1 custom-scrollbar">
           <Link href="/" className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base">
             🏠 홈
           </Link>

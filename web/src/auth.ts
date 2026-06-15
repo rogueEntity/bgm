@@ -3,6 +3,7 @@ import NextAuth from "next-auth";
 import authConfig from "./auth.config";
 import { db } from "@/lib/prisma";
 import Google from "next-auth/providers/google";
+import Kakao from "next-auth/providers/kakao";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig, // 미들웨어용 가벼운 설정(pages, providers 등)을 병합
@@ -10,6 +11,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    }),
+    Kakao({
+      clientId: process.env.AUTH_KAKAO_ID,
+      clientSecret: process.env.AUTH_KAKAO_SECRET,
     }),
   ],
   session: { strategy: "jwt" },
