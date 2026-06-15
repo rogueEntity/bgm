@@ -12,6 +12,10 @@ export async function saveOnboardingProfile(formData: FormData) {
     throw new Error("인증되지 않은 사용자입니다.");
   }
 
+  // ✨ 세션에서 제공자 정보 꺼내오기 (안전장치로 기본값 설정)
+  // @ts-ignore
+  const currentProvider = session.user.provider || "unknown";
+
   // 2. 폼 데이터에서 닉네임과 아바타 값 추출
   const nickname = formData.get("nickname") as string;
   const avatarEmoji = formData.get("avatarEmoji") as string;
@@ -40,7 +44,7 @@ export async function saveOnboardingProfile(formData: FormData) {
     // 4. 최초 온보딩: DB에 유저 새로 생성! (Lazy Creation 핵심)
     await db.users.create({
       data: {
-        provider: "google",
+        provider: currentProvider,
         provider_id: providerId,
         nickname: nickname,
         avatar_emoji: avatarEmoji,

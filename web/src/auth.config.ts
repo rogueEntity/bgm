@@ -15,6 +15,8 @@ const authConfig = {
         session.user.nickname = token.nickname;
         // @ts-ignore
         session.user.avatarEmoji = token.avatarEmoji;
+        // @ts-ignore
+        session.user.provider = token.provider;
       }
       return session;
     },
