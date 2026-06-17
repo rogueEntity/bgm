@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { saveOnboardingProfile, checkNicknameDuplication } from "@/lib/user-action";
+import { saveOnboardingProfile, checkNicknameDuplication } from "@/app/actions/user.action";
 import { AVATAR_EMOJIS } from "@/constants/avatars";
 import LogoutButton from "@/components/LogOutButton";
 
@@ -42,7 +42,7 @@ export default function OnboardingPage() {
             </label>
             <input type="hidden" name="avatarEmoji" value={selectedAvatar} />
 
-            <div className="grid grid-cols-4 gap-3 max-h-40 overflow-y-auto p-2 pr-2 custom-scrollbar">
+            <div className="grid grid-cols-4 gap-3 max-h-[160px] overflow-y-auto p-2 pr-2 custom-scrollbar">
               {AVATAR_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}

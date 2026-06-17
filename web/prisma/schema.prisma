@@ -8,28 +8,41 @@ datasource db {
 }
 
 model games {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique @db.VarChar(100)
-  min_players Int       @default(1)
-  max_players Int
-  matches     matches[]
+  id              Int               @id @default(autoincrement())
+  name            String            @unique @db.VarChar(100)
+  min_players     Int               @default(1)
+  max_players     Int
+  user_game_stats user_game_stats[]
+  matches         matches[]
 }
 
-model match_details {
-  match_id Int     @id
-  details  Json
-  matches  matches @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+model users {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  provider        String            @db.VarChar(50)
+  provider_id     String            @db.VarChar(255)
+  nickname        String            @db.VarChar(100)
+  avatar_emoji    String            @db.VarChar(1)
+  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
+  user_game_stats user_game_stats[]
+  matches         matches[]
+  match_players   match_players[]
+
+  @@unique([provider, provider_id])
 }
 
-model match_players {
-  match_id    Int
-  user_id     String  @db.Uuid
-  final_score Int
-  rank        Int
-  matches     matches @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users       users   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+model user_game_stats {
+  id                Int    @id @default(autoincrement())
+  user_id           String @db.Uuid
+  game_id           Int
+  play_count        Int    @default(0)
+  accumulated_score Int    @default(0)
+  average_rank      Float?
+  mmr               Int     @default(1500)
+  specific_stats    Json?
+  games             games  @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users             users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@id([match_id, user_id])
+  @@unique([user_id, game_id])
 }
 
 model matches {
@@ -39,19 +52,23 @@ model matches {
   play_date     DateTime?       @default(now()) @db.Timestamptz(6)
   match_details match_details?
   match_players match_players[]
-  users         users?          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   games         games           @relation(fields: [game_id], references: [id], onUpdate: NoAction)
+  users         users?          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
 }
 
-model users {
-  id            String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  provider      String          @db.VarChar(50)
-  provider_id   String          @db.VarChar(255)
-  nickname      String          @db.VarChar(100)
-  avatar_emoji  String          @db.VarChar(1)
-  created_at    DateTime?       @default(now()) @db.Timestamptz(6)
-  match_players match_players[]
-  matches       matches[]
+model match_details {
+  match_id Int     @id
+  details  Json
+  matches  matches @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
 
-  @@unique([provider, provider_id])
+model match_players {
+  id          Int     @id @default(autoincrement())
+  match_id    Int
+  user_id     String? @db.Uuid
+  guest_name  String? @db.VarChar(100)
+  final_score Int?
+  rank        Int?
+  users       users?  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  matches     matches @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }

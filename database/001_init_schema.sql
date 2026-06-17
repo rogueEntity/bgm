@@ -32,13 +32,14 @@ CREATE TABLE matches (
 );
 
 -- 4. 경기 참여자 요약 (Match_Players) 테이블
--- 특정 경기에 참여한 유저들의 최종 점수와 등수를 매핑합니다.
+-- 특정 경기에 참여한 유저들의 최종 점수와 등수를 매핑합니다. (비가입 지인 포함)
 CREATE TABLE match_players (
+    id SERIAL PRIMARY KEY,
     match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    final_score INTEGER NOT NULL,
-    rank INTEGER NOT NULL,
-    PRIMARY KEY (match_id, user_id)
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE, -- 가입 유저용
+    guest_name VARCHAR(100),                            -- 비가입 지인용
+    final_score INTEGER,                                -- 진행 중일 땐 NULL 허용
+    rank INTEGER                                        -- 진행 중일 땐 NULL 허용
 );
 
 -- 5. 경기 세부 기록 (Match_Details) 테이블
@@ -46,6 +47,20 @@ CREATE TABLE match_players (
 CREATE TABLE match_details (
     match_id INTEGER PRIMARY KEY REFERENCES matches(id) ON DELETE CASCADE,
     details JSONB NOT NULL
+);
+
+-- 6. 유저 게임 통계 (User_Game_Stats) 테이블
+-- 특정 게임에 대한 유저의 누적 전적 및 세부 통계를 저장합니다.
+CREATE TABLE user_game_stats (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    play_count INTEGER NOT NULL DEFAULT 0,
+    accumulated_score INTEGER NOT NULL DEFAULT 0,
+    average_rank DOUBLE PRECISION,
+    mmr INTEGER NOT NULL DEFAULT 1500,
+    specific_stats JSONB,
+    UNIQUE(user_id, game_id)
 );
 
 -- 초기 테스트용 게임 데이터 삽입
