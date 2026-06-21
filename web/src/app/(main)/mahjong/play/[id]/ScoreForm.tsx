@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { getValidatedYakuList, calculateTotalHan } from "@/lib/mahjong-calc";
-import { recordMahjongResult, finishMatch } from "@/app/actions/mahjong.action";
+import { recordMahjongResult, recordRyuukyoku } from "@/app/actions/mahjong.action";
 
 interface Player {
   name: string;
@@ -36,6 +36,10 @@ export default function ScoreForm({
   const [score, setScore] = useState<number | "">("");
   const [currentRiichiKeys, setCurrentRiichiKeys] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isForceFinish, setIsForceFinish] = useState(false); // 💡 조기 종료 체크박스 상태
+
+  const [ryuukyokuType, setRyuukyokuType] = useState<"황패유국" | "구종구패" | "사풍연타" | "사개깡" | "사가리치" | "삼가화" | null>(null);
+  const [tenpaiKeys, setTenpaiKeys] = useState<string[]>([]);
 
   const hasYakuman = selectedIds.some((id) => {
     const yaku = ALL_YAKU.find((y) => y.id === id);
@@ -46,6 +50,41 @@ export default function ScoreForm({
     const totalDora = doraIndicator + redDora;
     setTotalHan(calculateTotalHan(selectedIds, isMengen, totalDora));
   }, [selectedIds, isMengen, doraIndicator, redDora]);
+
+  const handleRecordRyuukyoku = async () => {
+    if (!ryuukyokuType) {
+      alert("유국 유형을 선택해주세요.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await recordRyuukyoku({
+        matchId,
+        type: ryuukyokuType,
+        tenpaiKeys: ryuukyokuType === "황패유국" ? tenpaiKeys : [],
+        currentRiichiKeys,
+        isFinal: isForceFinish, // 💡 액션으로 전달
+      });
+      alert("유국이 기록되었습니다.");
+
+      setRyuukyokuType(null);
+      setTenpaiKeys([]);
+      setCurrentRiichiKeys([]);
+      setIsForceFinish(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      console.error(error);
+      alert("유국 기록 실패!");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleTenpaiPlayer = (stateKey: string) => {
+    setTenpaiKeys(prev =>
+      prev.includes(stateKey) ? prev.filter(k => k !== stateKey) : [...prev, stateKey]
+    );
+  };
 
   const toggleTsumo = () => {
     const nextIsTsumo = !isTsumo;
@@ -103,21 +142,6 @@ export default function ScoreForm({
     );
   };
 
-  // 대국 수동 종료 핸들러
-  const handleFinishMatch = async () => {
-    const proceed = window.confirm("정말로 대국을 조기 종료하시겠습니까?\n(현재 점수 기준으로 최종 순위가 결정됩니다.)");
-    if (!proceed) return;
-
-    try {
-      await finishMatch(matchId);
-      alert("대국이 종료되었습니다.");
-      window.scrollTo({ top: 0, behavior: "smooth" }); // 💡 스크롤 초기화
-    } catch (error) {
-      console.error(error);
-      alert("대국 종료 처리 실패!");
-    }
-  };
-
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -153,6 +177,7 @@ export default function ScoreForm({
         doraTotal: hasYakuman ? 0 : (doraIndicator + redDora),
         selectedYakuIds: selectedIds,
         currentRiichiKeys,
+        isFinal: isForceFinish, // 💡 액션으로 전달
       });
       alert("기록되었습니다.");
 
@@ -161,8 +186,9 @@ export default function ScoreForm({
       setDoraIndicator(0);
       setRedDora(0);
       setCurrentRiichiKeys([]);
+      setIsForceFinish(false);
 
-      window.scrollTo({ top: 0, behavior: "smooth" }); // 💡 스크롤 맨 위로 초기화
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
       alert("기록 실패!");
@@ -196,25 +222,18 @@ export default function ScoreForm({
     <div className="w-full bg-background border border-foreground/10 rounded-2xl p-4 shadow-lg overflow-hidden contain-layout">
       <div className="space-y-4">
 
-        {/* 💡 상단 탭 & 대국 종료 버튼 합침 */}
+        {/* 상단 탭 (대국 종료 버튼 제거) */}
         <div className="flex gap-2 w-full">
           <div className="flex flex-1 p-1 bg-foreground/5 rounded-lg">
             <button type="button" className={`flex-1 py-2 font-bold rounded-md transition-all ${tab === "WIN" ? "bg-background shadow text-blue-600" : "opacity-50"}`} onClick={() => setTab("WIN")}>화료</button>
             <button type="button" className={`flex-1 py-2 font-bold rounded-md transition-all ${tab === "DRAW" ? "bg-background shadow text-orange-600" : "opacity-50"}`} onClick={() => setTab("DRAW")}>유국</button>
           </div>
-          <button
-            type="button"
-            onClick={handleFinishMatch}
-            className="px-4 py-2 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 font-extrabold rounded-lg border border-red-200 dark:border-red-900/50 hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95"
-          >
-            대국 종료
-          </button>
         </div>
 
-        {/* (이하 폼 내부 렌더링 영역은 기존과 완벽히 동일합니다.) */}
+        {/* 폼 내부 렌더링 영역 */}
         <div className="min-h-[420px]">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {tab === "WIN" ? (
+          {tab === "WIN" ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-4">
 
                 <div className="space-y-2 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900">
@@ -356,12 +375,108 @@ export default function ScoreForm({
                   )}
                 </div>
 
+                {/* 💡 화료 시 조기 종료 체크박스 추가 */}
+                <div className="flex items-center gap-2 py-2">
+                  <input type="checkbox" id="forceFinishWin" checked={isForceFinish} onChange={(e) => setIsForceFinish(e.target.checked)} className="w-4 h-4 accent-red-500" />
+                  <label htmlFor="forceFinishWin" className="text-sm font-bold text-red-500 cursor-pointer">기록 후 대국 조기 종료하기</label>
+                </div>
+
                 <button type="submit" className="w-full bg-foreground text-background p-3 rounded-xl font-bold">점수 기록</button>
               </div>
-            ) : (
-              <div className="py-20 text-center opacity-60">유국 상세 로직은 추후 구현됩니다.</div>
-            )}
-          </form>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="space-y-2 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900">
+                <p className="text-xs font-bold text-red-600 dark:text-red-400">이번 국 리치 선언 (선택 시 1000점 차감 후 공탁금 이월)</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {players.map(p => {
+                    const isRiichi = currentRiichiKeys.includes(p.stateKey);
+                    return (
+                      <button key={p.stateKey} type="button" onClick={() => toggleRiichiPlayer(p.stateKey)}
+                        className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1
+                          ${isRiichi ? "bg-red-500 text-white border-red-500" : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"}`}
+                      >
+                        <span className={isRiichi ? "opacity-80" : "opacity-50"}>
+                          {p.wind === "EAST" ? "東" : p.wind === "SOUTH" ? "南" : p.wind === "WEST" ? "西" : "北"}
+                        </span>
+                        <span>{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-bold opacity-60">유국 유형 선택</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["황패유국", "구종구패", "사풍연타", "사개깡", "사가리치", "삼가화"] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setRyuukyokuType(type)}
+                      className={`py-3 rounded-xl border font-bold text-sm transition-all ${
+                        ryuukyokuType === type 
+                          ? "bg-orange-500 text-white border-orange-500 shadow-md scale-[1.02]" 
+                          : "bg-foreground/5 hover:bg-foreground/10"
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {ryuukyokuType === "황패유국" && (
+                <div className="space-y-3 p-4 bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-200 dark:border-orange-900/50">
+                  <p className="text-sm font-bold text-orange-600 dark:text-orange-400">
+                    텐파이인 작사를 모두 체크해주세요
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {players.map(p => {
+                      const isTenpai = tenpaiKeys.includes(p.stateKey);
+                      return (
+                        <button
+                          key={p.stateKey}
+                          type="button"
+                          onClick={() => toggleTenpaiPlayer(p.stateKey)}
+                          className={`py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                            isTenpai 
+                              ? "bg-blue-600 text-white border-blue-600 shadow-inner" 
+                              : "bg-white dark:bg-background border-foreground/10"
+                          }`}
+                        >
+                          <span className={isTenpai ? "opacity-80" : "opacity-50"}>
+                            {p.wind === "EAST" ? "東" : p.wind === "SOUTH" ? "南" : p.wind === "WEST" ? "西" : "北"}
+                          </span>
+                          <span>{p.name}</span>
+                          {isTenpai && <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full ml-1">텐파이</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 💡 유국 시 조기 종료 체크박스 추가 */}
+              <div className="flex items-center gap-2 py-2">
+                <input type="checkbox" id="forceFinishDraw" checked={isForceFinish} onChange={(e) => setIsForceFinish(e.target.checked)} className="w-4 h-4 accent-red-500" />
+                <label htmlFor="forceFinishDraw" className="text-sm font-bold text-red-500 cursor-pointer">기록 후 대국 조기 종료하기</label>
+              </div>
+
+              <button
+                type="button"
+                disabled={isSubmitting || !ryuukyokuType}
+                onClick={handleRecordRyuukyoku}
+                className={`w-full p-4 rounded-xl font-bold text-lg transition-all ${
+                  !ryuukyokuType || isSubmitting
+                    ? "bg-foreground/20 text-foreground/50 cursor-not-allowed"
+                    : "bg-orange-500 text-white hover:bg-orange-600 shadow-lg"
+                }`}
+              >
+                {isSubmitting ? "기록 중..." : "유국 기록 완료"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

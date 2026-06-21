@@ -1,9 +1,8 @@
 // web/src/app/(main)/mahjong/play/[id]/page.tsx
 import { db } from "@/lib/prisma";
-import { notFound, redirect } from "next/navigation"; // 💡 redirect 추가
+import { notFound, redirect } from "next/navigation";
 import ScoreForm from "./ScoreForm";
 
-// Next.js 13+ App Router의 동적 라우팅 파라미터 타입 지정
 export default async function MahjongPlayPage({
   params,
 }: {
@@ -39,11 +38,12 @@ export default async function MahjongPlayPage({
 
   const playersState = details.players;
 
-  // 3. 화면에 뿌려주기 쉽도록 참가자 정보와 JSON 상태를 조합 (매핑)
+  // DB에 저장된 게임 모드 가져오기
+  const gameMode = details.gameMode || "동풍전";
+
   const scoreboard = match.match_players.map((mp) => {
     // 이름 판별 (회원이면 닉네임, 아니면 게스트 이름)
     const displayName = (mp.user_id ? mp.users?.nickname : mp.guest_name) ?? "이름 없음";
-
     // JSON 안에 저장해 둔 고유 Key값 재조립
     const stateKey = mp.user_id ? `user_${mp.user_id}` : `guest_${mp.guest_name}`;
     const state = playersState[stateKey] || { wind: "UNKNOWN", score: 0 };
@@ -58,7 +58,6 @@ export default async function MahjongPlayPage({
 
   // 바람(Wind) 정렬 순서를 위한 맵
   const windOrder: Record<string, number> = { EAST: 1, SOUTH: 2, WEST: 3, NORTH: 4 };
-
   // 동-남-서-북 순서대로 정렬
   scoreboard.sort((a, b) => windOrder[a.wind] - windOrder[b.wind]);
 
@@ -70,15 +69,19 @@ export default async function MahjongPlayPage({
     NORTH_1: "북 1국", NORTH_2: "북 2국", NORTH_3: "북 3국", NORTH_4: "북 4국",
   };
 
-  // 서버 액션과의 호환성을 위한 리치봉 카운트 추출 (스네이크/카멜 케이스 방어)
   const riichiSticksCount = details.riichi_sticks ?? 0;
 
   return (
       <div className="flex flex-col gap-8 p-4">
         <div className="w-full max-w-2xl mx-auto space-y-8">
           {/* 상단 헤더: 대국 정보 */}
-          <header className="bg-foreground text-background p-6 rounded-2xl flex items-center justify-between shadow-lg">
-            <div>
+          <header className="bg-foreground text-background p-6 rounded-2xl flex items-center justify-between shadow-lg relative overflow-hidden">
+            {/* 좌측 상단 게임 모드 뱃지 */}
+            <div className="absolute top-0 left-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-br-lg opacity-90">
+              {gameMode}
+            </div>
+
+            <div className="mt-2">
               <h2 className="text-3xl font-black mb-1">
                 {roundNameMap[details.current_round] || details.current_round}
               </h2>
@@ -95,7 +98,7 @@ export default async function MahjongPlayPage({
             </div>
           </header>
 
-          {/* 중단: 점수판 그리드 */}
+          {/* 중단: 점수판 그리드 (기존 디자인 유지) */}
           <div className="grid grid-cols-2 gap-4">
             {scoreboard.map((player) => (
               <div

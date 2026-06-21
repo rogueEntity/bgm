@@ -8,6 +8,7 @@ export default function NewGamePage() {
   const [players, setPlayers] = useState(["", "", "", ""]);
   const [startingScore, setStartingScore] = useState(25000);
   const [isSubmitting, setIsSubmitting] = useState(false); // 중복 클릭 방지용 상태
+  const [gameMode, setGameMode] = useState<"동풍전" | "반장전" | "전장전">("동풍전");
   
   // 각 플레이어의 회원 여부 상태 저장 ("idle" | "member" | "guest")
   const [playerStatus, setPlayerStatus] = useState<("idle" | "member" | "guest")[]>([
@@ -51,7 +52,7 @@ export default function NewGamePage() {
     try {
       setIsSubmitting(true);
       // 서버 액션 호출 (DB에 대국 세션 생성 및 리다이렉트)
-      await createMahjongMatch(players, startingScore);
+      await createMahjongMatch(players, startingScore, gameMode);
     } catch (error) {
       // 리다이렉트 에러인 경우 에러창을 띄우지 않고 그대로 통과(Throw)
       const isRedirect =
@@ -80,6 +81,17 @@ export default function NewGamePage() {
       </header>
 
       <form onSubmit={handleStartGame} className="space-y-8">
+        <div className="space-y-3">
+        <h3 className="font-bold border-b pb-2">게임 모드</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {(["동풍전", "반장전", "전장전"] as const).map((mode) => (
+            <button key={mode} type="button" onClick={() => setGameMode(mode)}
+              className={`py-3 rounded-xl font-bold border transition-all ${gameMode === mode ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-foreground/5"}`}>
+              {mode}
+            </button>
+          ))}
+        </div>
+      </div>
         <div className="space-y-5">
           <h3 className="font-bold border-b pb-2">플레이어 (초기 좌석)</h3>
           {players.map((player, idx) => (
