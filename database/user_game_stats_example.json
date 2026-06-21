@@ -1,0 +1,16 @@
+{
+  "agari": {
+    "total_win": 0,
+    "total_ron": 0,
+    "total_tsumo": 0,
+    "total_riichi": 0,
+    "total_houjuu": 0  // 방총 횟수
+  },
+  "yaku_frequency": {
+    "리치": 0,
+    "탕야오": 0,
+    "핑후": 0
+    // ... 추가 역들
+  },
+  "average_han": 0
+}
