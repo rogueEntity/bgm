@@ -435,6 +435,11 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     }
   }
 
+  if (details.status === "FINISHED") {
+    details.current_round = currentRound;
+    details.honba = currentHonba;
+  }
+
   details.logs.push({
     timestamp: new Date().toISOString(),
     type: "AGARI",
@@ -463,6 +468,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   revalidatePath(`/mahjong/play/${data.match_id}`);
   revalidatePath(`/mahjong/detail/${data.match_id}`);
+  revalidatePath("/mahjong/matches");
 }
 
 // -----------------
@@ -599,6 +605,11 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     }
   }
 
+  if (details.status === "FINISHED") {
+    details.current_round = currentRound;
+    details.honba = currentHonba;
+  }
+
   details.logs.push({
     timestamp: new Date().toISOString(),
     type: "RYUUKYOKU",
@@ -622,4 +633,176 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   revalidatePath(`/mahjong/play/${data.match_id}`);
   revalidatePath(`/mahjong/detail/${data.match_id}`);
+  revalidatePath("/mahjong/matches");
+}
+
+export type MahjongMatchListFilter = {
+  status?: "ALL" | "PLAYING" | "FINISHED";
+  game_mode?: "ALL" | GameMode;
+  keyword?: string;
+  only_mine?: boolean;
+  take?: number;
+};
+
+export type MahjongMatchListItem = {
+  id: number;
+  play_date: string | null;
+  game_mode: GameMode;
+  status: MahjongStatus;
+  current_round: string;
+  honba: number;
+  riichi_sticks: number;
+  finish_reason: MahjongDetails["finish_reason"] | null;
+  players: {
+    key: string;
+    name: string;
+    wind: MahjongPlayerState["wind"] | null;
+    score: number | null;
+    rank: number | null;
+  }[];
+};
+
+export async function getMahjongMatches(
+  filter: MahjongMatchListFilter = {},
+): Promise<MahjongMatchListItem[]> {
+  const status = filter.status ?? "ALL";
+  const gameMode = filter.game_mode ?? "ALL";
+  const keyword = filter.keyword?.trim().toLowerCase() ?? "";
+  const onlyMine = filter.only_mine ?? false;
+  const take = filter.take ?? 50;
+
+  let myUserId: string | null = null;
+
+  if (onlyMine) {
+    const session = await auth();
+    const providerId = session?.user?.id as string | undefined;
+
+    if (!providerId) {
+      return [];
+    }
+
+    const me = await db.users.findFirst({
+      where: {
+        provider_id: providerId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!me) {
+      return [];
+    }
+
+    myUserId = me.id;
+  }
+
+  const mahjongGame = await db.games.findUnique({
+    where: {
+      name: "리치마작",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!mahjongGame) {
+    return [];
+  }
+
+  const matches = await db.matches.findMany({
+    where: {
+      game_id: mahjongGame.id,
+      ...(myUserId
+        ? {
+            match_players: {
+              some: {
+                user_id: myUserId,
+              },
+            },
+          }
+        : {}),
+    },
+    include: {
+      match_details: true,
+      match_players: {
+        include: {
+          users: true,
+        },
+      },
+    },
+    orderBy: {
+      play_date: "desc",
+    },
+    take: 100,
+  });
+
+  return matches
+    .map((match): MahjongMatchListItem | null => {
+      if (!match.match_details) {
+        return null;
+      }
+
+      const details = normalizeDetails(match.match_details.details);
+      const lastLog = details.logs.at(-1);
+      const displayRound = typeof lastLog?.round === "string" ? lastLog.round : details.current_round;
+      const displayHonba = typeof lastLog?.honba === "number" ? lastLog.honba : details.honba;
+      const players = match.match_players.map((matchPlayer) => {
+        const name =
+          (matchPlayer.user_id ? matchPlayer.users?.nickname : matchPlayer.guest_name) ??
+          "이름 없음";
+
+        const key = matchPlayer.user_id
+          ? `user_${matchPlayer.user_id}`
+          : `guest_${matchPlayer.guest_name}`;
+
+        const playerState = details.players[key];
+
+        return {
+          key,
+          name,
+          wind: playerState?.wind ?? null,
+          score: playerState?.score ?? matchPlayer.final_score ?? null,
+          rank: matchPlayer.rank ?? null,
+        };
+      });
+
+      return {
+        id: match.id,
+        play_date: match.play_date?.toISOString() ?? null,
+        game_mode: details.game_mode,
+        status: details.status,
+        current_round: displayRound,
+        honba: displayHonba,
+        riichi_sticks: details.riichi_sticks,
+        finish_reason: details.finish_reason ?? null,
+        players,
+      };
+    })
+    .filter((match): match is MahjongMatchListItem => {
+      if (!match) {
+        return false;
+      }
+
+      if (status !== "ALL" && match.status !== status) {
+        return false;
+      }
+
+      if (gameMode !== "ALL" && match.game_mode !== gameMode) {
+        return false;
+      }
+
+      if (keyword) {
+        const matchIdText = String(match.id);
+        const playerNames = match.players.map((player) => player.name.toLowerCase());
+
+        return (
+          matchIdText.includes(keyword) ||
+          playerNames.some((playerName) => playerName.includes(keyword))
+        );
+      }
+
+      return true;
+    })
+    .slice(0, take);
 }

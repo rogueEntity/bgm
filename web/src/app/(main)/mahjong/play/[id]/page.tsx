@@ -1,4 +1,5 @@
 // web/src/app/(main)/mahjong/play/[id]/page.tsx
+import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import ScoreForm from "./ScoreForm";
@@ -31,10 +32,26 @@ export default async function MahjongPlayPage({
   // 2. JSON 데이터 파싱
   const details = match.match_details.details as any;
 
-  // 💡 [핵심] 대국이 종료된 상태면 강제로 상세(detail) 페이지로 리디렉션
+  // [핵심] 대국이 종료된 상태면 강제로 상세(detail) 페이지로 리디렉션
   if (details.status === "FINISHED") {
     redirect(`/mahjong/detail/${matchId}`);
   }
+
+  const session = await auth();
+  const providerId = session?.user?.id as string | undefined;
+
+  const currentUser = providerId
+    ? await db.users.findFirst({
+        where: {
+          provider_id: providerId,
+        },
+        select: {
+          id: true,
+        },
+      })
+    : null;
+
+  const isRecorder = currentUser?.id === match.created_by;
 
   const playersState = details.players;
 
@@ -130,9 +147,11 @@ export default async function MahjongPlayPage({
         </div>
 
         {/* 하단: 점수 기록 폼 */}
-        <div className="w-full max-w-2xl mx-auto">
-          <ScoreForm matchId={matchId} players={scoreboard} />
-        </div>
+        {isRecorder && (
+          <div className="w-full max-w-2xl mx-auto">
+            <ScoreForm matchId={matchId} players={scoreboard} />
+          </div>
+        )}
       </div>
   );
 }
