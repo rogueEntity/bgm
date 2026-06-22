@@ -59,11 +59,11 @@ export default function ScoreForm({
     setIsSubmitting(true);
     try {
       await recordRyuukyoku({
-        matchId,
+        match_id: matchId,
         type: ryuukyokuType,
-        tenpaiKeys: ryuukyokuType === "황패유국" ? tenpaiKeys : [],
-        currentRiichiKeys,
-        isFinal: isForceFinish, // 💡 액션으로 전달
+        tenpai_keys: tenpaiKeys,
+        current_riichi_keys: currentRiichiKeys,
+        is_final: isForceFinish,
       });
       alert("유국이 기록되었습니다.");
 
@@ -168,16 +168,16 @@ export default function ScoreForm({
     setIsSubmitting(true);
     try {
       await recordMahjongResult({
-        matchId,
-        winnerKey,
-        loserKey: isTsumo ? null : loserKey,
-        isTsumo,
-        baseScore: Number(score),
+        match_id: matchId,
+        winner_key: winnerKey,
+        loser_key: isTsumo ? null : loserKey,
+        is_tsumo: isTsumo,
+        base_score: Number(score),
         han: totalHan,
-        doraTotal: hasYakuman ? 0 : (doraIndicator + redDora),
-        selectedYakuIds: selectedIds,
-        currentRiichiKeys,
-        isFinal: isForceFinish, // 💡 액션으로 전달
+        dora_total: doraIndicator + redDora,
+        selected_yaku_ids: selectedIds,
+        current_riichi_keys: currentRiichiKeys,
+        is_final: isForceFinish,
       });
       alert("기록되었습니다.");
 

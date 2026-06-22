@@ -39,7 +39,7 @@ export default async function MahjongPlayPage({
   const playersState = details.players;
 
   // DB에 저장된 게임 모드 가져오기
-  const gameMode = details.gameMode || "동풍전";
+  const gameMode = details.game_mode || "동풍전";
 
   const scoreboard = match.match_players.map((mp) => {
     // 이름 판별 (회원이면 닉네임, 아니면 게스트 이름)
