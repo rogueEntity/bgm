@@ -36,7 +36,7 @@ type MahjongRoundLog = {
   honba?: number;
 
   is_tsumo?: boolean;
-  wins?: any[];
+  wins?: MahjongWinLog[];
 
   // ryuukyoku
   ryuukyoku_type?: string;
@@ -110,7 +110,7 @@ function isValidNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function getLogs(details: any): MahjongRoundLog[] {
+function getLogs(details: MahjongRoundLogCardsDetails): MahjongRoundLog[] {
   const logs = details?.logs ?? [];
   return Array.isArray(logs) ? logs : [];
 }

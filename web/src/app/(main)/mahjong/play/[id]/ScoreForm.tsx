@@ -34,6 +34,8 @@ type RyuukyokuType =
 
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
 
+type Yaku = (typeof ALL_YAKU)[number];
+
 const RYUUKYOKU_TYPES: RyuukyokuType[] = [
   "황패유국",
   "구종구패",
@@ -325,36 +327,26 @@ export default function ScoreForm({
     );
   };
 
-  const getCurrentHan = (win: WinFormState, yaku: any) => {
+  const getCurrentHan = (win: WinFormState, yaku: Yaku) => {
     if (win.is_mengen) return yaku.han.closed;
     if (yaku.isMengenOnly) return yaku.han.closed;
     return yaku.han.open;
   };
 
+  const createHanCategory = (label: string, han: number, win: WinFormState) => ({
+    label,
+    filter: (yaku: Yaku) => getCurrentHan(win, yaku) === han && !yaku.isYakuman,
+  });
+
   const getNormalYakuCategories = (win: WinFormState) => [
-    {
-      label: "1판 역",
-      filter: (yaku: any) => getCurrentHan(win, yaku) === 1 && !yaku.isYakuman,
-    },
-    {
-      label: "2판 역",
-      filter: (yaku: any) => getCurrentHan(win, yaku) === 2 && !yaku.isYakuman,
-    },
-    {
-      label: "3판 역",
-      filter: (yaku: any) => getCurrentHan(win, yaku) === 3 && !yaku.isYakuman,
-    },
-    {
-      label: "5판 역",
-      filter: (yaku: any) => getCurrentHan(win, yaku) === 5 && !yaku.isYakuman,
-    },
-    {
-      label: "6판 역",
-      filter: (yaku: any) => getCurrentHan(win, yaku) === 6 && !yaku.isYakuman,
-    },
+    createHanCategory("1판 역", 1, win),
+    createHanCategory("2판 역", 2, win),
+    createHanCategory("3판 역", 3, win),
+    createHanCategory("5판 역", 5, win),
+    createHanCategory("6판 역", 6, win),
     {
       label: "역만",
-      filter: (yaku: any) => yaku.isYakuman,
+      filter: (yaku: Yaku) => Boolean(yaku.isYakuman),
     },
   ];
 
