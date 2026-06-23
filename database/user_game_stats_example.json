@@ -1,16 +1,44 @@
 {
-  "agari": {
-    "total_win": 0,
-    "total_ron": 0,
-    "total_tsumo": 0,
-    "total_riichi": 0,
-    "total_houjuu": 0  // 방총 횟수
-  },
-  "yaku_frequency": {
-    "리치": 0,
-    "탕야오": 0,
-    "핑후": 0
-    // ... 추가 역들
-  },
-  "average_han": 0
+  "schema_version": 1,
+  "mahjong": {
+    "agari": {
+      "total_agari": 0,
+      "total_ron": 0,
+      "total_tsumo": 0,
+      "total_riichi": 0,
+      "total_houjuu": 0
+    },
+    "round": {
+      "total_rounds": 0,
+      "total_ryuukyoku": 0,
+      "total_tenpai_ryuukyoku": 0,
+      "total_noten_ryuukyoku": 0
+    },
+    "rank": {
+      "first": 0,
+      "second": 0,
+      "third": 0,
+      "fourth": 0
+    },
+    "score": {
+      "highest_score": 0,
+      "lowest_score": 0,
+      "average_final_score": 0
+    },
+    "rate": {
+      "top_rate": 0.25,
+      "last_rate": 0,
+      "agari_rate": 0,
+      "houjuu_rate": 0,
+      "riichi_rate": 0
+    },
+    "yaku_frequency": {
+      "riichi": 0,
+      "menzen_tsumo": 0,
+      "tanyao": 0,
+      "pinfu": 0
+    },
+    "average_han": 0,
+    "average_dora": 0
+  }
 }

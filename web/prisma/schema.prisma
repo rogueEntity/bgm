@@ -1,4 +1,3 @@
-// web/prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,8 +11,8 @@ model games {
   name            String            @unique @db.VarChar(100)
   min_players     Int               @default(1)
   max_players     Int
-  user_game_stats user_game_stats[]
   matches         matches[]
+  user_game_stats user_game_stats[]
 }
 
 model users {
@@ -23,9 +22,9 @@ model users {
   nickname        String            @db.VarChar(100)
   avatar_emoji    String            @db.VarChar(1)
   created_at      DateTime?         @default(now()) @db.Timestamptz(6)
-  user_game_stats user_game_stats[]
-  matches         matches[]
   match_players   match_players[]
+  matches         matches[]
+  user_game_stats user_game_stats[]
 
   @@unique([provider, provider_id])
 }
@@ -37,7 +36,7 @@ model user_game_stats {
   play_count        Int    @default(0)
   accumulated_score Int    @default(0)
   average_rank      Float?
-  mmr               Int     @default(1500)
+  mmr               Int    @default(1500)
   specific_stats    Json?
   games             games  @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users             users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -52,8 +51,8 @@ model matches {
   play_date     DateTime?       @default(now()) @db.Timestamptz(6)
   match_details match_details?
   match_players match_players[]
-  games         games           @relation(fields: [game_id], references: [id], onUpdate: NoAction)
   users         users?          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  games         games           @relation(fields: [game_id], references: [id], onUpdate: NoAction)
 }
 
 model match_details {
@@ -69,6 +68,6 @@ model match_players {
   guest_name  String? @db.VarChar(100)
   final_score Int?
   rank        Int?
-  users       users?  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   matches     matches @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users?  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }

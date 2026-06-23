@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "current_round": "EAST_4",
+  "honba": 0,
+  "riichi_sticks": 0,
+  "game_mode": "동풍전",
+  "status": "FINISHED",
+  "finish_reason": "NORMAL",
+  "players": {
+    "user_00000000-0000-0000-0000-000000000001": {
+      "wind": "EAST",
+      "score": 33100
+    },
+    "user_00000000-0000-0000-0000-000000000002": {
+      "wind": "SOUTH",
+      "score": 26700
+    },
+    "guest_지인A": {
+      "wind": "WEST",
+      "score": 21400
+    },
+    "guest_지인B": {
+      "wind": "NORTH",
+      "score": 18800
+    }
+  },
+  "logs": [
+    {
+      "timestamp": "2026-06-22T10:30:00.000Z",
+      "type": "AGARI",
+      "round": "EAST_4",
+      "honba": 0,
+      "winner_key": "user_00000000-0000-0000-0000-000000000001",
+      "loser_key": "guest_지인B",
+      "is_tsumo": false,
+      "base_score": 8000,
+      "han": 5,
+      "dora_total": 2,
+      "selected_yaku_ids": ["tanyao", "pinfu", "iipeikou"],
+      "riichi_keys": [],
+      "score_deltas": {
+        "user_00000000-0000-0000-0000-000000000001": 8000,
+        "user_00000000-0000-0000-0000-000000000002": 0,
+        "guest_지인A": 0,
+        "guest_지인B": -8000
+      },
+      "result_scores": {
+        "user_00000000-0000-0000-0000-000000000001": 33100,
+        "user_00000000-0000-0000-0000-000000000002": 26700,
+        "guest_지인A": 21400,
+        "guest_지인B": 18800
+      }
+    }
+  ]
+}

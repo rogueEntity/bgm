@@ -1,9 +1,93 @@
 // web/src/app/(main)/mahjong/page.tsx
 import Link from "next/link";
 
-export default function MahjongDashboardPage() {
-  // TODO: 실제 DB에서 진행 중인 대국 여부와 타임라인 데이터를 가져올 예정입니다.
-  const hasActiveGame = true; // 임시: 진행 중인 대국이 있다고 가정
+import { auth } from "@/auth";
+import { db } from "@/lib/prisma";
+
+type MahjongDetailsSnapshot = {
+  current_round?: string;
+  status?: "PLAYING" | "FINISHED";
+};
+
+const ROUND_NAME_MAP: Record<string, string> = {
+  EAST_1: "동 1국",
+  EAST_2: "동 2국",
+  EAST_3: "동 3국",
+  EAST_4: "동 4국",
+  SOUTH_1: "남 1국",
+  SOUTH_2: "남 2국",
+  SOUTH_3: "남 3국",
+  SOUTH_4: "남 4국",
+  WEST_1: "서 1국",
+  WEST_2: "서 2국",
+  WEST_3: "서 3국",
+  WEST_4: "서 4국",
+  NORTH_1: "북 1국",
+  NORTH_2: "북 2국",
+  NORTH_3: "북 3국",
+  NORTH_4: "북 4국",
+};
+
+async function getMyActiveMahjongMatch() {
+  const session = await auth();
+  const providerId = session?.user?.id as string | undefined;
+
+  if (!providerId) {
+    return null;
+  }
+
+  const me = await db.users.findFirst({
+    where: {
+      provider_id: providerId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!me) {
+    return null;
+  }
+
+  const matches = await db.matches.findMany({
+    where: {
+      match_players: {
+        some: {
+          user_id: me.id,
+        },
+      },
+    },
+    include: {
+      match_details: true,
+    },
+    orderBy: {
+      play_date: "desc",
+    },
+    take: 20,
+  });
+
+  return (
+    matches.find((match) => {
+      const details = match.match_details?.details as
+        | MahjongDetailsSnapshot
+        | undefined;
+
+      return details?.status === "PLAYING";
+    }) ?? null
+  );
+}
+
+export default async function MahjongDashboardPage() {
+  const activeMatch = await getMyActiveMahjongMatch();
+
+  const activeDetails = activeMatch?.match_details?.details as
+    | MahjongDetailsSnapshot
+    | undefined;
+
+  const activeRoundName =
+    activeDetails?.current_round && ROUND_NAME_MAP[activeDetails.current_round]
+      ? ROUND_NAME_MAP[activeDetails.current_round]
+      : activeDetails?.current_round;
 
   return (
     <div className="max-w-3xl mx-auto w-full space-y-8">
@@ -17,24 +101,26 @@ export default function MahjongDashboardPage() {
 
       {/* 2. 핵심 액션 영역 (진행 중인 대국 & 새 대국) */}
       <div className="flex flex-col gap-3">
-        {hasActiveGame && (
+        {activeMatch ? (
           <Link
-            href="/mahjong/play/mock-id"
+            href={`/mahjong/play/${activeMatch.id}`}
             className="w-full bg-blue-500 text-white p-5 rounded-2xl font-black text-lg flex items-center justify-between transition hover:bg-blue-600 shadow-md"
           >
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-white/80 mb-1">진행 중인 대국이 있습니다</span>
-              <span>동 2국 이어하기 ➡️</span>
+              <span className="text-sm font-bold text-white/80 mb-1">
+                진행 중인 대국이 있습니다
+              </span>
+              <span>{activeRoundName ?? "대국"} 이어하기 ➡️</span>
             </div>
           </Link>
+        ) : (
+          <Link
+            href="/mahjong/new"
+            className="w-full bg-foreground text-background p-5 rounded-2xl font-black text-lg flex items-center justify-center transition hover:opacity-90 shadow-sm"
+          >
+            + 새 대국 시작하기
+          </Link>
         )}
-
-        <Link
-          href="/mahjong/new"
-          className="w-full bg-foreground text-background p-5 rounded-2xl font-black text-lg flex items-center justify-center transition hover:opacity-90 shadow-sm"
-        >
-          + 새 대국 시작하기
-        </Link>
       </div>
 
       {/* 3. 타임라인 / 최신 소식 (커뮤니티 요소) */}
@@ -57,13 +143,20 @@ export default function MahjongDashboardPage() {
       </div>
 
       {/* 4. 하위 메뉴 카드 영역 (그리드 레이아웃) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <Link
           href="/mahjong/ranking"
           className="bg-foreground/5 p-4 rounded-2xl border border-foreground/10 flex flex-col items-center justify-center gap-2 transition hover:bg-foreground/10 hover:border-foreground/30"
         >
           <span className="text-3xl">🏆</span>
           <span className="font-bold text-sm">랭킹</span>
+        </Link>
+        <Link
+          href="/mahjong/matches"
+          className="bg-foreground/5 p-4 rounded-2xl border border-foreground/10 flex flex-col items-center justify-center gap-2 transition hover:bg-foreground/10 hover:border-foreground/30"
+        >
+          <span className="text-3xl">📜</span>
+          <span className="font-bold text-sm">대국 기록</span>
         </Link>
 
         <Link

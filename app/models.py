@@ -1,6 +1,6 @@
 # app/models.py
 import uuid
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, text, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from .database import Base
 
@@ -37,10 +37,12 @@ class Match(Base):
 class MatchPlayer(Base):
     __tablename__ = "match_players"
 
-    match_id = Column(Integer, ForeignKey("matches.id", ondelete="CASCADE"), primary_key=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    final_score = Column(Integer, nullable=False)
-    rank = Column(Integer, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    guest_name = Column(String(100), nullable=True)
+    final_score = Column(Integer, nullable=True)
+    rank = Column(Integer, nullable=True)
 
 
 class MatchDetail(Base):
@@ -48,3 +50,16 @@ class MatchDetail(Base):
 
     match_id = Column(Integer, ForeignKey("matches.id", ondelete="CASCADE"), primary_key=True)
     details = Column(JSONB, nullable=False)
+
+
+class UserGameStat(Base):
+    __tablename__ = "user_game_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    game_id = Column(Integer, ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
+    play_count = Column(Integer, nullable=False, default=0)
+    accumulated_score = Column(Integer, nullable=False, default=0)
+    average_rank = Column(Float, nullable=True)
+    mmr = Column(Integer, nullable=False, default=1500)
+    specific_stats = Column(JSONB, nullable=True)

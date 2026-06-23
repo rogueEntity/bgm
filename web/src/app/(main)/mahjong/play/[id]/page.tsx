@@ -1,6 +1,10 @@
 // web/src/app/(main)/mahjong/play/[id]/page.tsx
+import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
+
+import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
+
 import ScoreForm from "./ScoreForm";
 
 export default async function MahjongPlayPage({
@@ -31,15 +35,31 @@ export default async function MahjongPlayPage({
   // 2. JSON 데이터 파싱
   const details = match.match_details.details as any;
 
-  // 💡 [핵심] 대국이 종료된 상태면 강제로 상세(detail) 페이지로 리디렉션
+  // [핵심] 대국이 종료된 상태면 강제로 상세(detail) 페이지로 리디렉션
   if (details.status === "FINISHED") {
     redirect(`/mahjong/detail/${matchId}`);
   }
 
+  const session = await auth();
+  const providerId = session?.user?.id as string | undefined;
+
+  const currentUser = providerId
+    ? await db.users.findFirst({
+        where: {
+          provider_id: providerId,
+        },
+        select: {
+          id: true,
+        },
+      })
+    : null;
+
+  const isRecorder = currentUser?.id === match.created_by;
+
   const playersState = details.players;
 
   // DB에 저장된 게임 모드 가져오기
-  const gameMode = details.gameMode || "동풍전";
+  const gameMode = details.game_mode || "동풍전";
 
   const scoreboard = match.match_players.map((mp) => {
     // 이름 판별 (회원이면 닉네임, 아니면 게스트 이름)
@@ -59,7 +79,13 @@ export default async function MahjongPlayPage({
   // 바람(Wind) 정렬 순서를 위한 맵
   const windOrder: Record<string, number> = { EAST: 1, SOUTH: 2, WEST: 3, NORTH: 4 };
   // 동-남-서-북 순서대로 정렬
-  scoreboard.sort((a, b) => windOrder[a.wind] - windOrder[b.wind]);
+  scoreboard.sort(
+    (a, b) => (windOrder[a.wind] ?? 99) - (windOrder[b.wind] ?? 99),
+  );
+
+  const playerNameMap = Object.fromEntries(
+    scoreboard.map((player) => [player.stateKey, player.name]),
+  );
 
   // 라운드 이름 한글 변환기
   const roundNameMap: Record<string, string> = {
@@ -67,6 +93,12 @@ export default async function MahjongPlayPage({
     SOUTH_1: "남 1국", SOUTH_2: "남 2국", SOUTH_3: "남 3국", SOUTH_4: "남 4국",
     WEST_1: "서 1국", WEST_2: "서 2국", WEST_3: "서 3국", WEST_4: "서 4국",
     NORTH_1: "북 1국", NORTH_2: "북 2국", NORTH_3: "북 3국", NORTH_4: "북 4국",
+  };
+  const windNameMap: Record<string, string> = {
+    EAST: "동(東)",
+    SOUTH: "남(南)",
+    WEST: "서(西)",
+    NORTH: "북(北)",
   };
 
   const riichiSticksCount = details.riichi_sticks ?? 0;
@@ -117,8 +149,12 @@ export default async function MahjongPlayPage({
                   </span>
                 )}
 
-                <span className={`text-sm font-bold mb-2 ${player.wind === "EAST" ? "text-red-500" : "opacity-60"}`}>
-                  {player.wind === "EAST" ? "동(東)" : player.wind === "SOUTH" ? "남(南)" : player.wind === "WEST" ? "서(西)" : "북(北)"}
+                <span
+                  className={`text-sm font-bold mb-2 ${
+                    player.wind === "EAST" ? "text-red-500" : "opacity-60"
+                  }`}
+                >
+                  {windNameMap[player.wind] ?? "-"}
                 </span>
                 <span className="text-xl font-black mb-2">{player.name}</span>
                 <span className={`text-2xl font-black tracking-tighter ${player.score < 0 ? "text-red-500" : "text-blue-600 dark:text-blue-400"}`}>
@@ -127,12 +163,27 @@ export default async function MahjongPlayPage({
               </div>
             ))}
           </div>
+          {!isRecorder && (
+            <MahjongRoundLogCards
+              details={details}
+              playerNameMap={playerNameMap}
+            />
+          )}
         </div>
 
         {/* 하단: 점수 기록 폼 */}
-        <div className="w-full max-w-2xl mx-auto">
-          <ScoreForm matchId={matchId} players={scoreboard} />
-        </div>
+        {isRecorder && (
+          <>
+            {/* 하단: 점수 기록 폼 */}
+            <div className="w-full max-w-2xl mx-auto">
+              <ScoreForm matchId={matchId} players={scoreboard} />
+            </div>
+            <MahjongRoundLogCards
+              details={details}
+              playerNameMap={playerNameMap}
+            />
+          </>
+        )}
       </div>
   );
 }

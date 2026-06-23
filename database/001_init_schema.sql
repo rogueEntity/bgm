@@ -37,9 +37,9 @@ CREATE TABLE match_players (
     id SERIAL PRIMARY KEY,
     match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE, -- 가입 유저용
-    guest_name VARCHAR(100),                            -- 비가입 지인용
-    final_score INTEGER,                                -- 진행 중일 땐 NULL 허용
-    rank INTEGER                                        -- 진행 중일 땐 NULL 허용
+    guest_name VARCHAR(100),                             -- 비가입 지인용
+    final_score INTEGER,                                 -- 진행 중일 땐 NULL 허용
+    rank INTEGER                                         -- 진행 중일 땐 NULL 허용
 );
 
 -- 5. 경기 세부 기록 (Match_Details) 테이블
