@@ -47,11 +47,11 @@ type MahjongRoundLog = {
   result_scores?: ScoreMap;
 };
 
+const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
+type Yaku = (typeof ALL_YAKU)[number];
+
 const YAKU_NAME_MAP = Object.fromEntries(
-  [...NORMAL_YAKU, ...SITUATIONAL_YAKU].map((yaku: any) => [
-    yaku.id,
-    yaku.name,
-  ]),
+  ALL_YAKU.map((yaku: Yaku) => [yaku.id, yaku.name]),
 ) as Record<string, string>;
 
 const ROUND_NAME_MAP: Record<string, string> = {
