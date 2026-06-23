@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "current_round": "EAST_4",
   "honba": 0,
   "riichi_sticks": 0,
@@ -30,14 +30,28 @@
       "type": "AGARI",
       "round": "EAST_4",
       "honba": 0,
-      "winner_key": "user_00000000-0000-0000-0000-000000000001",
-      "loser_key": "guest_지인B",
       "is_tsumo": false,
-      "base_score": 8000,
-      "han": 5,
-      "dora_total": 2,
-      "selected_yaku_ids": ["tanyao", "pinfu", "iipeikou"],
       "riichi_keys": [],
+      "wins": [
+        {
+          "winner_key": "user_00000000-0000-0000-0000-000000000001",
+          "loser_key": "guest_지인B",
+          "base_score": 8000,
+          "han": 5,
+          "dora_total": 2,
+          "selected_yaku_ids": [
+            "tanyao",
+            "pinfu",
+            "iipeikou"
+          ],
+          "score_deltas": {
+            "user_00000000-0000-0000-0000-000000000001": 8000,
+            "user_00000000-0000-0000-0000-000000000002": 0,
+            "guest_지인A": 0,
+            "guest_지인B": -8000
+          }
+        }
+      ],
       "score_deltas": {
         "user_00000000-0000-0000-0000-000000000001": 8000,
         "user_00000000-0000-0000-0000-000000000002": 0,

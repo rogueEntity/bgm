@@ -27,15 +27,19 @@ type MahjongDetails = {
   finish_reason?: "FORCE_FINISH" | "TOBI" | "NORMAL" | "MAX_ROUND_REACHED";
 };
 
-type RecordMahjongResultInput = {
-  match_id: number;
+type MahjongWinInput = {
   winner_key: string;
   loser_key: string | null;
-  is_tsumo: boolean;
   base_score: number;
   han: number;
   dora_total: number;
   selected_yaku_ids: string[];
+};
+
+type RecordMahjongResultInput = {
+  match_id: number;
+  is_tsumo: boolean;
+  wins: MahjongWinInput[];
   current_riichi_keys: string[];
   is_final: boolean;
 };
@@ -47,6 +51,8 @@ type RecordRyuukyokuInput = {
   current_riichi_keys: string[];
   is_final: boolean;
 };
+
+type MahjongScoreMap = Record<string, number>;
 
 // --- 헬퍼 함수 ---
 const ROUND_ORDER = [
@@ -99,6 +105,59 @@ function getNextRound(currentRound: string) {
   return null;
 }
 
+const WIND_TURN_ORDER = ["EAST", "SOUTH", "WEST", "NORTH"] as const;
+
+function getWindTurnDistance(fromWind: string | undefined, toWind: string | undefined) {
+  const fromIndex = WIND_TURN_ORDER.indexOf(fromWind as any);
+  const toIndex = WIND_TURN_ORDER.indexOf(toWind as any);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const distance = (toIndex - fromIndex + WIND_TURN_ORDER.length) % WIND_TURN_ORDER.length;
+
+  // 같은 바람은 본인이므로 론 화료자로 올 수 없음.
+  // 혹시 데이터가 이상하면 가장 낮은 우선순위로 밀어냄.
+  return distance === 0 ? Number.POSITIVE_INFINITY : distance;
+}
+
+function getRiichiStickReceiverKey({
+  wins,
+  players,
+  is_tsumo,
+}: {
+  wins: { winner_key: string; loser_key: string | null }[];
+  players: Record<string, MahjongPlayerState>;
+  is_tsumo: boolean;
+}) {
+  if (wins.length === 0) {
+    throw new Error("공탁금 수령자를 계산할 화료 정보가 없습니다.");
+  }
+
+  // 쯔모 또는 단일 론은 화료자가 그대로 공탁금 수령
+  if (is_tsumo || wins.length === 1) {
+    return wins[0].winner_key;
+  }
+
+  const loserKey = wins[0].loser_key;
+
+  if (!loserKey) {
+    throw new Error("더블 론의 공탁금 수령자 계산에는 방총자가 필요합니다.");
+  }
+
+  const loserWind = players[loserKey]?.wind;
+
+  const sortedWins = [...wins].sort((a, b) => {
+    const aDistance = getWindTurnDistance(loserWind, players[a.winner_key]?.wind);
+    const bDistance = getWindTurnDistance(loserWind, players[b.winner_key]?.wind);
+
+    return aDistance - bDistance;
+  });
+
+  return sortedWins[0].winner_key;
+}
+
 function normalizeLog(log: Record<string, unknown>) {
   if (log.type === "AGARI") {
     return {
@@ -106,16 +165,17 @@ function normalizeLog(log: Record<string, unknown>) {
       type: "AGARI",
       round: log.round,
       honba: log.honba,
-      winner_key: log.winner_key ?? log.winnerKey,
-      loser_key: log.loser_key ?? log.loserKey ?? null,
-      is_tsumo: log.is_tsumo ?? log.isTsumo,
-      base_score: log.base_score ?? log.baseScore,
-      han: log.han,
-      dora_total: log.dora_total ?? log.doraTotal,
-      selected_yaku_ids: log.selected_yaku_ids ?? log.selectedYakuIds ?? [],
-      riichi_keys: log.riichi_keys ?? log.riichiKeys ?? [],
-      score_deltas: log.score_deltas ?? log.scoreDeltas ?? {},
-      result_scores: log.result_scores ?? log.resultScores ?? {},
+      is_tsumo: Boolean(log.is_tsumo),
+      riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
+      wins: Array.isArray(log.wins) ? log.wins : [],
+      score_deltas:
+        typeof log.score_deltas === "object" && log.score_deltas !== null
+          ? log.score_deltas
+          : {},
+      result_scores:
+        typeof log.result_scores === "object" && log.result_scores !== null
+          ? log.result_scores
+          : {},
     };
   }
 
@@ -125,11 +185,17 @@ function normalizeLog(log: Record<string, unknown>) {
       type: "RYUUKYOKU",
       round: log.round,
       honba: log.honba,
-      ryuukyoku_type: log.ryuukyoku_type ?? log.ryuukyokuType,
-      tenpai_keys: log.tenpai_keys ?? log.tenpaiKeys ?? [],
-      riichi_keys: log.riichi_keys ?? log.riichiKeys ?? [],
-      score_deltas: log.score_deltas ?? log.scoreDeltas ?? {},
-      result_scores: log.result_scores ?? log.resultScores ?? {},
+      ryuukyoku_type: log.ryuukyoku_type,
+      tenpai_keys: Array.isArray(log.tenpai_keys) ? log.tenpai_keys : [],
+      riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
+      score_deltas:
+        typeof log.score_deltas === "object" && log.score_deltas !== null
+          ? log.score_deltas
+          : {},
+      result_scores:
+        typeof log.result_scores === "object" && log.result_scores !== null
+          ? log.result_scores
+          : {},
     };
   }
 
@@ -139,11 +205,7 @@ function normalizeLog(log: Record<string, unknown>) {
 function normalizeDetails(rawDetails: unknown): MahjongDetails {
   const details = rawDetails as Record<string, unknown>;
 
-  const rawLogs = Array.isArray(details.logs)
-    ? details.logs
-    : Array.isArray(details.history)
-      ? details.history
-      : [];
+  const rawLogs = Array.isArray(details.logs) ? details.logs : [];
 
   return {
     schema_version: Number(details.schema_version ?? 1),
@@ -152,9 +214,9 @@ function normalizeDetails(rawDetails: unknown): MahjongDetails {
     riichi_sticks: Number(details.riichi_sticks ?? 0),
     players: (details.players ?? {}) as Record<string, MahjongPlayerState>,
     logs: rawLogs.map((log) => normalizeLog(log as Record<string, unknown>)),
-    game_mode: (details.game_mode ?? details.gameMode ?? "동풍전") as GameMode,
+    game_mode: (details.game_mode ?? "동풍전") as GameMode,
     status: (details.status ?? "PLAYING") as MahjongStatus,
-    finish_reason: (details.finish_reason ?? details.finishReason) as
+    finish_reason: details.finish_reason as
       | MahjongDetails["finish_reason"]
       | undefined,
   };
@@ -242,7 +304,7 @@ export async function createMahjongMatch(
   });
 
   const initialDetails: MahjongDetails = {
-    schema_version: 1,
+    schema_version: 2,
     current_round: "EAST_1",
     honba: 0,
     riichi_sticks: 0,
@@ -270,22 +332,29 @@ export async function createMahjongMatch(
   redirect(`/mahjong/play/${newMatch.id}`);
 }
 
+function createEmptyScoreMap(players: Record<string, any>) {
+  return Object.keys(players).reduce<MahjongScoreMap>((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+}
+
+function assertUniqueValues(values: string[], message: string) {
+  if (new Set(values).size !== values.length) {
+    throw new Error(message);
+  }
+}
+
 // -----------------
 // 2. 점수 기록, 화료 액션
 // -----------------
 export async function recordMahjongResult(data: RecordMahjongResultInput) {
   const match = await db.matches.findUnique({
-    where: {
-      id: data.match_id,
-    },
-    include: {
-      match_details: true,
-    },
+    where: { id: data.match_id },
+    include: { match_details: true },
   });
 
-  if (!match || !match.match_details) {
-    throw new Error("Match not found");
-  }
+  if (!match || !match.match_details) throw new Error("Match not found");
 
   const details = normalizeDetails(match.match_details.details);
   const players = details.players;
@@ -293,75 +362,137 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   const currentRound = details.current_round;
   const currentHonba = details.honba || 0;
 
-  const initialScores: Record<string, number> = {};
+  const wins = data.wins;
 
+  if (data.is_tsumo && wins.length !== 1) {
+    throw new Error("쯔모 화료는 화료자가 1명이어야 합니다.");
+  }
+
+  if (!data.is_tsumo && (wins.length < 1 || wins.length > 2)) {
+    throw new Error("론 화료는 1명 또는 2명만 가능합니다. 3명 론은 삼가화 유국으로 기록해주세요.");
+  }
+
+  const winnerKeys = wins.map((win) => win.winner_key);
+
+  assertUniqueValues(winnerKeys, "화료자가 중복되었습니다.");
+
+  wins.forEach((win) => {
+    if (!players[win.winner_key]) {
+      throw new Error("존재하지 않는 화료자입니다.");
+    }
+
+    if (!data.is_tsumo) {
+      if (!win.loser_key) {
+        throw new Error("론 화료에는 방총자가 필요합니다.");
+      }
+
+      if (!players[win.loser_key]) {
+        throw new Error("존재하지 않는 방총자입니다.");
+      }
+
+      if (win.winner_key === win.loser_key) {
+        throw new Error("화료자와 방총자는 같을 수 없습니다.");
+      }
+    }
+  });
+
+  if (!data.is_tsumo && wins.length === 2) {
+    const firstLoserKey = wins[0].loser_key;
+
+    if (!firstLoserKey || wins.some((win) => win.loser_key !== firstLoserKey)) {
+      throw new Error("더블 론의 방총자는 동일해야 합니다.");
+    }
+  }
+
+  const initialScores: Record<string, number> = {};
   Object.keys(players).forEach((key) => {
     initialScores[key] = players[key].score;
   });
 
+  // 이번 국 리치 선언 점수 차감
   data.current_riichi_keys.forEach((key) => {
-    if (players[key]) {
-      players[key].score -= 1000;
-    }
+    if (!players[key]) return;
+    players[key].score -= 1000;
   });
 
-  const totalRiichiSticks = details.riichi_sticks + data.current_riichi_keys.length;
+  const totalRiichiSticks =
+    (details.riichi_sticks || 0) + data.current_riichi_keys.length;
 
-  const winner = players[data.winner_key];
+  const normalizedWins = wins.map((win) => ({
+    ...win,
+    score_deltas: createEmptyScoreMap(players),
+  }));
 
-  if (!winner) {
-    throw new Error("승자 정보를 찾을 수 없습니다.");
-  }
+  // 더블 론 공탁금은 방총자의 현재 바람 기준으로 가장 가까운 화료자가 수령
+  const riichiStickReceiverKey = getRiichiStickReceiverKey({
+    wins: normalizedWins,
+    players,
+    is_tsumo: data.is_tsumo,
+  });
 
-  const isWinnerOya = winner.wind === "EAST";
-  let totalCollected = 0;
+  normalizedWins.forEach((win) => {
+    const winner = players[win.winner_key];
+    const isWinnerOya = winner.wind === "EAST";
 
-  if (data.is_tsumo) {
-    if (isWinnerOya) {
-      const basePayment = Math.ceil(data.base_score / 3 / 100) * 100;
+    let collected = 0;
 
-      Object.keys(players).forEach((key) => {
-        if (key !== data.winner_key) {
+    if (data.is_tsumo) {
+      if (isWinnerOya) {
+        const basePayment = Math.ceil(win.base_score / 3 / 100) * 100;
+
+        Object.keys(players).forEach((key) => {
+          if (key === win.winner_key) return;
+
           const payment = basePayment + currentHonba * 100;
+          players[key].score -= payment;
+          win.score_deltas[key] -= payment;
+          collected += payment;
+        });
+      } else {
+        const childBasePayment = Math.ceil(win.base_score / 4 / 100) * 100;
+        const oyaBasePayment = win.base_score - childBasePayment * 2;
+
+        Object.keys(players).forEach((key) => {
+          if (key === win.winner_key) return;
+
+          const payment =
+            players[key].wind === "EAST"
+              ? oyaBasePayment + currentHonba * 100
+              : childBasePayment + currentHonba * 100;
 
           players[key].score -= payment;
-          totalCollected += payment;
-        }
-      });
-
-      const expectedTotal = data.base_score + currentHonba * 300;
-
-      if (totalCollected !== expectedTotal) {
-        totalCollected = expectedTotal;
+          win.score_deltas[key] -= payment;
+          collected += payment;
+        });
       }
     } else {
-      const childBasePayment = Math.ceil(data.base_score / 4 / 100) * 100;
-      const oyaBasePayment = data.base_score - childBasePayment * 2;
+      const loserKey = win.loser_key as string;
+      const payment = win.base_score + currentHonba * 300;
 
-      Object.keys(players).forEach((key) => {
-        if (key === data.winner_key) return;
-
-        if (players[key].wind === "EAST") {
-          const payment = oyaBasePayment + currentHonba * 100;
-
-          players[key].score -= payment;
-          totalCollected += payment;
-        } else {
-          const payment = childBasePayment + currentHonba * 100;
-
-          players[key].score -= payment;
-          totalCollected += payment;
-        }
-      });
+      players[loserKey].score -= payment;
+      win.score_deltas[loserKey] -= payment;
+      collected += payment;
     }
-  } else if (data.loser_key) {
-    const payment = data.base_score + currentHonba * 300;
 
-    players[data.loser_key].score -= payment;
-    totalCollected += payment;
+    players[win.winner_key].score += collected;
+    win.score_deltas[win.winner_key] += collected;
+  });
+
+  // 공탁금은 한 번만 지급
+  if (totalRiichiSticks > 0) {
+    const riichiStickPoint = totalRiichiSticks * 1000;
+
+    players[riichiStickReceiverKey].score += riichiStickPoint;
+
+    const receiverWin = normalizedWins.find(
+      (win) => win.winner_key === riichiStickReceiverKey
+    );
+
+    if (receiverWin) {
+      receiverWin.score_deltas[riichiStickReceiverKey] += riichiStickPoint;
+    }
   }
 
-  players[data.winner_key].score += totalCollected + totalRiichiSticks * 1000;
   details.riichi_sticks = 0;
 
   const scoreDeltas: Record<string, number> = {};
@@ -372,12 +503,21 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     resultScores[key] = players[key].score;
   });
 
-  const topScore = Math.max(...Object.values(players).map((player) => player.score));
-  const winnerScore = players[data.winner_key].score;
-  const isTobi = Object.values(players).some((player) => player.score <= 0);
+  const topScore = Math.max(
+    ...Object.values(players).map((player: any) => player.score)
+  );
+
+  const oyaWin = normalizedWins.find(
+    (win) => players[win.winner_key].wind === "EAST"
+  );
+
+  const isOyaWin = Boolean(oyaWin);
+  const mainWinnerKey = oyaWin?.winner_key ?? normalizedWins[0].winner_key;
+  const winnerScore = players[mainWinnerKey].score;
+
+  const isTobi = Object.values(players).some((player: any) => player.score <= 0);
 
   const [wind, roundStr] = details.current_round.split("_");
-
   const roundMap: Record<string, number> = {
     EAST: 1,
     SOUTH: 2,
@@ -387,24 +527,25 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-  const roundNum = parseInt(roundStr, 10);
 
+  const roundNum = parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
 
   if (isTobi || data.is_final) {
     details.status = "FINISHED";
 
-    if (data.is_final) {
-      details.finish_reason = "FORCE_FINISH";
-    } else if (isTobi) {
-      details.finish_reason = "TOBI";
-    }
+    if (data.is_final) details.finish_reason = "FORCE_FINISH";
+    else if (isTobi) details.finish_reason = "TOBI";
   } else {
-    if (isWinnerOya) {
+    if (isOyaWin) {
       details.honba = currentHonba + 1;
 
-      if ((isAllLast || isExtraRound) && winnerScore >= 30000 && winnerScore === topScore) {
+      if (
+        (isAllLast || isExtraRound) &&
+        winnerScore >= 30000 &&
+        winnerScore === topScore
+      ) {
         details.status = "FINISHED";
         details.finish_reason = "NORMAL";
       }
@@ -413,8 +554,11 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
         details.status = "FINISHED";
         details.finish_reason = "NORMAL";
       } else {
-        const absoluteLimitIdx = details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
-        const isAbsoluteLast = currentWindIdx === absoluteLimitIdx && roundNum === 4;
+        const absoluteLimitIdx =
+          details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
+
+        const isAbsoluteLast =
+          currentWindIdx === absoluteLimitIdx && roundNum === 4;
 
         if (isAbsoluteLast) {
           details.status = "FINISHED";
@@ -445,22 +589,15 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     type: "AGARI",
     round: currentRound,
     honba: currentHonba,
-    winner_key: data.winner_key,
-    loser_key: data.loser_key,
     is_tsumo: data.is_tsumo,
-    base_score: data.base_score,
-    han: data.han,
-    dora_total: data.dora_total,
-    selected_yaku_ids: data.selected_yaku_ids,
     riichi_keys: data.current_riichi_keys,
+    wins: normalizedWins,
     score_deltas: scoreDeltas,
     result_scores: resultScores,
   });
 
   await db.match_details.update({
-    where: {
-      match_id: match.match_details.match_id,
-    },
+    where: { match_id: match.match_details.match_id },
     data: {
       details: toPrismaJson(details),
     },
@@ -510,7 +647,7 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   details.riichi_sticks = details.riichi_sticks + data.current_riichi_keys.length;
 
-  let isOyaTenpai = false;
+  let isOyaTenpai;
 
   if (isExhaustive) {
     const allKeys = Object.keys(players);
@@ -558,8 +695,8 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-  const roundNum = parseInt(roundStr, 10);
 
+  const roundNum = parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
 
@@ -745,8 +882,17 @@ export async function getMahjongMatches(
 
       const details = normalizeDetails(match.match_details.details);
       const lastLog = details.logs.at(-1);
-      const displayRound = typeof lastLog?.round === "string" ? lastLog.round : details.current_round;
-      const displayHonba = typeof lastLog?.honba === "number" ? lastLog.honba : details.honba;
+      const shouldShowLastCompletedRound = details.status === "FINISHED";
+
+      const displayRound =
+        shouldShowLastCompletedRound && typeof lastLog?.round === "string"
+          ? lastLog.round
+          : details.current_round;
+
+      const displayHonba =
+        shouldShowLastCompletedRound && typeof lastLog?.honba === "number"
+          ? lastLog.honba
+          : details.honba;
       const players = match.match_players.map((matchPlayer) => {
         const name =
           (matchPlayer.user_id ? matchPlayer.users?.nickname : matchPlayer.guest_name) ??
