@@ -128,7 +128,7 @@ function getRiichiStickReceiverKey({
   is_tsumo,
 }: {
   wins: { winner_key: string; loser_key: string | null }[];
-  players: Record<string, any>;
+  players: Record<string, MahjongPlayerState>;
   is_tsumo: boolean;
 }) {
   if (wins.length === 0) {
@@ -205,11 +205,7 @@ function normalizeLog(log: Record<string, unknown>) {
 function normalizeDetails(rawDetails: unknown): MahjongDetails {
   const details = rawDetails as Record<string, unknown>;
 
-  const rawLogs = Array.isArray(details.logs)
-    ? details.logs
-    : Array.isArray(details.history)
-      ? details.history
-      : [];
+  const rawLogs = Array.isArray(details.logs) ? details.logs : [];
 
   return {
     schema_version: Number(details.schema_version ?? 1),
@@ -583,6 +579,11 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     }
   }
 
+  if (details.status === "FINISHED") {
+    details.current_round = currentRound;
+    details.honba = currentHonba;
+  }
+
   details.logs.push({
     timestamp: new Date().toISOString(),
     type: "AGARI",
@@ -881,8 +882,17 @@ export async function getMahjongMatches(
 
       const details = normalizeDetails(match.match_details.details);
       const lastLog = details.logs.at(-1);
-      const displayRound = typeof lastLog?.round === "string" ? lastLog.round : details.current_round;
-      const displayHonba = typeof lastLog?.honba === "number" ? lastLog.honba : details.honba;
+      const shouldShowLastCompletedRound = details.status === "FINISHED";
+
+      const displayRound =
+        shouldShowLastCompletedRound && typeof lastLog?.round === "string"
+          ? lastLog.round
+          : details.current_round;
+
+      const displayHonba =
+        shouldShowLastCompletedRound && typeof lastLog?.honba === "number"
+          ? lastLog.honba
+          : details.honba;
       const players = match.match_players.map((matchPlayer) => {
         const name =
           (matchPlayer.user_id ? matchPlayer.users?.nickname : matchPlayer.guest_name) ??

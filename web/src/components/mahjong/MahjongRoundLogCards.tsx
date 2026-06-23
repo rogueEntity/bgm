@@ -1,12 +1,23 @@
 // web/src/components/mahjong/MahjongRoundLogCards.tsx
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 
+type MahjongRoundLogCardsDetails = {
+  players?: Record<string, MahjongPlayerState>;
+  logs?: MahjongRoundLog[];
+};
+
 type MahjongRoundLogCardsProps = {
-  details: any;
+  details: MahjongRoundLogCardsDetails;
   playerNameMap?: Record<string, string>;
 };
 
 type ScoreMap = Record<string, number>;
+
+type MahjongPlayerState = {
+  wind: "EAST" | "SOUTH" | "WEST" | "NORTH";
+  score: number;
+  name?: string;
+};
 
 type MahjongWinLog = {
   winner_key: string;
@@ -130,7 +141,7 @@ function getLogWins(log: MahjongRoundLog): MahjongWinLog[] {
 
 function buildScoreSnapshots(
   logs: MahjongRoundLog[],
-  players: Record<string, any>,
+  players: Record<string, MahjongPlayerState>,
 ) {
   const playerKeys = Object.keys(players).sort((aKey, bKey) => {
     const aWind = players[aKey]?.wind;
@@ -216,7 +227,7 @@ function MahjongScoreTrendChart({
   getPlayerName,
 }: {
   logs: MahjongRoundLog[];
-  players: Record<string, any>;
+  players: Record<string, MahjongPlayerState>;
   getPlayerName: (key: string) => string;
 }) {
   const playerKeys = Object.keys(players).sort((aKey, bKey) => {
@@ -420,7 +431,7 @@ export default function MahjongRoundLogCards({
   playerNameMap = {},
 }: MahjongRoundLogCardsProps) {
   const logs = getLogs(details);
-  const players = details?.players ?? {};
+  const players = (details?.players ?? {}) as Record<string, MahjongPlayerState>;
 
   const getPlayerName = (key: string | null | undefined) => {
     if (!key) return "-";

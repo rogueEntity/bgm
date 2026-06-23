@@ -427,6 +427,13 @@ export default function ScoreForm({
       return;
     }
 
+    const noYakuWin = wins.find((win) => win.selected_yaku_ids.length === 0);
+
+    if (noYakuWin) {
+      alert("모든 화료자는 최소 1개 이상의 역을 선택해야 합니다. 도라만으로는 화료할 수 없습니다.");
+      return;
+    }
+
     for (const win of wins) {
       const winHasYakuman = hasYakuman(win);
 
