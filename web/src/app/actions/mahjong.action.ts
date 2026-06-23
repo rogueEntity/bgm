@@ -27,15 +27,19 @@ type MahjongDetails = {
   finish_reason?: "FORCE_FINISH" | "TOBI" | "NORMAL" | "MAX_ROUND_REACHED";
 };
 
-type RecordMahjongResultInput = {
-  match_id: number;
+type MahjongWinInput = {
   winner_key: string;
   loser_key: string | null;
-  is_tsumo: boolean;
   base_score: number;
   han: number;
   dora_total: number;
   selected_yaku_ids: string[];
+};
+
+type RecordMahjongResultInput = {
+  match_id: number;
+  is_tsumo: boolean;
+  wins: MahjongWinInput[];
   current_riichi_keys: string[];
   is_final: boolean;
 };
@@ -47,6 +51,8 @@ type RecordRyuukyokuInput = {
   current_riichi_keys: string[];
   is_final: boolean;
 };
+
+type MahjongScoreMap = Record<string, number>;
 
 // --- 헬퍼 함수 ---
 const ROUND_ORDER = [
@@ -322,16 +328,6 @@ export async function createMahjongMatch(
 
   redirect(`/mahjong/play/${newMatch.id}`);
 }
-type MahjongWinInput = {
-  winner_key: string;
-  loser_key: string | null;
-  base_score: number;
-  han: number;
-  dora_total: number;
-  selected_yaku_ids: string[];
-};
-
-type MahjongScoreMap = Record<string, number>;
 
 function createEmptyScoreMap(players: Record<string, any>) {
   return Object.keys(players).reduce<MahjongScoreMap>((acc, key) => {
@@ -355,13 +351,7 @@ function assertUniqueValues(values: string[], message: string) {
 // -----------------
 // 2. 점수 기록, 화료 액션
 // -----------------
-export async function recordMahjongResult(data: {
-  match_id: number;
-  is_tsumo: boolean;
-  wins: MahjongWinInput[];
-  current_riichi_keys: string[];
-  is_final: boolean;
-}) {
+export async function recordMahjongResult(data: RecordMahjongResultInput) {
   const match = await db.matches.findUnique({
     where: { id: data.match_id },
     include: { match_details: true },
@@ -677,7 +667,7 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   details.riichi_sticks = details.riichi_sticks + data.current_riichi_keys.length;
 
-  let isOyaTenpai = false;
+  let isOyaTenpai;
 
   if (isExhaustive) {
     const allKeys = Object.keys(players);
