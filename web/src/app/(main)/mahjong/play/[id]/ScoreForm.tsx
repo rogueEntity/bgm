@@ -1,10 +1,13 @@
 // web/src/app/(main)/mahjong/play/[id]/ScoreForm.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { getValidatedYakuList, calculateTotalHan } from "@/lib/mahjong-calc";
-import { recordMahjongResult, recordRyuukyoku } from "@/app/actions/mahjong.action";
+import {
+  recordMahjongResult,
+  recordRyuukyoku,
+} from "@/app/actions/mahjong.action";
 
 interface Player {
   name: string;
@@ -12,7 +15,54 @@ interface Player {
   stateKey: string;
 }
 
+type WinFormState = {
+  winner_key: string;
+  is_mengen: boolean;
+  dora_indicator: number;
+  red_dora: number;
+  selected_yaku_ids: string[];
+  base_score: number | "";
+};
+
+type RyuukyokuType =
+  | "황패유국"
+  | "구종구패"
+  | "사풍연타"
+  | "사개깡"
+  | "사가리치"
+  | "삼가화";
+
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
+
+const RYUUKYOKU_TYPES: RyuukyokuType[] = [
+  "황패유국",
+  "구종구패",
+  "사풍연타",
+  "사개깡",
+  "사가리치",
+  "삼가화",
+];
+
+const TSUMO_ONLY_YAKU_NAMES = ["멘젠쯔모", "해저로월", "영상개화"];
+const RON_ONLY_YAKU_NAMES = ["하저로어", "창깡"];
+
+function getWindLabel(wind: string) {
+  if (wind === "EAST") return "東";
+  if (wind === "SOUTH") return "南";
+  if (wind === "WEST") return "西";
+  return "北";
+}
+
+function createDefaultWin(winnerKey: string): WinFormState {
+  return {
+    winner_key: winnerKey,
+    is_mengen: true,
+    dora_indicator: 0,
+    red_dora: 0,
+    selected_yaku_ids: [],
+    base_score: "",
+  };
+}
 
 export default function ScoreForm({
   matchId,
@@ -21,42 +71,301 @@ export default function ScoreForm({
   matchId: number;
   players: Player[];
 }) {
+  const firstPlayerKey = players[0]?.stateKey ?? "";
+  const secondPlayerKey = players[1]?.stateKey ?? firstPlayerKey;
+
   const [tab, setTab] = useState<"WIN" | "DRAW">("WIN");
-  const [isMengen, setIsMengen] = useState(true);
   const [isTsumo, setIsTsumo] = useState(false);
+  const [loserKey, setLoserKey] = useState(secondPlayerKey);
+  const [wins, setWins] = useState<WinFormState[]>([
+    createDefaultWin(firstPlayerKey),
+  ]);
 
-  const [winnerKey, setWinnerKey] = useState(players[0].stateKey);
-  const [loserKey, setLoserKey] = useState(players[1].stateKey);
-
-  const [doraIndicator, setDoraIndicator] = useState(0);
-  const [redDora, setRedDora] = useState(0);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [totalHan, setTotalHan] = useState(0);
-
-  const [score, setScore] = useState<number | "">("");
   const [currentRiichiKeys, setCurrentRiichiKeys] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isForceFinish, setIsForceFinish] = useState(false); // 💡 조기 종료 체크박스 상태
+  const [isForceFinish, setIsForceFinish] = useState(false);
 
-  const [ryuukyokuType, setRyuukyokuType] = useState<"황패유국" | "구종구패" | "사풍연타" | "사개깡" | "사가리치" | "삼가화" | null>(null);
+  const [ryuukyokuType, setRyuukyokuType] =
+    useState<RyuukyokuType | null>(null);
+
   const [tenpaiKeys, setTenpaiKeys] = useState<string[]>([]);
 
-  const hasYakuman = selectedIds.some((id) => {
-    const yaku = ALL_YAKU.find((y) => y.id === id);
-    return yaku?.isYakuman;
-  });
+  const getWinTotalHan = (win: WinFormState) => {
+    const totalDora = win.dora_indicator + win.red_dora;
 
-  useEffect(() => {
-    const totalDora = doraIndicator + redDora;
-    setTotalHan(calculateTotalHan(selectedIds, isMengen, totalDora));
-  }, [selectedIds, isMengen, doraIndicator, redDora]);
+    return calculateTotalHan(
+      win.selected_yaku_ids,
+      win.is_mengen,
+      totalDora
+    );
+  };
+
+  const hasYakuman = (win: WinFormState) => {
+    return win.selected_yaku_ids.some((id) => {
+      const yaku = ALL_YAKU.find((item) => item.id === id);
+      return yaku?.isYakuman;
+    });
+  };
+
+  const updateWin = (index: number, patch: Partial<WinFormState>) => {
+    setWins((prev) =>
+      prev.map((win, winIndex) =>
+        winIndex === index ? { ...win, ...patch } : win
+      )
+    );
+  };
+
+  const handleLoserChange = (nextLoserKey: string) => {
+    setLoserKey(nextLoserKey);
+
+    setWins((prev) => {
+      const usedWinnerKeys = new Set<string>();
+
+      return prev.map((win) => {
+        if (
+          win.winner_key !== nextLoserKey &&
+          !usedWinnerKeys.has(win.winner_key)
+        ) {
+          usedWinnerKeys.add(win.winner_key);
+          return win;
+        }
+
+        const replacement = players.find(
+          (player) =>
+            player.stateKey !== nextLoserKey &&
+            !usedWinnerKeys.has(player.stateKey)
+        );
+
+        if (!replacement) return win;
+
+        usedWinnerKeys.add(replacement.stateKey);
+
+        return {
+          ...win,
+          winner_key: replacement.stateKey,
+        };
+      });
+    });
+  };
+
+  const addRonWinner = () => {
+    if (isTsumo) return;
+
+    if (wins.length >= 2) {
+      alert("론 화료자는 최대 2명까지 가능합니다. 3명 론은 유국 탭에서 삼가화로 기록해주세요.");
+      return;
+    }
+
+    const usedWinnerKeys = wins.map((win) => win.winner_key);
+
+    const nextPlayer = players.find(
+      (player) =>
+        player.stateKey !== loserKey &&
+        !usedWinnerKeys.includes(player.stateKey)
+    );
+
+    if (!nextPlayer) {
+      alert("추가할 수 있는 화료자가 없습니다.");
+      return;
+    }
+
+    setWins((prev) => [...prev, createDefaultWin(nextPlayer.stateKey)]);
+  };
+
+  const removeRonWinner = (index: number) => {
+    if (wins.length <= 1) return;
+    setWins((prev) => prev.filter((_, winIndex) => winIndex !== index));
+  };
+
+  const toggleTsumo = () => {
+    const nextIsTsumo = !isTsumo;
+
+    setIsTsumo(nextIsTsumo);
+
+    setWins((prev) => {
+      const nextWins = nextIsTsumo ? [prev[0]] : prev;
+
+      return nextWins.map((win) => ({
+        ...win,
+        selected_yaku_ids: win.selected_yaku_ids.filter((id) => {
+          const yaku = ALL_YAKU.find((item) => item.id === id);
+          if (!yaku) return false;
+
+          if (nextIsTsumo && RON_ONLY_YAKU_NAMES.includes(yaku.name)) {
+            return false;
+          }
+
+          if (!nextIsTsumo && TSUMO_ONLY_YAKU_NAMES.includes(yaku.name)) {
+            return false;
+          }
+
+          return true;
+        }),
+      }));
+    });
+  };
+
+  const toggleMengen = (index: number) => {
+    setWins((prev) =>
+      prev.map((win, winIndex) => {
+        if (winIndex !== index) return win;
+
+        const nextIsMengen = !win.is_mengen;
+
+        return {
+          ...win,
+          is_mengen: nextIsMengen,
+          selected_yaku_ids: nextIsMengen
+            ? win.selected_yaku_ids
+            : win.selected_yaku_ids.filter((id) => {
+                const yaku = ALL_YAKU.find((item) => item.id === id);
+                return !yaku?.isMengenOnly;
+              }),
+        };
+      })
+    );
+  };
+
+  const handleToggleYaku = (index: number, id: string) => {
+    const targetYaku = ALL_YAKU.find((yaku) => yaku.id === id);
+    if (!targetYaku) return;
+
+    setWins((prev) =>
+      prev.map((win, winIndex) => {
+        if (winIndex !== index) return win;
+
+        const isTsumoOnly = TSUMO_ONLY_YAKU_NAMES.includes(targetYaku.name);
+        const isRonOnly = RON_ONLY_YAKU_NAMES.includes(targetYaku.name);
+
+        if (
+          !win.is_mengen &&
+          targetYaku.isMengenOnly &&
+          !win.selected_yaku_ids.includes(id)
+        ) {
+          return win;
+        }
+
+        if (!isTsumo && isTsumoOnly) return win;
+        if (isTsumo && isRonOnly) return win;
+
+        let nextIds = getValidatedYakuList(win.selected_yaku_ids, id);
+
+        if (targetYaku.name === "일발") {
+          nextIds = nextIds.filter((nextId) => {
+            const nextYakuName =
+              ALL_YAKU.find((yaku) => yaku.id === nextId)?.name ?? "";
+
+            return !["영상개화", "창깡"].includes(nextYakuName);
+          });
+        } else if (["영상개화", "창깡"].includes(targetYaku.name)) {
+          nextIds = nextIds.filter((nextId) => {
+            const nextYakuName =
+              ALL_YAKU.find((yaku) => yaku.id === nextId)?.name ?? "";
+
+            return nextYakuName !== "일발";
+          });
+        }
+
+        const hasYakumanNow = nextIds.some((nextId) => {
+          const yaku = ALL_YAKU.find((item) => item.id === nextId);
+          return yaku?.isYakuman;
+        });
+
+        if (hasYakumanNow) {
+          return {
+            ...win,
+            dora_indicator: 0,
+            red_dora: 0,
+            selected_yaku_ids: nextIds.filter((nextId) => {
+              const yaku = ALL_YAKU.find((item) => item.id === nextId);
+              return yaku?.isYakuman;
+            }),
+          };
+        }
+
+        return {
+          ...win,
+          selected_yaku_ids: nextIds,
+        };
+      })
+    );
+  };
+
+  const toggleRiichiPlayer = (stateKey: string) => {
+    setCurrentRiichiKeys((prev) =>
+      prev.includes(stateKey)
+        ? prev.filter((key) => key !== stateKey)
+        : [...prev, stateKey]
+    );
+  };
+
+  const toggleTenpaiPlayer = (stateKey: string) => {
+    setTenpaiKeys((prev) =>
+      prev.includes(stateKey)
+        ? prev.filter((key) => key !== stateKey)
+        : [...prev, stateKey]
+    );
+  };
+
+  const getDisabledStatus = (
+    win: WinFormState,
+    yName: string,
+    isMengenOnly: boolean | undefined,
+    isYakuman: boolean | undefined
+  ) => {
+    const winHasYakuman = hasYakuman(win);
+    const isTsumoOnly = TSUMO_ONLY_YAKU_NAMES.includes(yName);
+    const isRonOnly = RON_ONLY_YAKU_NAMES.includes(yName);
+
+    return (
+      (!win.is_mengen && isMengenOnly) ||
+      (winHasYakuman && !isYakuman) ||
+      (!isTsumo && isTsumoOnly) ||
+      (isTsumo && isRonOnly)
+    );
+  };
+
+  const getCurrentHan = (win: WinFormState, yaku: any) => {
+    if (win.is_mengen) return yaku.han.closed;
+    if (yaku.isMengenOnly) return yaku.han.closed;
+    return yaku.han.open;
+  };
+
+  const getNormalYakuCategories = (win: WinFormState) => [
+    {
+      label: "1판 역",
+      filter: (yaku: any) => getCurrentHan(win, yaku) === 1 && !yaku.isYakuman,
+    },
+    {
+      label: "2판 역",
+      filter: (yaku: any) => getCurrentHan(win, yaku) === 2 && !yaku.isYakuman,
+    },
+    {
+      label: "3판 역",
+      filter: (yaku: any) => getCurrentHan(win, yaku) === 3 && !yaku.isYakuman,
+    },
+    {
+      label: "5판 역",
+      filter: (yaku: any) => getCurrentHan(win, yaku) === 5 && !yaku.isYakuman,
+    },
+    {
+      label: "6판 역",
+      filter: (yaku: any) => getCurrentHan(win, yaku) === 6 && !yaku.isYakuman,
+    },
+    {
+      label: "역만",
+      filter: (yaku: any) => yaku.isYakuman,
+    },
+  ];
 
   const handleRecordRyuukyoku = async () => {
     if (!ryuukyokuType) {
       alert("유국 유형을 선택해주세요.");
       return;
     }
+
     setIsSubmitting(true);
+
     try {
       await recordRyuukyoku({
         match_id: matchId,
@@ -65,12 +374,14 @@ export default function ScoreForm({
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
       });
+
       alert("유국이 기록되었습니다.");
 
       setRyuukyokuType(null);
       setTenpaiKeys([]);
       setCurrentRiichiKeys([]);
       setIsForceFinish(false);
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
@@ -80,111 +391,98 @@ export default function ScoreForm({
     }
   };
 
-  const toggleTenpaiPlayer = (stateKey: string) => {
-    setTenpaiKeys(prev =>
-      prev.includes(stateKey) ? prev.filter(k => k !== stateKey) : [...prev, stateKey]
-    );
-  };
-
-  const toggleTsumo = () => {
-    const nextIsTsumo = !isTsumo;
-    setIsTsumo(nextIsTsumo);
-    setSelectedIds(prev => prev.filter(id => {
-      const yaku = ALL_YAKU.find(y => y.id === id);
-      if (!yaku) return false;
-      if (nextIsTsumo && ["하저로어", "창깡"].includes(yaku.name)) return false;
-      if (!nextIsTsumo && ["멘젠쯔모", "해저로월", "영상개화"].includes(yaku.name)) return false;
-      return true;
-    }));
-  };
-
-  const toggleMengen = () => {
-    const nextIsMengen = !isMengen;
-    setIsMengen(nextIsMengen);
-    if (!nextIsMengen) {
-      setSelectedIds(prev => prev.filter(id => {
-        const yaku = ALL_YAKU.find(y => y.id === id);
-        return !yaku?.isMengenOnly;
-      }));
-    }
-  };
-
-  const handleToggleYaku = (id: string) => {
-    const targetYaku = ALL_YAKU.find(y => y.id === id);
-    if (!targetYaku) return;
-
-    const isTsumoOnly = ["멘젠쯔모", "해저로월", "영상개화"].includes(targetYaku.name);
-    const isRonOnly = ["하저로어", "창깡"].includes(targetYaku.name);
-    if (!isMengen && targetYaku.isMengenOnly && !selectedIds.includes(id)) return;
-    if (!isTsumo && isTsumoOnly) return;
-    if (isTsumo && isRonOnly) return;
-
-    setSelectedIds(prev => {
-      let nextIds = getValidatedYakuList(prev, id);
-      if (targetYaku.name === "일발") {
-        nextIds = nextIds.filter(nId => !["영상개화", "창깡"].includes(ALL_YAKU.find(y => y.id === nId)?.name || ""));
-      } else if (["영상개화", "창깡"].includes(targetYaku.name)) {
-        nextIds = nextIds.filter(nId => ALL_YAKU.find(y => y.id === nId)?.name !== "일발");
-      }
-      const hasYakumanNow = nextIds.some(nextId => ALL_YAKU.find(y => y.id === nextId)?.isYakuman);
-      if (hasYakumanNow) {
-        setDoraIndicator(0);
-        setRedDora(0);
-        return nextIds.filter(nextId => ALL_YAKU.find(y => y.id === nextId)?.isYakuman);
-      }
-      return nextIds;
-    });
-  };
-
-  const toggleRiichiPlayer = (stateKey: string) => {
-    setCurrentRiichiKeys(prev =>
-      prev.includes(stateKey) ? prev.filter(k => k !== stateKey) : [...prev, stateKey]
-    );
-  };
-
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     if (isSubmitting) return;
 
-    if (score === "" || Number(score) <= 0) {
-      alert("올바른 점수를 입력해주세요.");
+    if (isTsumo && wins.length !== 1) {
+      alert("쯔모 화료자는 1명만 선택할 수 있습니다.");
       return;
     }
 
-    if (!hasYakuman) {
-      const selectedYakuNames = selectedIds.map(id => ALL_YAKU.find(y => y.id === id)?.name);
-      const hasRiichiYaku = selectedYakuNames.includes("리치") || selectedYakuNames.includes("더블 리치") || selectedYakuNames.includes("더블리치");
+    if (!isTsumo && wins.length > 2) {
+      alert("론 화료자는 최대 2명까지 가능합니다. 3명 론은 유국 탭에서 삼가화로 기록해주세요.");
+      return;
+    }
 
-      if (currentRiichiKeys.includes(winnerKey) && !hasRiichiYaku) {
-        const proceed = window.confirm("화료자가 이번 국에 리치를 선언했는데 '리치' 또는 '더블 리치' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?");
+    const winnerKeys = wins.map((win) => win.winner_key);
+
+    if (new Set(winnerKeys).size !== winnerKeys.length) {
+      alert("화료자가 중복되었습니다.");
+      return;
+    }
+
+    if (!isTsumo && winnerKeys.includes(loserKey)) {
+      alert("방총자는 화료자가 될 수 없습니다.");
+      return;
+    }
+
+    const invalidScoreWin = wins.find(
+      (win) => win.base_score === "" || Number(win.base_score) <= 0
+    );
+
+    if (invalidScoreWin) {
+      alert("모든 화료자의 점수를 올바르게 입력해주세요.");
+      return;
+    }
+
+    for (const win of wins) {
+      const winHasYakuman = hasYakuman(win);
+
+      if (winHasYakuman) continue;
+
+      const selectedYakuNames = win.selected_yaku_ids.map(
+        (id) => ALL_YAKU.find((item) => item.id === id)?.name
+      );
+
+      const hasRiichiYaku =
+        selectedYakuNames.includes("리치") ||
+        selectedYakuNames.includes("더블 리치") ||
+        selectedYakuNames.includes("더블리치");
+
+      if (currentRiichiKeys.includes(win.winner_key) && !hasRiichiYaku) {
+        const proceed = window.confirm(
+          "화료자가 이번 국에 리치를 선언했는데 '리치' 또는 '더블 리치' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?"
+        );
+
         if (!proceed) return;
       }
-      if (isMengen && isTsumo && !selectedYakuNames.includes("멘젠쯔모")) {
-        const proceed = window.confirm("멘젠 상태에서 쯔모 화료를 했는데 '멘젠쯔모' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?");
+
+      if (
+        win.is_mengen &&
+        isTsumo &&
+        !selectedYakuNames.includes("멘젠쯔모")
+      ) {
+        const proceed = window.confirm(
+          "멘젠 상태에서 쯔모 화료를 했는데 '멘젠쯔모' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?"
+        );
+
         if (!proceed) return;
       }
     }
 
     setIsSubmitting(true);
+
     try {
       await recordMahjongResult({
         match_id: matchId,
-        winner_key: winnerKey,
-        loser_key: isTsumo ? null : loserKey,
         is_tsumo: isTsumo,
-        base_score: Number(score),
-        han: totalHan,
-        dora_total: doraIndicator + redDora,
-        selected_yaku_ids: selectedIds,
+        wins: wins.map((win) => ({
+          winner_key: win.winner_key,
+          loser_key: isTsumo ? null : loserKey,
+          base_score: Number(win.base_score),
+          han: getWinTotalHan(win),
+          dora_total: win.dora_indicator + win.red_dora,
+          selected_yaku_ids: win.selected_yaku_ids,
+        })),
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
       });
+
       alert("기록되었습니다.");
 
-      setScore("");
-      setSelectedIds([]);
-      setDoraIndicator(0);
-      setRedDora(0);
+      setWins([createDefaultWin(firstPlayerKey)]);
       setCurrentRiichiKeys([]);
       setIsForceFinish(false);
 
@@ -197,59 +495,65 @@ export default function ScoreForm({
     }
   };
 
-  const getDisabledStatus = (yName: string, isMengenOnly: boolean | undefined, isYakuman: boolean | undefined) => {
-    const isTsumoOnly = ["멘젠쯔모", "해저로월", "영상개화"].includes(yName);
-    const isRonOnly = ["하저로어", "창깡"].includes(yName);
-    return ((!isMengen && isMengenOnly) || (hasYakuman && !isYakuman) || (!isTsumo && isTsumoOnly) || (isTsumo && isRonOnly));
-  };
-
-  const getCurrentHan = (y: any) => {
-    if (isMengen) return y.han.closed;
-    if (y.isMengenOnly) return y.han.closed;
-    return y.han.open;
-  };
-
-  const NORMAL_YAKU_CATEGORIES = [
-    { label: "1판 역", filter: (y: any) => getCurrentHan(y) === 1 && !y.isYakuman },
-    { label: "2판 역", filter: (y: any) => getCurrentHan(y) === 2 && !y.isYakuman },
-    { label: "3판 역", filter: (y: any) => getCurrentHan(y) === 3 && !y.isYakuman },
-    { label: "5판 역", filter: (y: any) => getCurrentHan(y) === 5 && !y.isYakuman },
-    { label: "6판 역", filter: (y: any) => getCurrentHan(y) === 6 && !y.isYakuman },
-    { label: "역만", filter: (y: any) => y.isYakuman },
-  ];
-
   return (
     <div className="w-full bg-background border border-foreground/10 rounded-2xl p-4 shadow-lg overflow-hidden contain-layout">
       <div className="space-y-4">
-
-        {/* 상단 탭 (대국 종료 버튼 제거) */}
         <div className="flex gap-2 w-full">
           <div className="flex flex-1 p-1 bg-foreground/5 rounded-lg">
-            <button type="button" className={`flex-1 py-2 font-bold rounded-md transition-all ${tab === "WIN" ? "bg-background shadow text-blue-600" : "opacity-50"}`} onClick={() => setTab("WIN")}>화료</button>
-            <button type="button" className={`flex-1 py-2 font-bold rounded-md transition-all ${tab === "DRAW" ? "bg-background shadow text-orange-600" : "opacity-50"}`} onClick={() => setTab("DRAW")}>유국</button>
+            <button
+              type="button"
+              className={`flex-1 py-2 font-bold rounded-md transition-all ${
+                tab === "WIN" ? "bg-background shadow text-blue-600" : "opacity-50"
+              }`}
+              onClick={() => setTab("WIN")}
+            >
+              화료
+            </button>
+
+            <button
+              type="button"
+              className={`flex-1 py-2 font-bold rounded-md transition-all ${
+                tab === "DRAW"
+                  ? "bg-background shadow text-orange-600"
+                  : "opacity-50"
+              }`}
+              onClick={() => setTab("DRAW")}
+            >
+              유국
+            </button>
           </div>
         </div>
 
-        {/* 폼 내부 렌더링 영역 */}
         <div className="min-h-[420px]">
           {tab === "WIN" ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-4">
-
                 <div className="space-y-2 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900">
-                  <p className="text-xs font-bold text-red-600 dark:text-red-400">이번 국 리치 선언 (선택 시 1000점 차감)</p>
+                  <p className="text-xs font-bold text-red-600 dark:text-red-400">
+                    이번 국 리치 선언 (선택 시 1000점 차감)
+                  </p>
+
                   <div className="grid grid-cols-4 gap-2">
-                    {players.map(p => {
-                      const isRiichi = currentRiichiKeys.includes(p.stateKey);
+                    {players.map((player) => {
+                      const isRiichi = currentRiichiKeys.includes(
+                        player.stateKey
+                      );
+
                       return (
-                        <button key={p.stateKey} type="button" onClick={() => toggleRiichiPlayer(p.stateKey)}
-                          className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1
-                            ${isRiichi ? "bg-red-500 text-white border-red-500" : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"}`}
+                        <button
+                          key={player.stateKey}
+                          type="button"
+                          onClick={() => toggleRiichiPlayer(player.stateKey)}
+                          className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
+                            isRiichi
+                              ? "bg-red-500 text-white border-red-500"
+                              : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"
+                          }`}
                         >
                           <span className={isRiichi ? "opacity-80" : "opacity-50"}>
-                            {p.wind === "EAST" ? "東" : p.wind === "SOUTH" ? "南" : p.wind === "WEST" ? "西" : "北"}
+                            {getWindLabel(player.wind)}
                           </span>
-                          <span>{p.name}</span>
+                          <span>{player.name}</span>
                         </button>
                       );
                     })}
@@ -257,149 +561,431 @@ export default function ScoreForm({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={toggleMengen} className={`py-2 rounded-xl font-bold border transition-colors ${isMengen ? "bg-blue-600 text-white border-blue-600" : "bg-foreground/5 border-foreground/10"}`}>
-                    {isMengen ? "멘젠 상태" : "후로 상태"}
-                  </button>
-                  <button type="button" onClick={toggleTsumo} className={`py-2 rounded-xl font-bold border transition-colors ${isTsumo ? "bg-green-600 text-white border-green-600" : "bg-foreground/5 border-foreground/10"}`}>
+                  <button
+                    type="button"
+                    onClick={toggleTsumo}
+                    className={`py-2 rounded-xl font-bold border transition-colors ${
+                      isTsumo
+                        ? "bg-green-600 text-white border-green-600"
+                        : "bg-foreground/5 border-foreground/10"
+                    }`}
+                  >
                     {isTsumo ? "쯔모 화료" : "론 화료"}
                   </button>
+
+                  <div className="py-2 rounded-xl font-bold border border-foreground/10 bg-foreground/5 text-center opacity-70">
+                    {isTsumo ? "화료자 1명" : `화료자 ${wins.length}명`}
+                  </div>
                 </div>
 
-                <div className="space-y-4 bg-foreground/5 p-3 rounded-xl border border-foreground/5">
-                  <p className="text-xs font-bold opacity-60">
-                    역 선택 {hasYakuman && <span className="text-red-500 ml-2">(역만 성립 시 일반 역 무효)</span>}
-                  </p>
+                {!isTsumo && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-red-500">
+                      방총자
+                    </label>
 
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-extrabold text-blue-500/80">상황 역</p>
-                    <div className="flex flex-wrap gap-2">
-                      {SITUATIONAL_YAKU.map(y => {
-                        const isDisabled = getDisabledStatus(y.name, y.isMengenOnly, y.isYakuman);
-                        const isSelected = selectedIds.includes(y.id);
-                        return (
-                          <button key={y.id} type="button" disabled={isDisabled} onClick={() => handleToggleYaku(y.id)}
-                          className={`px-3 py-1.5 text-xs rounded-full border font-bold transition-all 
-                              ${isSelected 
-                                ? (y.isYakuman ? "bg-red-500 text-white border-red-500 shadow-md" : "bg-blue-500 text-white border-blue-500 shadow-md") 
-                                : "bg-white dark:bg-background border-foreground/10"}
-                              ${isDisabled ? "opacity-30 cursor-not-allowed" : "hover:scale-105 active:scale-95"}`}>
-                              {y.name}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <select
+                      value={loserKey}
+                      onChange={(e) => handleLoserChange(e.target.value)}
+                      className="w-full p-2 rounded-xl border border-red-200 bg-red-50 text-red-700 font-bold text-sm"
+                    >
+                      {players.map((player) => (
+                        <option key={player.stateKey} value={player.stateKey}>
+                          {player.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                )}
 
-                  <div className="border-t border-foreground/10 my-2"></div>
+                <div className="space-y-3">
+                  {wins.map((win, index) => {
+                    const winHasYakuman = hasYakuman(win);
+                    const totalHan = getWinTotalHan(win);
 
-                  <div className="space-y-3">
-                    <p className="text-[11px] font-extrabold text-blue-500/80">일반 역</p>
-                    {NORMAL_YAKU_CATEGORIES.map(category => {
-                      const yakuList = NORMAL_YAKU.filter(category.filter);
-                      if (yakuList.length === 0) return null;
-
-                      return (
-                        <div key={category.label} className="space-y-1.5">
-                          <p className={`text-[10px] font-bold opacity-60 ${category.label === "역만" ? "text-red-500" : ""}`}>
-                            {category.label}
+                    return (
+                      <div
+                        key={index}
+                        className="space-y-4 p-3 rounded-xl border border-foreground/10 bg-foreground/5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-black">
+                            {isTsumo
+                              ? "쯔모 화료"
+                              : wins.length > 1
+                                ? `론 화료 ${index + 1}`
+                                : "론 화료"}
                           </p>
-                          <div className="flex flex-wrap gap-2">
-                            {yakuList.map(y => {
-                              const isDisabled = getDisabledStatus(y.name, y.isMengenOnly, y.isYakuman);
-                              const isSelected = selectedIds.includes(y.id);
+
+                          {!isTsumo && wins.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeRonWinner(index)}
+                              className="text-xs font-bold text-red-500"
+                            >
+                              삭제
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold opacity-60">
+                            화료자
+                          </label>
+
+                          <select
+                            value={win.winner_key}
+                            onChange={(e) =>
+                              updateWin(index, { winner_key: e.target.value })
+                            }
+                            className="w-full p-2 rounded-xl border bg-background font-bold text-sm"
+                          >
+                            {players
+                              .filter(
+                                (player) =>
+                                  isTsumo || player.stateKey !== loserKey
+                              )
+                              .map((player) => (
+                                <option
+                                  key={player.stateKey}
+                                  value={player.stateKey}
+                                >
+                                  {player.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleMengen(index)}
+                            className={`py-2 rounded-xl font-bold border transition-colors ${
+                              win.is_mengen
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-foreground/5 border-foreground/10"
+                            }`}
+                          >
+                            {win.is_mengen ? "멘젠 상태" : "후로 상태"}
+                          </button>
+
+                          <div
+                            className={`flex items-center gap-3 p-2 rounded-xl border ${
+                              winHasYakuman
+                                ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900"
+                                : "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900"
+                            }`}
+                          >
+                            <span
+                              className={`text-sm font-black min-w-[70px] ${
+                                winHasYakuman
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-blue-600 dark:text-blue-400"
+                              }`}
+                            >
+                              총 {totalHan} 판
+                            </span>
+
+                            <input
+                              type="number"
+                              value={win.base_score}
+                              onChange={(e) =>
+                                updateWin(index, {
+                                  base_score: e.target.value
+                                    ? Number(e.target.value)
+                                    : "",
+                                })
+                              }
+                              placeholder={
+                                winHasYakuman ? "32000" : "점수"
+                              }
+                              className="flex-1 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background min-w-0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 bg-background p-3 rounded-xl border border-foreground/5">
+                          <p className="text-xs font-bold opacity-60">
+                            역 선택
+                            {winHasYakuman && (
+                              <span className="text-red-500 ml-2">
+                                (역만 성립 시 일반 역 무효)
+                              </span>
+                            )}
+                          </p>
+
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-extrabold text-blue-500/80">
+                              상황 역
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              {SITUATIONAL_YAKU.map((yaku) => {
+                                const isDisabled = getDisabledStatus(
+                                  win,
+                                  yaku.name,
+                                  yaku.isMengenOnly,
+                                  yaku.isYakuman
+                                );
+
+                                const isSelected =
+                                  win.selected_yaku_ids.includes(yaku.id);
+
+                                return (
+                                  <button
+                                    key={yaku.id}
+                                    type="button"
+                                    disabled={isDisabled}
+                                    onClick={() =>
+                                      handleToggleYaku(index, yaku.id)
+                                    }
+                                    className={`px-3 py-1.5 text-xs rounded-full border font-bold transition-all ${
+                                      isSelected
+                                        ? yaku.isYakuman
+                                          ? "bg-red-500 text-white border-red-500 shadow-md"
+                                          : "bg-blue-500 text-white border-blue-500 shadow-md"
+                                        : "bg-white dark:bg-background border-foreground/10"
+                                    } ${
+                                      isDisabled
+                                        ? "opacity-30 cursor-not-allowed"
+                                        : "hover:scale-105 active:scale-95"
+                                    }`}
+                                  >
+                                    {yaku.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="border-t border-foreground/10 my-2" />
+
+                          <div className="space-y-3">
+                            <p className="text-[11px] font-extrabold text-blue-500/80">
+                              일반 역
+                            </p>
+
+                            {getNormalYakuCategories(win).map((category) => {
+                              const yakuList = NORMAL_YAKU.filter(
+                                category.filter
+                              );
+
+                              if (yakuList.length === 0) return null;
+
                               return (
-                                <button key={y.id} type="button" disabled={isDisabled} onClick={() => handleToggleYaku(y.id)}
-                                className={`px-3 py-1.5 text-xs rounded-full border font-bold transition-all 
-                                    ${isSelected 
-                                      ? (y.isYakuman ? "bg-red-500 text-white border-red-500 shadow-md" : "bg-blue-500 text-white border-blue-500 shadow-md") 
-                                      : "bg-white dark:bg-background border-foreground/10"}
-                                    ${isDisabled ? "opacity-30 cursor-not-allowed" : "hover:scale-105 active:scale-95"}`}>
-                                    {y.name}
-                                </button>
+                                <div
+                                  key={category.label}
+                                  className="space-y-1.5"
+                                >
+                                  <p
+                                    className={`text-[10px] font-bold opacity-60 ${
+                                      category.label === "역만"
+                                        ? "text-red-500"
+                                        : ""
+                                    }`}
+                                  >
+                                    {category.label}
+                                  </p>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    {yakuList.map((yaku) => {
+                                      const isDisabled = getDisabledStatus(
+                                        win,
+                                        yaku.name,
+                                        yaku.isMengenOnly,
+                                        yaku.isYakuman
+                                      );
+
+                                      const isSelected =
+                                        win.selected_yaku_ids.includes(yaku.id);
+
+                                      return (
+                                        <button
+                                          key={yaku.id}
+                                          type="button"
+                                          disabled={isDisabled}
+                                          onClick={() =>
+                                            handleToggleYaku(index, yaku.id)
+                                          }
+                                          className={`px-3 py-1.5 text-xs rounded-full border font-bold transition-all ${
+                                            isSelected
+                                              ? yaku.isYakuman
+                                                ? "bg-red-500 text-white border-red-500 shadow-md"
+                                                : "bg-blue-500 text-white border-blue-500 shadow-md"
+                                              : "bg-white dark:bg-background border-foreground/10"
+                                          } ${
+                                            isDisabled
+                                              ? "opacity-30 cursor-not-allowed"
+                                              : "hover:scale-105 active:scale-95"
+                                          }`}
+                                        >
+                                          {yaku.name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               );
                             })}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
 
-                </div>
+                        <div
+                          className={`space-y-3 p-3 bg-background rounded-xl border border-foreground/5 transition-opacity ${
+                            winHasYakuman
+                              ? "opacity-30 pointer-events-none grayscale"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm">일반 도라</span>
 
-                <div className={`space-y-3 p-3 bg-foreground/5 rounded-xl border border-foreground/5 transition-opacity ${hasYakuman ? "opacity-30 pointer-events-none grayscale" : ""}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">일반 도라</span>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setDoraIndicator(Math.max(0, doraIndicator - 1))} className="w-8 h-8 rounded-full bg-background border flex items-center justify-center">-</button>
-                      <span className="font-black text-xl w-6 text-center">{doraIndicator}</span>
-                      <button type="button" onClick={() => setDoraIndicator(doraIndicator + 1)} className="w-8 h-8 rounded-full bg-background border flex items-center justify-center">+</button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-red-500">적도라</span>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setRedDora(Math.max(0, redDora - 1))} className="w-8 h-8 rounded-full bg-background border flex items-center justify-center">-</button>
-                      <span className="font-black text-xl w-6 text-center text-red-500">{redDora}</span>
-                      <button type="button" onClick={() => setRedDora(redDora + 1)} className="w-8 h-8 rounded-full bg-background border flex items-center justify-center">+</button>
-                    </div>
-                  </div>
-                </div>
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateWin(index, {
+                                    dora_indicator: Math.max(
+                                      0,
+                                      win.dora_indicator - 1
+                                    ),
+                                  })
+                                }
+                                className="w-8 h-8 rounded-full bg-background border flex items-center justify-center"
+                              >
+                                -
+                              </button>
 
-                <div className={`flex items-center gap-4 p-3 rounded-xl border ${hasYakuman ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900" : "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900"}`}>
-                  <span className={`text-lg font-black min-w-[100px] ${hasYakuman ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}>
-                    총 {totalHan} 판 {hasYakuman && "(역만)"}
-                  </span>
-                  <input
-                    type="number"
-                    value={score}
-                    onChange={(e) => setScore(e.target.value ? Number(e.target.value) : "")}
-                    placeholder={hasYakuman ? "32000" : "점수 입력 (예: 8000)"}
-                    className="flex-1 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background"
-                  />
-                </div>
+                              <span className="font-black text-xl w-6 text-center">
+                                {win.dora_indicator}
+                              </span>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                      <label className="text-[10px] font-bold opacity-60">화료자</label>
-                      <select value={winnerKey} onChange={(e) => setWinnerKey(e.target.value)} className="w-full p-2 rounded-xl border bg-background font-bold text-sm">
-                        {players.map(p => <option key={p.stateKey} value={p.stateKey}>{p.name}</option>)}
-                      </select>
-                  </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateWin(index, {
+                                    dora_indicator: win.dora_indicator + 1,
+                                  })
+                                }
+                                className="w-8 h-8 rounded-full bg-background border flex items-center justify-center"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm text-red-500">
+                              적도라
+                            </span>
+
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateWin(index, {
+                                    red_dora: Math.max(0, win.red_dora - 1),
+                                  })
+                                }
+                                className="w-8 h-8 rounded-full bg-background border flex items-center justify-center"
+                              >
+                                -
+                              </button>
+
+                              <span className="font-black text-xl w-6 text-center text-red-500">
+                                {win.red_dora}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateWin(index, {
+                                    red_dora: win.red_dora + 1,
+                                  })
+                                }
+                                className="w-8 h-8 rounded-full bg-background border flex items-center justify-center"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {!isTsumo && wins.length < 2 && (
+                    <button
+                      type="button"
+                      onClick={addRonWinner}
+                      className="w-full py-2 rounded-xl border border-blue-300 text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/10"
+                    >
+                      + 더블 론 화료자 추가
+                    </button>
+                  )}
+
                   {!isTsumo && (
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-red-500">방총자</label>
-                        <select value={loserKey} onChange={(e) => setLoserKey(e.target.value)} className="w-full p-2 rounded-xl border border-red-200 bg-red-50 text-red-700 font-bold text-sm">
-                            {players.map(p => <option key={p.stateKey} value={p.stateKey}>{p.name}</option>)}
-                        </select>
-                    </div>
+                    <p className="text-[11px] font-bold opacity-60">
+                      세 명이 론한 경우는 화료가 아니라 유국 탭에서 “삼가화”로 기록해주세요.
+                    </p>
                   )}
                 </div>
 
-                {/* 💡 화료 시 조기 종료 체크박스 추가 */}
                 <div className="flex items-center gap-2 py-2">
-                  <input type="checkbox" id="forceFinishWin" checked={isForceFinish} onChange={(e) => setIsForceFinish(e.target.checked)} className="w-4 h-4 accent-red-500" />
-                  <label htmlFor="forceFinishWin" className="text-sm font-bold text-red-500 cursor-pointer">기록 후 대국 조기 종료하기</label>
+                  <input
+                    type="checkbox"
+                    id="forceFinishWin"
+                    checked={isForceFinish}
+                    onChange={(e) => setIsForceFinish(e.target.checked)}
+                    className="w-4 h-4 accent-red-500"
+                  />
+
+                  <label
+                    htmlFor="forceFinishWin"
+                    className="text-sm font-bold text-red-500 cursor-pointer"
+                  >
+                    기록 후 대국 조기 종료하기
+                  </label>
                 </div>
 
-                <button type="submit" className="w-full bg-foreground text-background p-3 rounded-xl font-bold">점수 기록</button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-foreground text-background p-3 rounded-xl font-bold disabled:opacity-50"
+                >
+                  {isSubmitting ? "기록 중..." : "점수 기록"}
+                </button>
               </div>
             </form>
           ) : (
             <div className="space-y-6">
               <div className="space-y-2 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900">
-                <p className="text-xs font-bold text-red-600 dark:text-red-400">이번 국 리치 선언 (선택 시 1000점 차감 후 공탁금 이월)</p>
+                <p className="text-xs font-bold text-red-600 dark:text-red-400">
+                  이번 국 리치 선언 (선택 시 1000점 차감 후 공탁금 이월)
+                </p>
+
                 <div className="grid grid-cols-4 gap-2">
-                  {players.map(p => {
-                    const isRiichi = currentRiichiKeys.includes(p.stateKey);
+                  {players.map((player) => {
+                    const isRiichi = currentRiichiKeys.includes(
+                      player.stateKey
+                    );
+
                     return (
-                      <button key={p.stateKey} type="button" onClick={() => toggleRiichiPlayer(p.stateKey)}
-                        className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1
-                          ${isRiichi ? "bg-red-500 text-white border-red-500" : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"}`}
+                      <button
+                        key={player.stateKey}
+                        type="button"
+                        onClick={() => toggleRiichiPlayer(player.stateKey)}
+                        className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
+                          isRiichi
+                            ? "bg-red-500 text-white border-red-500"
+                            : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"
+                        }`}
                       >
                         <span className={isRiichi ? "opacity-80" : "opacity-50"}>
-                          {p.wind === "EAST" ? "東" : p.wind === "SOUTH" ? "南" : p.wind === "WEST" ? "西" : "北"}
+                          {getWindLabel(player.wind)}
                         </span>
-                        <span>{p.name}</span>
+
+                        <span>{player.name}</span>
                       </button>
                     );
                   })}
@@ -408,15 +994,16 @@ export default function ScoreForm({
 
               <div className="space-y-2">
                 <p className="text-sm font-bold opacity-60">유국 유형 선택</p>
+
                 <div className="grid grid-cols-3 gap-2">
-                  {(["황패유국", "구종구패", "사풍연타", "사개깡", "사가리치", "삼가화"] as const).map((type) => (
+                  {RYUUKYOKU_TYPES.map((type) => (
                     <button
                       key={type}
                       type="button"
                       onClick={() => setRyuukyokuType(type)}
                       className={`py-3 rounded-xl border font-bold text-sm transition-all ${
-                        ryuukyokuType === type 
-                          ? "bg-orange-500 text-white border-orange-500 shadow-md scale-[1.02]" 
+                        ryuukyokuType === type
+                          ? "bg-orange-500 text-white border-orange-500 shadow-md scale-[1.02]"
                           : "bg-foreground/5 hover:bg-foreground/10"
                       }`}
                     >
@@ -431,25 +1018,33 @@ export default function ScoreForm({
                   <p className="text-sm font-bold text-orange-600 dark:text-orange-400">
                     텐파이인 작사를 모두 체크해주세요
                   </p>
+
                   <div className="grid grid-cols-2 gap-3">
-                    {players.map(p => {
-                      const isTenpai = tenpaiKeys.includes(p.stateKey);
+                    {players.map((player) => {
+                      const isTenpai = tenpaiKeys.includes(player.stateKey);
+
                       return (
                         <button
-                          key={p.stateKey}
+                          key={player.stateKey}
                           type="button"
-                          onClick={() => toggleTenpaiPlayer(p.stateKey)}
+                          onClick={() => toggleTenpaiPlayer(player.stateKey)}
                           className={`py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                            isTenpai 
-                              ? "bg-blue-600 text-white border-blue-600 shadow-inner" 
+                            isTenpai
+                              ? "bg-blue-600 text-white border-blue-600 shadow-inner"
                               : "bg-white dark:bg-background border-foreground/10"
                           }`}
                         >
                           <span className={isTenpai ? "opacity-80" : "opacity-50"}>
-                            {p.wind === "EAST" ? "東" : p.wind === "SOUTH" ? "南" : p.wind === "WEST" ? "西" : "北"}
+                            {getWindLabel(player.wind)}
                           </span>
-                          <span>{p.name}</span>
-                          {isTenpai && <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full ml-1">텐파이</span>}
+
+                          <span>{player.name}</span>
+
+                          {isTenpai && (
+                            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full ml-1">
+                              텐파이
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -457,10 +1052,21 @@ export default function ScoreForm({
                 </div>
               )}
 
-              {/* 💡 유국 시 조기 종료 체크박스 추가 */}
               <div className="flex items-center gap-2 py-2">
-                <input type="checkbox" id="forceFinishDraw" checked={isForceFinish} onChange={(e) => setIsForceFinish(e.target.checked)} className="w-4 h-4 accent-red-500" />
-                <label htmlFor="forceFinishDraw" className="text-sm font-bold text-red-500 cursor-pointer">기록 후 대국 조기 종료하기</label>
+                <input
+                  type="checkbox"
+                  id="forceFinishDraw"
+                  checked={isForceFinish}
+                  onChange={(e) => setIsForceFinish(e.target.checked)}
+                  className="w-4 h-4 accent-red-500"
+                />
+
+                <label
+                  htmlFor="forceFinishDraw"
+                  className="text-sm font-bold text-red-500 cursor-pointer"
+                >
+                  기록 후 대국 조기 종료하기
+                </label>
               </div>
 
               <button
