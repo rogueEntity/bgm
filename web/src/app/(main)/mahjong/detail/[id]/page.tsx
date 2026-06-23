@@ -3,6 +3,7 @@
 import { db } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import MatchResultDetails from "@/components/mahjong/MatchResultDetails";
+import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
 
 export default async function MatchDetailPage({
   params,
@@ -45,13 +46,15 @@ export default async function MatchDetailPage({
     <div className="container py-8 max-w-3xl mx-auto space-y-6 p-4">
       <div className="flex items-center justify-between bg-foreground/5 p-4 rounded-xl border border-foreground/10">
         <h1 className="text-2xl font-black">대국 상세 기록</h1>
-        <div className="text-sm font-bold opacity-60">
-          대국 ID: {matchId}
+        <div className="text-right text-sm font-bold opacity-60">
+          <div>대국 ID: {matchId}</div>
+          <div>{details.game_mode ?? "동풍전"}</div>
         </div>
       </div>
 
       {/* 이제 이름이 포함된 details가 넘어가서 순위표에 닉네임이 정상 출력됩니다. */}
       <MatchResultDetails details={details} />
+      <MahjongRoundLogCards details={details} />
     </div>
   );
 }

@@ -36,6 +36,25 @@ const WIND_LABEL: Record<string, string> = {
   NORTH: "북",
 };
 
+const ROUND_NAME_MAP: Record<string, string> = {
+  EAST_1: "동 1국",
+  EAST_2: "동 2국",
+  EAST_3: "동 3국",
+  EAST_4: "동 4국",
+  SOUTH_1: "남 1국",
+  SOUTH_2: "남 2국",
+  SOUTH_3: "남 3국",
+  SOUTH_4: "남 4국",
+  WEST_1: "서 1국",
+  WEST_2: "서 2국",
+  WEST_3: "서 3국",
+  WEST_4: "서 4국",
+  NORTH_1: "북 1국",
+  NORTH_2: "북 2국",
+  NORTH_3: "북 3국",
+  NORTH_4: "북 4국",
+};
+
 function formatDate(value: string | null) {
   if (!value) {
     return "-";
@@ -235,7 +254,7 @@ export default async function MahjongMatchesPage({
                       <div className="text-right text-sm font-bold text-foreground/60">
                         <div>{match.game_mode}</div>
                         <div>
-                          {match.current_round} / {match.honba}본장
+                          {ROUND_NAME_MAP[match.current_round] ?? match.current_round} / {match.honba}본장
                         </div>
                       </div>
                     </div>
