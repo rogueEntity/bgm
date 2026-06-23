@@ -165,16 +165,17 @@ function normalizeLog(log: Record<string, unknown>) {
       type: "AGARI",
       round: log.round,
       honba: log.honba,
-      winner_key: log.winner_key ?? log.winnerKey,
-      loser_key: log.loser_key ?? log.loserKey ?? null,
-      is_tsumo: log.is_tsumo ?? log.isTsumo,
-      base_score: log.base_score ?? log.baseScore,
-      han: log.han,
-      dora_total: log.dora_total ?? log.doraTotal,
-      selected_yaku_ids: log.selected_yaku_ids ?? log.selectedYakuIds ?? [],
-      riichi_keys: log.riichi_keys ?? log.riichiKeys ?? [],
-      score_deltas: log.score_deltas ?? log.scoreDeltas ?? {},
-      result_scores: log.result_scores ?? log.resultScores ?? {},
+      is_tsumo: Boolean(log.is_tsumo),
+      riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
+      wins: Array.isArray(log.wins) ? log.wins : [],
+      score_deltas:
+        typeof log.score_deltas === "object" && log.score_deltas !== null
+          ? log.score_deltas
+          : {},
+      result_scores:
+        typeof log.result_scores === "object" && log.result_scores !== null
+          ? log.result_scores
+          : {},
     };
   }
 
@@ -184,11 +185,17 @@ function normalizeLog(log: Record<string, unknown>) {
       type: "RYUUKYOKU",
       round: log.round,
       honba: log.honba,
-      ryuukyoku_type: log.ryuukyoku_type ?? log.ryuukyokuType,
-      tenpai_keys: log.tenpai_keys ?? log.tenpaiKeys ?? [],
-      riichi_keys: log.riichi_keys ?? log.riichiKeys ?? [],
-      score_deltas: log.score_deltas ?? log.scoreDeltas ?? {},
-      result_scores: log.result_scores ?? log.resultScores ?? {},
+      ryuukyoku_type: log.ryuukyoku_type,
+      tenpai_keys: Array.isArray(log.tenpai_keys) ? log.tenpai_keys : [],
+      riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
+      score_deltas:
+        typeof log.score_deltas === "object" && log.score_deltas !== null
+          ? log.score_deltas
+          : {},
+      result_scores:
+        typeof log.result_scores === "object" && log.result_scores !== null
+          ? log.result_scores
+          : {},
     };
   }
 
@@ -211,9 +218,9 @@ function normalizeDetails(rawDetails: unknown): MahjongDetails {
     riichi_sticks: Number(details.riichi_sticks ?? 0),
     players: (details.players ?? {}) as Record<string, MahjongPlayerState>,
     logs: rawLogs.map((log) => normalizeLog(log as Record<string, unknown>)),
-    game_mode: (details.game_mode ?? details.gameMode ?? "동풍전") as GameMode,
+    game_mode: (details.game_mode ?? "동풍전") as GameMode,
     status: (details.status ?? "PLAYING") as MahjongStatus,
-    finish_reason: (details.finish_reason ?? details.finishReason) as
+    finish_reason: details.finish_reason as
       | MahjongDetails["finish_reason"]
       | undefined,
   };
@@ -301,7 +308,7 @@ export async function createMahjongMatch(
   });
 
   const initialDetails: MahjongDetails = {
-    schema_version: 1,
+    schema_version: 2,
     current_round: "EAST_1",
     honba: 0,
     riichi_sticks: 0,
@@ -336,12 +343,6 @@ function createEmptyScoreMap(players: Record<string, any>) {
   }, {});
 }
 
-function addScoreDelta(target: MahjongScoreMap, source: MahjongScoreMap) {
-  Object.entries(source).forEach(([key, value]) => {
-    target[key] = (target[key] ?? 0) + value;
-  });
-}
-
 function assertUniqueValues(values: string[], message: string) {
   if (new Set(values).size !== values.length) {
     throw new Error(message);
@@ -359,7 +360,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   if (!match || !match.match_details) throw new Error("Match not found");
 
-  const details = match.match_details.details as any;
+  const details = normalizeDetails(match.match_details.details);
   const players = details.players;
 
   const currentRound = details.current_round;
@@ -399,17 +400,10 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     }
   });
 
-  if (!data.is_tsumo) {
-    if (!data.is_tsumo && wins.length === 2) {
-      const firstLoserKey = wins[0].loser_key;
+  if (!data.is_tsumo && wins.length === 2) {
+    const firstLoserKey = wins[0].loser_key;
 
-      if (!firstLoserKey || wins.some((win) => win.loser_key !== firstLoserKey)) {
-        throw new Error("더블 론의 방총자는 동일해야 합니다.");
-      }
-    }
-
-    // 더블 론은 한 사람이 버린 패에 두 명이 론하는 구조여야 함
-    if (wins.length === 2 && wins[0].loser_key !== wins[1].loser_key) {
+    if (!firstLoserKey || wins.some((win) => win.loser_key !== firstLoserKey)) {
       throw new Error("더블 론의 방총자는 동일해야 합니다.");
     }
   }
@@ -428,15 +422,12 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   const totalRiichiSticks =
     (details.riichi_sticks || 0) + data.current_riichi_keys.length;
 
-  const totalScoreDeltas = createEmptyScoreMap(players);
   const normalizedWins = wins.map((win) => ({
     ...win,
     score_deltas: createEmptyScoreMap(players),
   }));
 
-  // 더블 론의 공탁금 수령자.
-  // 엄밀한 룰을 적용하려면 "방총자 기준 다음 순서 화료자" 계산이 필요함.
-  // 현재 좌석 순서 정보가 부족하므로 UI 입력 순서상 첫 번째 화료자에게 지급.
+  // 더블 론 공탁금은 방총자의 현재 바람 기준으로 가장 가까운 화료자가 수령
   const riichiStickReceiverKey = getRiichiStickReceiverKey({
     wins: normalizedWins,
     players,
@@ -489,8 +480,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
     players[win.winner_key].score += collected;
     win.score_deltas[win.winner_key] += collected;
-
-    addScoreDelta(totalScoreDeltas, win.score_deltas);
   });
 
   // 공탁금은 한 번만 지급
@@ -498,7 +487,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     const riichiStickPoint = totalRiichiSticks * 1000;
 
     players[riichiStickReceiverKey].score += riichiStickPoint;
-    totalScoreDeltas[riichiStickReceiverKey] += riichiStickPoint;
 
     const receiverWin = normalizedWins.find(
       (win) => win.winner_key === riichiStickReceiverKey
@@ -542,12 +530,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   };
 
   const currentWindIdx = roundMap[wind];
-  const modeLimitIdx =
-    details.game_mode === "동풍전" || details.gameMode === "동풍전"
-      ? 1
-      : details.game_mode === "반장전" || details.gameMode === "반장전"
-        ? 2
-        : 4;
+  const modeLimitIdx = getModeLimitIdx(details.game_mode);
 
   const roundNum = parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
@@ -576,9 +559,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
         details.finish_reason = "NORMAL";
       } else {
         const absoluteLimitIdx =
-          details.game_mode === "전장전" || details.gameMode === "전장전"
-            ? 4
-            : modeLimitIdx + 1;
+          details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
 
         const isAbsoluteLast =
           currentWindIdx === absoluteLimitIdx && roundNum === 4;
@@ -602,11 +583,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     }
   }
 
-  if (!details.history || !Array.isArray(details.history)) {
-    details.history = [];
-  }
-
-  details.history.push({
+  details.logs.push({
     timestamp: new Date().toISOString(),
     type: "AGARI",
     round: currentRound,
@@ -620,7 +597,9 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   await db.match_details.update({
     where: { match_id: match.match_details.match_id },
-    data: { details },
+    data: {
+      details: toPrismaJson(details),
+    },
   });
 
   revalidatePath(`/mahjong/play/${data.match_id}`);
@@ -715,8 +694,8 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-  const roundNum = parseInt(roundStr, 10);
 
+  const roundNum = parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
 
