@@ -34,6 +34,7 @@ export function roundUpToHundred(value: number) {
 
 function normalizeFu(fu: number) {
   if (!Number.isFinite(fu)) return 0;
+
   return Math.ceil(fu / 10) * 10;
 }
 
@@ -159,6 +160,8 @@ export function calculateMahjongScore({
     : Math.min(normalizedFu * Math.pow(2, han + 2), 2000);
 
   const limitName = limit?.limitName ?? "일반";
+  const scoreLabel =
+    limitName === "일반" ? `${normalizedFu}부 ${han}판` : limitName;
 
   if (!isTsumo) {
     const ronPayment = roundUpToHundred(basePoints * (isDealer ? 6 : 4));
@@ -172,7 +175,7 @@ export function calculateMahjongScore({
       basePoints,
       totalScore: ronPayment,
       ronPayment,
-      display: `${limitName === "일반" ? `${normalizedFu}부 ${han}판` : limitName} / 론 ${ronPayment.toLocaleString()}점`,
+      display: `${scoreLabel} / 론 ${ronPayment.toLocaleString()}점`,
     };
   }
 
@@ -191,7 +194,7 @@ export function calculateMahjongScore({
       tsumoPayments: {
         each,
       },
-      display: `${limitName === "일반" ? `${normalizedFu}부 ${han}판` : limitName} / 쯔모 ${each.toLocaleString()} 올`,
+      display: `${scoreLabel} / 쯔모 ${each.toLocaleString()} 올`,
     };
   }
 
@@ -211,7 +214,7 @@ export function calculateMahjongScore({
       dealer,
       child,
     },
-    display: `${limitName === "일반" ? `${normalizedFu}부 ${han}판` : limitName} / 쯔모 ${child.toLocaleString()}-${dealer.toLocaleString()}점`,
+    display: `${scoreLabel} / 쯔모 ${child.toLocaleString()}-${dealer.toLocaleString()}점`,
   };
 }
 
@@ -220,10 +223,30 @@ export function getRecommendedFuOptions({
 }: {
   isTsumo: boolean;
 }) {
-  const baseOptions = [20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170];
+  const baseOptions = [
+    20,
+    25,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100,
+    110,
+    120,
+    130,
+    140,
+    150,
+    160,
+    170,
+  ];
 
-  // 20부는 보통 핑후 쯔모 전용, 25부는 치또이츠 전용으로 쓰는 경우가 많음.
-  if (isTsumo) return baseOptions;
+  // 20부는 보통 핑후 쯔모 전용이라 론에서는 기본 선택지에서 제외
+  if (isTsumo) {
+    return baseOptions;
+  }
 
   return baseOptions.filter((fu) => fu !== 20);
 }

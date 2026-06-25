@@ -347,6 +347,44 @@ export default function ScoreForm({
     );
   };
 
+  const renderPlayerSelectButtons = ({
+    value,
+    onChange,
+    disabledKeys = [],
+    activeClassName = "bg-blue-600 text-white border-blue-600",
+  }: {
+    value: string;
+    onChange: (stateKey: string) => void;
+    disabledKeys?: string[];
+    activeClassName?: string;
+  }) => {
+    return (
+      <div className="grid grid-cols-4 gap-2">
+        {players.map((player) => {
+          const isSelected = value === player.stateKey;
+          const isDisabled = disabledKeys.includes(player.stateKey);
+
+          return (
+            <button
+              key={player.stateKey}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => onChange(player.stateKey)}
+              className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
+                isSelected
+                  ? activeClassName
+                  : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"
+              } ${isDisabled ? "opacity-30 cursor-not-allowed" : ""}`}
+            >
+              <span>{getWindLabel(player.wind)}</span>
+              <span>{player.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   const getDisabledStatus = (
     win: WinFormState,
     yName: string,
@@ -471,7 +509,9 @@ export default function ScoreForm({
       return;
     }
 
-    const invalidCalculatedScoreWin = wins.find((win) => !getCalculatedScore(win));
+    const invalidCalculatedScoreWin = wins.find(
+      (win) => !getCalculatedScore(win),
+    );
 
     if (invalidCalculatedScoreWin) {
       alert("점수 계산에 실패했습니다. 역과 부수를 확인해주세요.");
@@ -626,17 +666,12 @@ export default function ScoreForm({
           {!isTsumo && (
             <div className="space-y-2">
               <label className="text-sm font-bold">방총자</label>
-              <select
-                value={loserKey}
-                onChange={(e) => handleLoserChange(e.target.value)}
-                className="w-full p-2 rounded-xl border border-red-200 bg-red-50 text-red-700 font-bold text-sm"
-              >
-                {players.map((player) => (
-                  <option key={player.stateKey} value={player.stateKey}>
-                    {player.name}
-                  </option>
-                ))}
-              </select>
+
+              {renderPlayerSelectButtons({
+                value: loserKey,
+                onChange: handleLoserChange,
+                activeClassName: "bg-red-500 text-white border-red-500",
+              })}
             </div>
           )}
 
@@ -647,6 +682,12 @@ export default function ScoreForm({
             const fuOptions = getRecommendedFuOptions({
               isTsumo,
             });
+            const disabledWinnerKeys = [
+              ...(isTsumo ? [] : [loserKey]),
+              ...wins
+                .filter((_, winIndex) => winIndex !== index)
+                .map((otherWin) => otherWin.winner_key),
+            ];
 
             return (
               <div
@@ -675,23 +716,13 @@ export default function ScoreForm({
 
                 <div className="space-y-2">
                   <label className="text-sm font-bold">화료자</label>
-                  <select
-                    value={win.winner_key}
-                    onChange={(e) =>
-                      updateWin(index, { winner_key: e.target.value })
-                    }
-                    className="w-full p-2 rounded-xl border bg-background font-bold text-sm"
-                  >
-                    {players
-                      .filter(
-                        (player) => isTsumo || player.stateKey !== loserKey,
-                      )
-                      .map((player) => (
-                        <option key={player.stateKey} value={player.stateKey}>
-                          {player.name}
-                        </option>
-                      ))}
-                  </select>
+
+                  {renderPlayerSelectButtons({
+                    value: win.winner_key,
+                    onChange: (stateKey) =>
+                      updateWin(index, { winner_key: stateKey }),
+                    disabledKeys: disabledWinnerKeys,
+                  })}
                 </div>
 
                 <button
