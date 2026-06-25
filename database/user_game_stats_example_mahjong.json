@@ -1,0 +1,130 @@
+{
+  "id": 1,
+  "user_id": "00000000-0000-0000-0000-000000000001",
+  "game_id": 1,
+  "play_count": 3,
+  "accumulated_score": 91200,
+  "average_rank": 2.33,
+  "mmr": 1510,
+  "specific_stats": {
+    "schema_version": 1,
+    "mahjong": {
+      "modes": {
+        "east": {
+          "play_count": 1,
+          "rank_counts": {
+            "1": 1,
+            "2": 0,
+            "3": 0,
+            "4": 0
+          },
+          "rank_rates": {
+            "1": 1,
+            "2": 0,
+            "3": 0,
+            "4": 0
+          },
+          "tobi_count": 0,
+          "tobi_rate": 0,
+          "total_agari_point": 12000,
+          "agari_count": 3,
+          "average_agari_point": 4000,
+          "total_rank": 1,
+          "average_rank": 1,
+          "max_honba": 2,
+          "round_count": 8,
+          "agari_round_count": 3,
+          "tsumo_agari_count": 1,
+          "deal_in_count": 1,
+          "riichi_count": 2,
+          "open_win_count": 1,
+          "riichi_win_count": 2,
+          "agari_rate": 0.375,
+          "tsumo_rate": 0.3333,
+          "deal_in_rate": 0.125,
+          "riichi_rate": 0.25,
+          "open_win_rate": 0.3333,
+          "riichi_win_rate": 0.6667
+        },
+        "south": {
+          "play_count": 2,
+          "rank_counts": {
+            "1": 0,
+            "2": 1,
+            "3": 1,
+            "4": 0
+          },
+          "rank_rates": {
+            "1": 0,
+            "2": 0.5,
+            "3": 0.5,
+            "4": 0
+          },
+          "tobi_count": 0,
+          "tobi_rate": 0,
+          "total_agari_point": 28000,
+          "agari_count": 7,
+          "average_agari_point": 4000,
+          "total_rank": 5,
+          "average_rank": 2.5,
+          "max_honba": 3,
+          "round_count": 20,
+          "agari_round_count": 7,
+          "tsumo_agari_count": 3,
+          "deal_in_count": 4,
+          "riichi_count": 5,
+          "open_win_count": 2,
+          "riichi_win_count": 3,
+          "agari_rate": 0.35,
+          "tsumo_rate": 0.4286,
+          "deal_in_rate": 0.2,
+          "riichi_rate": 0.25,
+          "open_win_rate": 0.2857,
+          "riichi_win_rate": 0.4286
+        },
+        "full": {
+          "play_count": 0,
+          "rank_counts": {
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0
+          },
+          "rank_rates": {
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0
+          },
+          "tobi_count": 0,
+          "tobi_rate": 0,
+          "total_agari_point": 0,
+          "agari_count": 0,
+          "average_agari_point": 0,
+          "total_rank": 0,
+          "average_rank": 0,
+          "max_honba": 0,
+          "round_count": 0,
+          "agari_round_count": 0,
+          "tsumo_agari_count": 0,
+          "deal_in_count": 0,
+          "riichi_count": 0,
+          "open_win_count": 0,
+          "riichi_win_count": 0,
+          "agari_rate": 0,
+          "tsumo_rate": 0,
+          "deal_in_rate": 0,
+          "riichi_rate": 0,
+          "open_win_rate": 0,
+          "riichi_win_rate": 0
+        }
+      },
+      "yaku_counts": {
+        "riichi": 4,
+        "menzen_tsumo": 3,
+        "tanyao": 5,
+        "pinfu": 2
+      }
+    }
+  }
+}

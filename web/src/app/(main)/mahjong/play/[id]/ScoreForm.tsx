@@ -53,6 +53,27 @@ const RYUUKYOKU_TYPES: RyuukyokuType[] = [
 const TSUMO_ONLY_YAKU_NAMES = ["멘젠쯔모", "해저로월", "영상개화"];
 const RON_ONLY_YAKU_NAMES = ["하저로어", "창깡"];
 
+const CHIITOITSU_YAKU_IDS = new Set([
+  "chiitoitsu",
+  "chitoitsu",
+  "seven_pairs",
+]);
+
+const CHIITOITSU_YAKU_NAMES = new Set([
+  "치또이쯔",
+  "치토이츠",
+  "칠대자",
+]);
+
+function isChiitoitsuYaku(yaku: Yaku | undefined) {
+  if (!yaku) return false;
+
+  return (
+    CHIITOITSU_YAKU_IDS.has(yaku.id) ||
+    CHIITOITSU_YAKU_NAMES.has(yaku.name)
+  );
+}
+
 function getWindLabel(wind: string) {
   if (wind === "EAST") return "東";
   if (wind === "SOUTH") return "南";
@@ -116,20 +137,49 @@ export default function ScoreForm({
     return getYakumanCount(win) > 0;
   };
 
+  const isChiitoitsuWin = (win: WinFormState) => {
+    return win.selected_yaku_ids.some((id) => {
+      const yaku = ALL_YAKU.find((item) => item.id === id);
+      return isChiitoitsuYaku(yaku);
+    });
+  };
+
+  const getEffectiveFu = (win: WinFormState) => {
+    if (isChiitoitsuWin(win)) return 25;
+    return win.fu === "" ? null : Number(win.fu);
+  };
+
+  const getSafeLoserKey = (winnerKey: string) => {
+    return (
+      players.find((player) => player.stateKey !== winnerKey)?.stateKey ?? ""
+    );
+  };
+
+  const createDefaultRoundWinState = () => {
+    const winnerKey = firstPlayerKey;
+    const nextLoserKey = getSafeLoserKey(winnerKey);
+
+    return {
+      winnerKey,
+      loserKey: nextLoserKey,
+    };
+  };
+
   const getCalculatedScore = (win: WinFormState) => {
     const totalHan = getWinTotalHan(win);
     const yakumanCount = getYakumanCount(win);
     const winner = players.find((player) => player.stateKey === win.winner_key);
     const isDealer = winner?.wind === "EAST";
+    const effectiveFu = getEffectiveFu(win);
 
     if (!winner) return null;
     if (totalHan <= 0 && yakumanCount === 0) return null;
-    if (yakumanCount === 0 && win.fu === "") return null;
+    if (yakumanCount === 0 && effectiveFu === null) return null;
 
     try {
       return calculateMahjongScore({
         han: totalHan,
-        fu: win.fu === "" ? 30 : Number(win.fu),
+        fu: effectiveFu ?? 30,
         isDealer,
         isTsumo,
         yakumanCount,
@@ -317,15 +367,20 @@ export default function ScoreForm({
             red_dora: 0,
             selected_yaku_ids: nextIds.filter((nextId) => {
               const yaku = ALL_YAKU.find((item) => item.id === nextId);
-
               return yaku?.isYakuman;
             }),
           };
         }
 
+        const nextHasChiitoitsu = nextIds.some((nextId) => {
+          const yaku = ALL_YAKU.find((item) => item.id === nextId);
+          return isChiitoitsuYaku(yaku);
+        });
+
         return {
           ...win,
           selected_yaku_ids: nextIds,
+          fu: nextHasChiitoitsu ? 25 : win.fu === 25 ? 30 : win.fu,
         };
       }),
     );
@@ -369,15 +424,18 @@ export default function ScoreForm({
               key={player.stateKey}
               type="button"
               disabled={isDisabled}
-              onClick={() => onChange(player.stateKey)}
+              onClick={() => {
+                if (isDisabled) return;
+                onChange(player.stateKey);
+              }}
               className={`py-2 text-xs font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
                 isSelected
                   ? activeClassName
                   : "bg-white dark:bg-background border-foreground/10 opacity-70 hover:opacity-100"
               } ${isDisabled ? "opacity-30 cursor-not-allowed" : ""}`}
             >
-              <span>{getWindLabel(player.wind)}</span>
-              <span>{player.name}</span>
+              {getWindLabel(player.wind)}
+              {player.name}
             </button>
           );
         })}
@@ -498,8 +556,8 @@ export default function ScoreForm({
 
     const invalidFuWin = wins.find((win) => {
       const yakumanCount = getYakumanCount(win);
-
       if (yakumanCount > 0) return false;
+      if (isChiitoitsuWin(win)) return false;
 
       return win.fu === "" || Number(win.fu) < 20;
     });
@@ -563,7 +621,7 @@ export default function ScoreForm({
           winner_key: win.winner_key,
           loser_key: isTsumo ? null : loserKey,
           is_mengen: win.is_mengen,
-          fu: win.fu === "" ? null : Number(win.fu),
+          fu: getEffectiveFu(win),
           dora_total: win.dora_indicator + win.red_dora,
           selected_yaku_ids: win.selected_yaku_ids,
         })),
@@ -572,7 +630,11 @@ export default function ScoreForm({
       });
 
       alert("기록되었습니다.");
-      setWins([createDefaultWin(firstPlayerKey)]);
+
+      const nextDefault = createDefaultRoundWinState();
+
+      setLoserKey(nextDefault.loserKey);
+      setWins([createDefaultWin(nextDefault.winnerKey)]);
       setCurrentRiichiKeys([]);
       setIsForceFinish(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -679,9 +741,11 @@ export default function ScoreForm({
             const winHasYakuman = hasYakuman(win);
             const totalHan = getWinTotalHan(win);
             const calculatedScore = getCalculatedScore(win);
-            const fuOptions = getRecommendedFuOptions({
-              isTsumo,
-            });
+            const fuOptions = isChiitoitsuWin(win)
+              ? [25]
+              : getRecommendedFuOptions({
+                  isTsumo,
+                });
             const disabledWinnerKeys = [
               ...(isTsumo ? [] : [loserKey]),
               ...wins
@@ -745,13 +809,14 @@ export default function ScoreForm({
 
                     {!winHasYakuman && (
                       <select
-                        value={win.fu}
+                        value={isChiitoitsuWin(win) ? 25 : win.fu}
+                        disabled={isChiitoitsuWin(win)}
                         onChange={(e) =>
                           updateWin(index, {
                             fu: e.target.value ? Number(e.target.value) : "",
                           })
                         }
-                        className="flex-1 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background min-w-0"
+                        className="flex-1 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background min-w-0 disabled:opacity-60"
                       >
                         {fuOptions.map((fu) => (
                           <option key={fu} value={fu}>
