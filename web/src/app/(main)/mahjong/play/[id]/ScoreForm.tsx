@@ -645,7 +645,6 @@ export default function ScoreForm({
             const totalHan = getWinTotalHan(win);
             const calculatedScore = getCalculatedScore(win);
             const fuOptions = getRecommendedFuOptions({
-              han: totalHan,
               isTsumo,
             });
 

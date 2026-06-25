@@ -216,18 +216,13 @@ export function calculateMahjongScore({
 }
 
 export function getRecommendedFuOptions({
-  han,
   isTsumo,
 }: {
-  han: number;
   isTsumo: boolean;
 }) {
-  const baseOptions = [20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110];
+  const baseOptions = [20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170];
 
   // 20부는 보통 핑후 쯔모 전용, 25부는 치또이츠 전용으로 쓰는 경우가 많음.
-  // 그래도 직접 입력 가능하게 열어둔다.
-  if (han >= 5) return baseOptions;
-
   if (isTsumo) return baseOptions;
 
   return baseOptions.filter((fu) => fu !== 20);
