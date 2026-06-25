@@ -30,9 +30,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       if (token.providerId) {
         // DB에 유저가 있는지 확인
-        const dbUser = await db.users.findFirst({
-          where: { provider_id: token.providerId as string },
-        });
+        const dbUser =
+          token.provider && token.providerId
+            ? await db.users.findUnique({
+                where: {
+                  provider_provider_id: {
+                    provider: token.provider as string,
+                    provider_id: token.providerId as string,
+                  },
+                },
+              })
+            : null;
 
         // DB에 유저가 있다면 (온보딩을 완료했다면) 닉네임과 이모지를 토큰에 저장
         if (dbUser) {
