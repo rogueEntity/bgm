@@ -420,7 +420,7 @@ export default function ScoreForm({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
 
     if (isSubmitting) return;
@@ -519,24 +519,14 @@ export default function ScoreForm({
       await recordMahjongResult({
         match_id: matchId,
         is_tsumo: isTsumo,
-        wins: wins.map((win) => {
-          const calculatedScore = getCalculatedScore(win);
-
-          if (!calculatedScore) {
-            throw new Error("점수 계산에 실패했습니다.");
-          }
-
-          return {
-            winner_key: win.winner_key,
-            loser_key: isTsumo ? null : loserKey,
-            base_score: calculatedScore.totalScore,
-            han: getWinTotalHan(win),
-            fu: win.fu === "" ? null : Number(win.fu),
-            dora_total: win.dora_indicator + win.red_dora,
-            selected_yaku_ids: win.selected_yaku_ids,
-            limit_name: calculatedScore.limitName,
-          };
-        }),
+        wins: wins.map((win) => ({
+          winner_key: win.winner_key,
+          loser_key: isTsumo ? null : loserKey,
+          is_mengen: win.is_mengen,
+          fu: win.fu === "" ? null : Number(win.fu),
+          dora_total: win.dora_indicator + win.red_dora,
+          selected_yaku_ids: win.selected_yaku_ids,
+        })),
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
       });
@@ -724,35 +714,21 @@ export default function ScoreForm({
                     </div>
 
                     {!winHasYakuman && (
-                      <>
-                        <select
-                          value={win.fu}
-                          onChange={(e) =>
-                            updateWin(index, {
-                              fu: e.target.value ? Number(e.target.value) : "",
-                            })
-                          }
-                          className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background"
-                        >
-                          {fuOptions.map((fu) => (
-                            <option key={fu} value={fu}>
-                              {fu}부
-                            </option>
-                          ))}
-                        </select>
-
-                        <input
-                          type="number"
-                          value={win.fu}
-                          onChange={(e) =>
-                            updateWin(index, {
-                              fu: e.target.value ? Number(e.target.value) : "",
-                            })
-                          }
-                          placeholder="부수"
-                          className="flex-1 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background min-w-0"
-                        />
-                      </>
+                      <select
+                        value={win.fu}
+                        onChange={(e) =>
+                          updateWin(index, {
+                            fu: e.target.value ? Number(e.target.value) : "",
+                          })
+                        }
+                        className="flex-1 p-2 rounded-lg border border-blue-200 font-bold text-sm bg-white dark:bg-background min-w-0"
+                      >
+                        {fuOptions.map((fu) => (
+                          <option key={fu} value={fu}>
+                            {fu}부
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </div>
 

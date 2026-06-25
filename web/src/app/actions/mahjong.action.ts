@@ -8,6 +8,7 @@ import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
+import { calculateTotalHan } from "@/lib/mahjong-calc";
 import { calculateMahjongScore } from "@/lib/mahjong-score";
 
 // --- 타입 ---
@@ -35,12 +36,17 @@ type MahjongDetails = {
 type MahjongWinInput = {
   winner_key: string;
   loser_key: string | null;
-  base_score: number;
-  han: number;
+  is_mengen: boolean;
   fu?: number | null;
   dora_total: number;
   selected_yaku_ids: string[];
-  limit_name?: string;
+};
+
+type MahjongCalculatedWin = MahjongWinInput & {
+  base_score: number;
+  han: number;
+  fu: number | null;
+  limit_name: string;
 };
 
 type RecordMahjongResultInput = {
@@ -278,7 +284,7 @@ function recalculateWins({
   wins: MahjongWinInput[];
   players: Record<string, MahjongPlayerState>;
   is_tsumo: boolean;
-}) {
+}): MahjongCalculatedWin[] {
   return wins.map((win) => {
     const winner = players[win.winner_key];
 
@@ -287,9 +293,14 @@ function recalculateWins({
     }
 
     const yakumanCount = getYakumanCount(win.selected_yaku_ids);
+    const serverHan = calculateTotalHan(
+      win.selected_yaku_ids,
+      win.is_mengen,
+      win.dora_total,
+    );
 
     const calculatedScore = calculateMahjongScore({
-      han: win.han,
+      han: serverHan,
       fu: win.fu ?? 30,
       isDealer: winner.wind === "EAST",
       isTsumo: is_tsumo,
@@ -299,7 +310,8 @@ function recalculateWins({
     return {
       ...win,
       base_score: calculatedScore.totalScore,
-      fu: yakumanCount > 0 ? null : win.fu,
+      han: serverHan,
+      fu: calculatedScore.fu,
       limit_name: calculatedScore.limitName,
     };
   });
@@ -799,7 +811,11 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     details.honba = currentHonba + 1;
 
     if (isOyaTenpai) {
-      if ((isAllLast || isExtraRound) && oyaScore >= 30000 && oyaScore === topScore) {
+      if (
+        (isAllLast || isExtraRound) &&
+        oyaScore >= 30000 &&
+        oyaScore === topScore
+      ) {
         details.status = "FINISHED";
         details.finish_reason = "NORMAL";
       }
