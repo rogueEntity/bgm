@@ -34,7 +34,7 @@ export function roundUpToHundred(value: number) {
 
 function normalizeFu(fu: number) {
   if (!Number.isFinite(fu)) return 0;
-
+  if (fu === 25) return 25;
   return Math.ceil(fu / 10) * 10;
 }
 
@@ -225,7 +225,6 @@ export function getRecommendedFuOptions({
 }) {
   const baseOptions = [
     20,
-    25,
     30,
     40,
     50,
