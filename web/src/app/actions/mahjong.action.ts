@@ -28,8 +28,6 @@ type MahjongDetails = {
   game_mode: GameMode;
   status: MahjongStatus;
   finish_reason?: "FORCE_FINISH" | "TOBI" | "NORMAL" | "MAX_ROUND_REACHED";
-
-  // 통계 중복 반영 방지
   stats_applied?: boolean;
 };
 
@@ -103,13 +101,21 @@ type MahjongModeStats = {
   tsumo_agari_count: number;
   deal_in_count: number;
 
-  // 전체 후로율/리치율이 아니라 화료 시 기준
+  // 전체 국 기준 리치
+  riichi_count: number;
+
+  // 화료 시 기준
   open_win_count: number;
   riichi_win_count: number;
 
   agari_rate: number;
   tsumo_rate: number;
   deal_in_rate: number;
+
+  // 전체 국 기준 리치율
+  riichi_rate: number;
+
+  // 화료 시 기준
   open_win_rate: number;
   riichi_win_rate: number;
 };
@@ -117,9 +123,6 @@ type MahjongModeStats = {
 type MahjongSpecificStats = {
   schema_version: number;
   mahjong: {
-    // user_game_stats 테이블에 mmr 컬럼이 없으므로 JSON에 저장
-    mmr: number;
-
     modes: Record<MahjongStatsModeKey, MahjongModeStats>;
 
     // 동풍/반장/전장 통합 역 완성 횟수
@@ -127,9 +130,9 @@ type MahjongSpecificStats = {
   };
 };
 
-type MahjongFinishedPlayerResult = {
+type RankedMahjongPlayerResult = {
   player_key: string;
-  user_id: string;
+  user_id: string | null;
   final_score: number;
   rank: number;
   is_tobi: boolean;
@@ -169,9 +172,34 @@ type YakuLike = {
   isYakuman?: boolean;
 };
 
+export type MahjongMatchListFilter = {
+  status?: "ALL" | "PLAYING" | "FINISHED";
+  game_mode?: "ALL" | GameMode;
+  keyword?: string;
+  only_mine?: boolean;
+  take?: number;
+};
+
+export type MahjongMatchListItem = {
+  id: number;
+  play_date: string | null;
+  game_mode: GameMode;
+  status: MahjongStatus;
+  current_round: string;
+  honba: number;
+  riichi_sticks: number;
+  finish_reason: MahjongDetails["finish_reason"] | null;
+  players: {
+    key: string;
+    name: string;
+    wind: MahjongPlayerState["wind"] | null;
+    score: number | null;
+    rank: number | null;
+  }[];
+};
+
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU] as YakuLike[];
 
-// --- 헬퍼 함수 ---
 const ROUND_ORDER = [
   "EAST_1",
   "EAST_2",
@@ -191,6 +219,8 @@ const ROUND_ORDER = [
   "NORTH_4",
 ];
 
+const WIND_TURN_ORDER = ["EAST", "SOUTH", "WEST", "NORTH"] as const;
+
 const DEFAULT_RANK_UMA: Record<number, number> = {
   1: 30,
   2: 10,
@@ -200,6 +230,18 @@ const DEFAULT_RANK_UMA: Record<number, number> = {
 
 const RIICHI_YAKU_IDS = new Set(["riichi", "double_riichi"]);
 const RIICHI_YAKU_NAMES = new Set(["리치", "더블 리치", "더블리치"]);
+
+const CHIITOITSU_YAKU_IDS = new Set([
+  "chiitoitsu",
+  "chitoitsu",
+  "seven_pairs",
+]);
+
+const CHIITOITSU_YAKU_NAMES = new Set([
+  "치또이쯔",
+  "치토이츠",
+  "칠대자",
+]);
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -232,8 +274,6 @@ function getNextRound(currentRound: string) {
   return null;
 }
 
-const WIND_TURN_ORDER = ["EAST", "SOUTH", "WEST", "NORTH"] as const;
-
 function getWindTurnDistance(
   fromWind: string | undefined,
   toWind: string | undefined,
@@ -248,8 +288,6 @@ function getWindTurnDistance(
   const distance =
     (toIndex - fromIndex + WIND_TURN_ORDER.length) % WIND_TURN_ORDER.length;
 
-  // 같은 바람은 본인이므로 론 화료자로 올 수 없음.
-  // 혹시 데이터가 이상하면 가장 낮은 우선순위로 밀어냄.
   return distance === 0 ? Number.POSITIVE_INFINITY : distance;
 }
 
@@ -266,7 +304,6 @@ function getRiichiStickReceiverKey({
     throw new Error("공탁금 수령자를 계산할 화료 정보가 없습니다.");
   }
 
-  // 쯔모 또는 단일 론은 화료자가 그대로 공탁금 수령
   if (is_tsumo || wins.length === 1) {
     return wins[0].winner_key;
   }
@@ -391,6 +428,15 @@ function getYakumanCount(selectedYakuIds: string[]) {
   }).length;
 }
 
+function isChiitoitsuWin(selectedYakuIds: string[]) {
+  return selectedYakuIds.some((yakuId) => {
+    if (CHIITOITSU_YAKU_IDS.has(yakuId)) return true;
+
+    const yaku = ALL_YAKU.find((item) => item.id === yakuId);
+    return yaku ? CHIITOITSU_YAKU_NAMES.has(yaku.name) : false;
+  });
+}
+
 function getYakuHan({
   yaku,
   isMengen,
@@ -458,9 +504,16 @@ function recalculateWins({
       isMengen: win.is_mengen !== false,
     });
 
+    const effectiveFu =
+      yakumanCount > 0
+        ? null
+        : isChiitoitsuWin(win.selected_yaku_ids)
+          ? 25
+          : win.fu ?? 30;
+
     const calculatedScore = calculateMahjongScore({
       han,
-      fu: win.fu ?? 30,
+      fu: effectiveFu ?? 30,
       isDealer: winner.wind === "EAST",
       isTsumo: is_tsumo,
       yakumanCount,
@@ -470,7 +523,7 @@ function recalculateWins({
       ...win,
       base_score: calculatedScore.totalScore,
       han,
-      fu: yakumanCount > 0 ? null : win.fu,
+      fu: effectiveFu,
       limit_name: calculatedScore.limitName,
     };
   });
@@ -511,12 +564,17 @@ function createEmptyModeStats(): MahjongModeStats {
     tsumo_agari_count: 0,
     deal_in_count: 0,
 
+    riichi_count: 0,
+
     open_win_count: 0,
     riichi_win_count: 0,
 
     agari_rate: 0,
     tsumo_rate: 0,
     deal_in_rate: 0,
+
+    riichi_rate: 0,
+
     open_win_rate: 0,
     riichi_win_rate: 0,
   };
@@ -526,7 +584,6 @@ function createEmptySpecificStats(): MahjongSpecificStats {
   return {
     schema_version: 1,
     mahjong: {
-      mmr: 1500,
       modes: {
         east: createEmptyModeStats(),
         south: createEmptyModeStats(),
@@ -554,7 +611,6 @@ function normalizeSpecificStats(rawStats: unknown): MahjongSpecificStats {
   return {
     schema_version: Number(stats.schema_version ?? 1),
     mahjong: {
-      mmr: Number(mahjong.mmr ?? 1500),
       modes: {
         east: {
           ...createEmptyModeStats(),
@@ -609,31 +665,31 @@ function recalculateModeRates(modeStats: MahjongModeStats) {
     ? Number((modeStats.total_rank / modeStats.play_count).toFixed(2))
     : 0;
 
-  // 화료율: 전체 국 중 내가 화료한 국 비율
   modeStats.agari_rate = safeRate(
     modeStats.agari_round_count,
     modeStats.round_count,
   );
 
-  // 쯔모율: 내 화료 중 쯔모 화료 비율
   modeStats.tsumo_rate = safeRate(
     modeStats.tsumo_agari_count,
     modeStats.agari_count,
   );
 
-  // 방총률: 전체 국 중 내가 방총한 국 비율
   modeStats.deal_in_rate = safeRate(
     modeStats.deal_in_count,
     modeStats.round_count,
   );
 
-  // 화료 시 후로율: 내 화료 중 후로 상태였던 비율
+  modeStats.riichi_rate = safeRate(
+    modeStats.riichi_count,
+    modeStats.round_count,
+  );
+
   modeStats.open_win_rate = safeRate(
     modeStats.open_win_count,
     modeStats.agari_count,
   );
 
-  // 화료 시 리치율: 내 화료 중 리치/더블리치가 포함된 비율
   modeStats.riichi_win_rate = safeRate(
     modeStats.riichi_win_count,
     modeStats.agari_count,
@@ -649,6 +705,15 @@ function isRiichiWin(selectedYakuIds: string[]) {
   });
 }
 
+function getPlayerKeyFromMatchPlayer(matchPlayer: {
+  user_id: string | null;
+  guest_name: string | null;
+}) {
+  return matchPlayer.user_id
+    ? `user_${matchPlayer.user_id}`
+    : `guest_${matchPlayer.guest_name}`;
+}
+
 function getFinishedPlayerResults({
   details,
   matchPlayers,
@@ -659,12 +724,22 @@ function getFinishedPlayerResults({
     user_id: string | null;
     guest_name: string | null;
   }[];
-}): MahjongFinishedPlayerResult[] {
-  const userKeyMap = new Map<string, string>();
+}): RankedMahjongPlayerResult[] {
+  const sortedMatchPlayers = [...matchPlayers].sort(
+    (a, b) => (a.id ?? 0) - (b.id ?? 0),
+  );
 
-  matchPlayers.forEach((matchPlayer) => {
-    if (!matchPlayer.user_id) return;
-    userKeyMap.set(`user_${matchPlayer.user_id}`, matchPlayer.user_id);
+  const userKeyMap = new Map<string, string>();
+  const startOrderMap = new Map<string, number>();
+
+  sortedMatchPlayers.forEach((matchPlayer, index) => {
+    const playerKey = getPlayerKeyFromMatchPlayer(matchPlayer);
+
+    startOrderMap.set(playerKey, index);
+
+    if (matchPlayer.user_id) {
+      userKeyMap.set(playerKey, matchPlayer.user_id);
+    }
   });
 
   const sortedPlayers = Object.entries(details.players)
@@ -672,23 +747,24 @@ function getFinishedPlayerResults({
       player_key: playerKey,
       user_id: userKeyMap.get(playerKey) ?? null,
       final_score: player.score,
+      start_order: startOrderMap.get(playerKey) ?? Number.MAX_SAFE_INTEGER,
     }))
-    .filter(
-      (
-        player,
-      ): player is {
-        player_key: string;
-        user_id: string;
-        final_score: number;
-      } => Boolean(player.user_id),
-    )
-    .sort((a, b) => b.final_score - a.final_score);
+    .sort((a, b) => {
+      if (b.final_score !== a.final_score) {
+        return b.final_score - a.final_score;
+      }
+
+      // 동점이면 시작 바람 순: 동 → 남 → 서 → 북
+      return a.start_order - b.start_order;
+    });
 
   return sortedPlayers.map((player, index) => {
     const rank = index + 1;
 
     return {
-      ...player,
+      player_key: player.player_key,
+      user_id: player.user_id,
+      final_score: player.final_score,
       rank,
       is_tobi: player.final_score <= 0,
       uma: DEFAULT_RANK_UMA[rank] ?? 0,
@@ -711,6 +787,7 @@ function collectPlayerMatchStats({
     agari_count: 0,
     tsumo_agari_count: 0,
     deal_in_count: 0,
+    riichi_count: 0,
     open_win_count: 0,
     riichi_win_count: 0,
     total_agari_point: 0,
@@ -720,6 +797,10 @@ function collectPlayerMatchStats({
 
   logs.forEach((log) => {
     result.max_honba = Math.max(result.max_honba, Number(log.honba ?? 0));
+
+    if (Array.isArray(log.riichi_keys) && log.riichi_keys.includes(playerKey)) {
+      result.riichi_count += 1;
+    }
 
     if (log.type !== "AGARI" || !Array.isArray(log.wins)) {
       return;
@@ -788,145 +869,169 @@ async function finalizeMahjongMatchStats({
 
   const modeKey = getStatsModeKey(details.game_mode);
   const results = getFinishedPlayerResults({ details, matchPlayers });
+  const userResults = results.filter(
+    (result): result is RankedMahjongPlayerResult & { user_id: string } =>
+      result.user_id !== null,
+  );
 
-  await Promise.all(
-    results.map(async (result) => {
-      const playerMatchStats = collectPlayerMatchStats({
-        details,
-        playerKey: result.player_key,
-      });
+  await db.$transaction(async (tx) => {
+    const latestMatchDetails = await tx.match_details.findUnique({
+      where: {
+        match_id: matchId,
+      },
+    });
 
-      const existingStats = await db.user_game_stats.findFirst({
-        where: {
-          user_id: result.user_id,
-          game_id: gameId,
-        },
-      });
+    if (!latestMatchDetails) {
+      throw new Error("Match details not found");
+    }
 
-      const specificStats = normalizeSpecificStats(
-        existingStats?.specific_stats,
-      );
-      const modeStats = specificStats.mahjong.modes[modeKey];
+    const latestDetails = normalizeDetails(latestMatchDetails.details);
 
-      modeStats.play_count += 1;
-      modeStats.rank_counts[String(result.rank) as "1" | "2" | "3" | "4"] += 1;
-      modeStats.total_rank += result.rank;
+    if (latestDetails.stats_applied) {
+      return;
+    }
 
-      if (result.is_tobi) {
-        modeStats.tobi_count += 1;
-      }
-
-      modeStats.round_count += playerMatchStats.round_count;
-      modeStats.agari_round_count += playerMatchStats.agari_round_count;
-      modeStats.agari_count += playerMatchStats.agari_count;
-      modeStats.tsumo_agari_count += playerMatchStats.tsumo_agari_count;
-      modeStats.deal_in_count += playerMatchStats.deal_in_count;
-      modeStats.open_win_count += playerMatchStats.open_win_count;
-      modeStats.riichi_win_count += playerMatchStats.riichi_win_count;
-      modeStats.total_agari_point += playerMatchStats.total_agari_point;
-      modeStats.max_honba = Math.max(
-        modeStats.max_honba,
-        playerMatchStats.max_honba,
-      );
-
-      Object.entries(playerMatchStats.yaku_counts).forEach(
-        ([yakuId, count]) => {
-          specificStats.mahjong.yaku_counts[yakuId] =
-            (specificStats.mahjong.yaku_counts[yakuId] ?? 0) + count;
-        },
-      );
-
-      recalculateModeRates(modeStats);
-
-      // user_game_stats에 mmr 컬럼이 없으므로 specific_stats.mahjong.mmr만 갱신
-      specificStats.mahjong.mmr =
-        Number(specificStats.mahjong.mmr ?? 1500) + result.uma;
-
-      const previousPlayCount = existingStats?.play_count ?? 0;
-      const nextPlayCount = previousPlayCount + 1;
-
-      const nextAccumulatedScore =
-        (existingStats?.accumulated_score ?? 0) + result.final_score;
-
-      const previousAverageRank = existingStats?.average_rank ?? 0;
-      const nextAverageRank = Number(
-        (
-          (previousAverageRank * previousPlayCount + result.rank) /
-          nextPlayCount
-        ).toFixed(2),
-      );
-
-      if (existingStats) {
-        await db.user_game_stats.update({
-          where: {
-            id: existingStats.id,
-          },
-          data: {
-            play_count: nextPlayCount,
-            accumulated_score: nextAccumulatedScore,
-            average_rank: nextAverageRank,
-            specific_stats: toPrismaJson(specificStats),
-          },
+    await Promise.all(
+      userResults.map(async (result) => {
+        const playerMatchStats = collectPlayerMatchStats({
+          details,
+          playerKey: result.player_key,
         });
-      } else {
-        await db.user_game_stats.create({
-          data: {
+
+        const existingStats = await tx.user_game_stats.findFirst({
+          where: {
             user_id: result.user_id,
             game_id: gameId,
-            play_count: 1,
-            accumulated_score: result.final_score,
-            average_rank: result.rank,
-            specific_stats: toPrismaJson(specificStats),
           },
         });
-      }
-    }),
-  );
 
-  await Promise.all(
-    matchPlayers.map((matchPlayer) => {
-      if (!matchPlayer.id || !matchPlayer.user_id) {
-        return Promise.resolve();
-      }
+        const specificStats = normalizeSpecificStats(
+          existingStats?.specific_stats,
+        );
+        const modeStats = specificStats.mahjong.modes[modeKey];
 
-      const result = results.find(
-        (item) => item.user_id === matchPlayer.user_id,
-      );
+        modeStats.play_count += 1;
+        modeStats.rank_counts[
+          String(result.rank) as "1" | "2" | "3" | "4"
+        ] += 1;
+        modeStats.total_rank += result.rank;
 
-      if (!result) {
-        return Promise.resolve();
-      }
+        if (result.is_tobi) {
+          modeStats.tobi_count += 1;
+        }
 
-      return db.match_players.update({
-        where: {
-          id: matchPlayer.id,
-        },
-        data: {
-          final_score: result.final_score,
-          rank: result.rank,
-        },
-      });
-    }),
-  );
+        modeStats.round_count += playerMatchStats.round_count;
+        modeStats.agari_round_count += playerMatchStats.agari_round_count;
+        modeStats.agari_count += playerMatchStats.agari_count;
+        modeStats.tsumo_agari_count += playerMatchStats.tsumo_agari_count;
+        modeStats.deal_in_count += playerMatchStats.deal_in_count;
+        modeStats.riichi_count += playerMatchStats.riichi_count;
+        modeStats.open_win_count += playerMatchStats.open_win_count;
+        modeStats.riichi_win_count += playerMatchStats.riichi_win_count;
+        modeStats.total_agari_point += playerMatchStats.total_agari_point;
+        modeStats.max_honba = Math.max(
+          modeStats.max_honba,
+          playerMatchStats.max_honba,
+        );
 
-  details.stats_applied = true;
+        Object.entries(playerMatchStats.yaku_counts).forEach(
+          ([yakuId, count]) => {
+            specificStats.mahjong.yaku_counts[yakuId] =
+              (specificStats.mahjong.yaku_counts[yakuId] ?? 0) + count;
+          },
+        );
 
-  await db.match_details.update({
-    where: {
-      match_id: matchId,
-    },
-    data: {
-      details: toPrismaJson(details),
-    },
-  });
+        recalculateModeRates(modeStats);
 
-  await db.matches.update({
-    where: {
-      id: matchId,
-    },
-    data: {
-      play_date: new Date(),
-    },
+        const previousPlayCount = existingStats?.play_count ?? 0;
+        const nextPlayCount = previousPlayCount + 1;
+
+        const nextAccumulatedScore =
+          (existingStats?.accumulated_score ?? 0) + result.final_score;
+
+        const previousAverageRank = existingStats?.average_rank ?? 0;
+        const nextAverageRank = Number(
+          (
+            (previousAverageRank * previousPlayCount + result.rank) /
+            nextPlayCount
+          ).toFixed(2),
+        );
+
+        const nextMmr = (existingStats?.mmr ?? 1500) + result.uma;
+
+        if (existingStats) {
+          await tx.user_game_stats.update({
+            where: {
+              id: existingStats.id,
+            },
+            data: {
+              play_count: nextPlayCount,
+              accumulated_score: nextAccumulatedScore,
+              average_rank: nextAverageRank,
+              mmr: nextMmr,
+              specific_stats: toPrismaJson(specificStats),
+            },
+          });
+        } else {
+          await tx.user_game_stats.create({
+            data: {
+              user_id: result.user_id,
+              game_id: gameId,
+              play_count: 1,
+              accumulated_score: result.final_score,
+              average_rank: result.rank,
+              mmr: 1500 + result.uma,
+              specific_stats: toPrismaJson(specificStats),
+            },
+          });
+        }
+      }),
+    );
+
+    await Promise.all(
+      matchPlayers.map((matchPlayer) => {
+        if (!matchPlayer.id) {
+          return Promise.resolve();
+        }
+
+        const playerKey = getPlayerKeyFromMatchPlayer(matchPlayer);
+        const result = results.find((item) => item.player_key === playerKey);
+
+        if (!result) {
+          return Promise.resolve();
+        }
+
+        return tx.match_players.update({
+          where: {
+            id: matchPlayer.id,
+          },
+          data: {
+            final_score: result.final_score,
+            rank: result.rank,
+          },
+        });
+      }),
+    );
+
+    latestDetails.stats_applied = true;
+
+    await tx.match_details.update({
+      where: {
+        match_id: matchId,
+      },
+      data: {
+        details: toPrismaJson(latestDetails),
+      },
+    });
+
+    await tx.matches.update({
+      where: {
+        id: matchId,
+      },
+      data: {
+        play_date: new Date(),
+      },
+    });
   });
 }
 
@@ -1053,6 +1158,11 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   }
 
   const details = normalizeDetails(match.match_details.details);
+
+  if (details.status === "FINISHED") {
+    throw new Error("이미 종료된 대국에는 기록을 추가할 수 없습니다.");
+  }
+
   const players = details.players;
   const currentRound = details.current_round;
   const currentHonba = details.honba || 0;
@@ -1110,7 +1220,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     initialScores[key] = players[key].score;
   });
 
-  // 이번 국 리치 선언 점수 차감
   data.current_riichi_keys.forEach((key) => {
     if (!players[key]) return;
     players[key].score -= 1000;
@@ -1124,7 +1233,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     score_deltas: createEmptyScoreMap(players),
   }));
 
-  // 더블 론 공탁금은 방총자의 현재 바람 기준으로 가장 가까운 화료자가 수령
   const riichiStickReceiverKey = getRiichiStickReceiverKey({
     wins: normalizedWins,
     players,
@@ -1179,7 +1287,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     win.score_deltas[win.winner_key] += collected;
   });
 
-  // 공탁금은 한 번만 지급
   if (totalRiichiSticks > 0) {
     const riichiStickPoint = totalRiichiSticks * 1000;
 
@@ -1339,6 +1446,11 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
   }
 
   const details = normalizeDetails(match.match_details.details);
+
+  if (details.status === "FINISHED") {
+    throw new Error("이미 종료된 대국에는 기록을 추가할 수 없습니다.");
+  }
+
   const players = details.players;
   const isExhaustive = data.type === "황패유국";
   const currentRound = details.current_round;
@@ -1505,32 +1617,6 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
   revalidatePath("/mahjong/matches");
   revalidatePath("/mahjong");
 }
-
-export type MahjongMatchListFilter = {
-  status?: "ALL" | "PLAYING" | "FINISHED";
-  game_mode?: "ALL" | GameMode;
-  keyword?: string;
-  only_mine?: boolean;
-  take?: number;
-};
-
-export type MahjongMatchListItem = {
-  id: number;
-  play_date: string | null;
-  game_mode: GameMode;
-  status: MahjongStatus;
-  current_round: string;
-  honba: number;
-  riichi_sticks: number;
-  finish_reason: MahjongDetails["finish_reason"] | null;
-  players: {
-    key: string;
-    name: string;
-    wind: MahjongPlayerState["wind"] | null;
-    score: number | null;
-    rank: number | null;
-  }[];
-};
 
 export async function getMahjongMatches(
   filter: MahjongMatchListFilter = {},
