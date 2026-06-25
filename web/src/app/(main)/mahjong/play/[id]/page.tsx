@@ -171,17 +171,19 @@ export default async function MahjongPlayPage({
           )}
         </div>
 
-        {/* 하단: 점수 기록 폼 */}
         {isRecorder && (
           <>
             {/* 하단: 점수 기록 폼 */}
             <div className="w-full max-w-2xl mx-auto">
               <ScoreForm matchId={matchId} players={scoreboard} />
             </div>
-            <MahjongRoundLogCards
-              details={details}
-              playerNameMap={playerNameMap}
-            />
+
+            <div className="w-full max-w-2xl mx-auto">
+              <MahjongRoundLogCards
+                details={details}
+                playerNameMap={playerNameMap}
+              />
+            </div>
           </>
         )}
       </div>
