@@ -1,3 +1,5 @@
+// web/src/app/actions/mahjong.action.ts
+
 "use server";
 
 import { db } from "@/lib/prisma";
@@ -5,8 +7,11 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
+import { calculateMahjongScore } from "@/lib/mahjong-score";
 
 // --- 타입 ---
+
 type GameMode = "동풍전" | "반장전" | "전장전";
 type MahjongStatus = "PLAYING" | "FINISHED";
 
@@ -32,8 +37,10 @@ type MahjongWinInput = {
   loser_key: string | null;
   base_score: number;
   han: number;
+  fu?: number | null;
   dora_total: number;
   selected_yaku_ids: string[];
+  limit_name?: string;
 };
 
 type RecordMahjongResultInput = {
@@ -54,7 +61,10 @@ type RecordRyuukyokuInput = {
 
 type MahjongScoreMap = Record<string, number>;
 
+const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
+
 // --- 헬퍼 함수 ---
+
 const ROUND_ORDER = [
   "EAST_1",
   "EAST_2",
@@ -79,7 +89,7 @@ function toPrismaJson(value: unknown): Prisma.InputJsonValue {
 }
 
 function getNextWind(currentWind: string) {
-  const map: Record<string, "EAST" | "SOUTH" | "WEST" | "NORTH"> = {
+  const map: Record<string, MahjongPlayerState["wind"]> = {
     EAST: "SOUTH",
     SOUTH: "WEST",
     WEST: "NORTH",
@@ -107,7 +117,10 @@ function getNextRound(currentRound: string) {
 
 const WIND_TURN_ORDER = ["EAST", "SOUTH", "WEST", "NORTH"] as const;
 
-function getWindTurnDistance(fromWind: string | undefined, toWind: string | undefined) {
+function getWindTurnDistance(
+  fromWind: string | undefined,
+  toWind: string | undefined,
+) {
   const fromIndex = WIND_TURN_ORDER.indexOf(fromWind as any);
   const toIndex = WIND_TURN_ORDER.indexOf(toWind as any);
 
@@ -115,7 +128,8 @@ function getWindTurnDistance(fromWind: string | undefined, toWind: string | unde
     return Number.POSITIVE_INFINITY;
   }
 
-  const distance = (toIndex - fromIndex + WIND_TURN_ORDER.length) % WIND_TURN_ORDER.length;
+  const distance =
+    (toIndex - fromIndex + WIND_TURN_ORDER.length) % WIND_TURN_ORDER.length;
 
   // 같은 바람은 본인이므로 론 화료자로 올 수 없음.
   // 혹시 데이터가 이상하면 가장 낮은 우선순위로 밀어냄.
@@ -149,8 +163,14 @@ function getRiichiStickReceiverKey({
   const loserWind = players[loserKey]?.wind;
 
   const sortedWins = [...wins].sort((a, b) => {
-    const aDistance = getWindTurnDistance(loserWind, players[a.winner_key]?.wind);
-    const bDistance = getWindTurnDistance(loserWind, players[b.winner_key]?.wind);
+    const aDistance = getWindTurnDistance(
+      loserWind,
+      players[a.winner_key]?.wind,
+    );
+    const bDistance = getWindTurnDistance(
+      loserWind,
+      players[b.winner_key]?.wind,
+    );
 
     return aDistance - bDistance;
   });
@@ -204,7 +224,6 @@ function normalizeLog(log: Record<string, unknown>) {
 
 function normalizeDetails(rawDetails: unknown): MahjongDetails {
   const details = rawDetails as Record<string, unknown>;
-
   const rawLogs = Array.isArray(details.logs) ? details.logs : [];
 
   return {
@@ -225,12 +244,71 @@ function normalizeDetails(rawDetails: unknown): MahjongDetails {
 function getModeLimitIdx(gameMode: GameMode) {
   if (gameMode === "동풍전") return 1;
   if (gameMode === "반장전") return 2;
+
   return 4;
+}
+
+function createEmptyScoreMap(players: Record<string, MahjongPlayerState>) {
+  return Object.keys(players).reduce<MahjongScoreMap>((acc, key) => {
+    acc[key] = 0;
+
+    return acc;
+  }, {});
+}
+
+function assertUniqueValues(values: string[], message: string) {
+  if (new Set(values).size !== values.length) {
+    throw new Error(message);
+  }
+}
+
+function getYakumanCount(selectedYakuIds: string[]) {
+  return selectedYakuIds.filter((id) => {
+    const yaku = ALL_YAKU.find((item) => item.id === id);
+
+    return yaku?.isYakuman;
+  }).length;
+}
+
+function recalculateWins({
+  wins,
+  players,
+  is_tsumo,
+}: {
+  wins: MahjongWinInput[];
+  players: Record<string, MahjongPlayerState>;
+  is_tsumo: boolean;
+}) {
+  return wins.map((win) => {
+    const winner = players[win.winner_key];
+
+    if (!winner) {
+      throw new Error("존재하지 않는 화료자입니다.");
+    }
+
+    const yakumanCount = getYakumanCount(win.selected_yaku_ids);
+
+    const calculatedScore = calculateMahjongScore({
+      han: win.han,
+      fu: win.fu ?? 30,
+      isDealer: winner.wind === "EAST",
+      isTsumo: is_tsumo,
+      yakumanCount,
+    });
+
+    return {
+      ...win,
+      base_score: calculatedScore.totalScore,
+      fu: yakumanCount > 0 ? null : win.fu,
+      limit_name: calculatedScore.limitName,
+    };
+  });
 }
 
 // -----------------
 // 1. 방 생성 액션
 // -----------------
+
 export async function createMahjongMatch(
   players: string[],
   startingScore: number,
@@ -255,7 +333,6 @@ export async function createMahjongMatch(
   }
 
   const myUserUuid = me.id;
-
   const winds: MahjongPlayerState["wind"][] = ["EAST", "SOUTH", "WEST", "NORTH"];
 
   let game = await db.games.findFirst({
@@ -290,7 +367,9 @@ export async function createMahjongMatch(
 
   const matchPlayersData = playerNames.map((playerName, index) => {
     const foundUserId = userMap.get(playerName);
-    const playerKey = foundUserId ? `user_${foundUserId}` : `guest_${playerName}`;
+    const playerKey = foundUserId
+      ? `user_${foundUserId}`
+      : `guest_${playerName}`;
 
     initialPlayersState[playerKey] = {
       wind: winds[index],
@@ -332,44 +411,43 @@ export async function createMahjongMatch(
   redirect(`/mahjong/play/${newMatch.id}`);
 }
 
-function createEmptyScoreMap(players: Record<string, any>) {
-  return Object.keys(players).reduce<MahjongScoreMap>((acc, key) => {
-    acc[key] = 0;
-    return acc;
-  }, {});
-}
-
-function assertUniqueValues(values: string[], message: string) {
-  if (new Set(values).size !== values.length) {
-    throw new Error(message);
-  }
-}
-
 // -----------------
 // 2. 점수 기록, 화료 액션
 // -----------------
+
 export async function recordMahjongResult(data: RecordMahjongResultInput) {
   const match = await db.matches.findUnique({
-    where: { id: data.match_id },
-    include: { match_details: true },
+    where: {
+      id: data.match_id,
+    },
+    include: {
+      match_details: true,
+    },
   });
 
-  if (!match || !match.match_details) throw new Error("Match not found");
+  if (!match || !match.match_details) {
+    throw new Error("Match not found");
+  }
 
   const details = normalizeDetails(match.match_details.details);
   const players = details.players;
-
   const currentRound = details.current_round;
   const currentHonba = details.honba || 0;
 
-  const wins = data.wins;
+  const wins = recalculateWins({
+    wins: data.wins,
+    players,
+    is_tsumo: data.is_tsumo,
+  });
 
   if (data.is_tsumo && wins.length !== 1) {
     throw new Error("쯔모 화료는 화료자가 1명이어야 합니다.");
   }
 
   if (!data.is_tsumo && (wins.length < 1 || wins.length > 2)) {
-    throw new Error("론 화료는 1명 또는 2명만 가능합니다. 3명 론은 삼가화 유국으로 기록해주세요.");
+    throw new Error(
+      "론 화료는 1명 또는 2명만 가능합니다.\n3명 론은 삼가화 유국으로 기록해주세요.",
+    );
   }
 
   const winnerKeys = wins.map((win) => win.winner_key);
@@ -404,7 +482,8 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     }
   }
 
-  const initialScores: Record<string, number> = {};
+  const initialScores: MahjongScoreMap = {};
+
   Object.keys(players).forEach((key) => {
     initialScores[key] = players[key].score;
   });
@@ -412,6 +491,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   // 이번 국 리치 선언 점수 차감
   data.current_riichi_keys.forEach((key) => {
     if (!players[key]) return;
+
     players[key].score -= 1000;
   });
 
@@ -433,7 +513,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   normalizedWins.forEach((win) => {
     const winner = players[win.winner_key];
     const isWinnerOya = winner.wind === "EAST";
-
     let collected = 0;
 
     if (data.is_tsumo) {
@@ -444,6 +523,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
           if (key === win.winner_key) return;
 
           const payment = basePayment + currentHonba * 100;
+
           players[key].score -= payment;
           win.score_deltas[key] -= payment;
           collected += payment;
@@ -485,7 +565,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     players[riichiStickReceiverKey].score += riichiStickPoint;
 
     const receiverWin = normalizedWins.find(
-      (win) => win.winner_key === riichiStickReceiverKey
+      (win) => win.winner_key === riichiStickReceiverKey,
     );
 
     if (receiverWin) {
@@ -495,8 +575,8 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   details.riichi_sticks = 0;
 
-  const scoreDeltas: Record<string, number> = {};
-  const resultScores: Record<string, number> = {};
+  const scoreDeltas: MahjongScoreMap = {};
+  const resultScores: MahjongScoreMap = {};
 
   Object.keys(players).forEach((key) => {
     scoreDeltas[key] = players[key].score - initialScores[key];
@@ -504,18 +584,17 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   });
 
   const topScore = Math.max(
-    ...Object.values(players).map((player: any) => player.score)
+    ...Object.values(players).map((player) => player.score),
   );
 
   const oyaWin = normalizedWins.find(
-    (win) => players[win.winner_key].wind === "EAST"
+    (win) => players[win.winner_key].wind === "EAST",
   );
 
   const isOyaWin = Boolean(oyaWin);
   const mainWinnerKey = oyaWin?.winner_key ?? normalizedWins[0].winner_key;
   const winnerScore = players[mainWinnerKey].score;
-
-  const isTobi = Object.values(players).some((player: any) => player.score <= 0);
+  const isTobi = Object.values(players).some((player) => player.score <= 0);
 
   const [wind, roundStr] = details.current_round.split("_");
   const roundMap: Record<string, number> = {
@@ -527,7 +606,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-
   const roundNum = parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
@@ -535,8 +613,11 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   if (isTobi || data.is_final) {
     details.status = "FINISHED";
 
-    if (data.is_final) details.finish_reason = "FORCE_FINISH";
-    else if (isTobi) details.finish_reason = "TOBI";
+    if (data.is_final) {
+      details.finish_reason = "FORCE_FINISH";
+    } else if (isTobi) {
+      details.finish_reason = "TOBI";
+    }
   } else {
     if (isOyaWin) {
       details.honba = currentHonba + 1;
@@ -556,7 +637,6 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
       } else {
         const absoluteLimitIdx =
           details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
-
         const isAbsoluteLast =
           currentWindIdx === absoluteLimitIdx && roundNum === 4;
 
@@ -597,7 +677,9 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
   });
 
   await db.match_details.update({
-    where: { match_id: match.match_details.match_id },
+    where: {
+      match_id: match.match_details.match_id,
+    },
     data: {
       details: toPrismaJson(details),
     },
@@ -611,6 +693,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 // -----------------
 // 3. 유국 처리 액션
 // -----------------
+
 export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
   const match = await db.matches.findUnique({
     where: {
@@ -627,13 +710,11 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const details = normalizeDetails(match.match_details.details);
   const players = details.players;
-
   const isExhaustive = data.type === "황패유국";
-
   const currentRound = details.current_round;
   const currentHonba = details.honba || 0;
 
-  const initialScores: Record<string, number> = {};
+  const initialScores: MahjongScoreMap = {};
 
   Object.keys(players).forEach((key) => {
     initialScores[key] = players[key].score;
@@ -645,15 +726,18 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     }
   });
 
-  details.riichi_sticks = details.riichi_sticks + data.current_riichi_keys.length;
+  details.riichi_sticks =
+    details.riichi_sticks + data.current_riichi_keys.length;
 
-  let isOyaTenpai;
+  let isOyaTenpai: boolean;
 
   if (isExhaustive) {
     const allKeys = Object.keys(players);
     const tenpaiCount = data.tenpai_keys.length;
 
-    isOyaTenpai = data.tenpai_keys.some((key) => players[key].wind === "EAST");
+    isOyaTenpai = data.tenpai_keys.some(
+      (key) => players[key].wind === "EAST",
+    );
 
     if (tenpaiCount > 0 && tenpaiCount < 4) {
       const reward = 3000 / tenpaiCount;
@@ -671,21 +755,25 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     isOyaTenpai = true;
   }
 
-  const scoreDeltas: Record<string, number> = {};
-  const resultScores: Record<string, number> = {};
+  const scoreDeltas: MahjongScoreMap = {};
+  const resultScores: MahjongScoreMap = {};
 
   Object.keys(players).forEach((key) => {
     scoreDeltas[key] = players[key].score - initialScores[key];
     resultScores[key] = players[key].score;
   });
 
-  const oyaKey = Object.keys(players).find((key) => players[key].wind === "EAST") as string;
+  const oyaKey = Object.keys(players).find(
+    (key) => players[key].wind === "EAST",
+  ) as string;
+
   const oyaScore = players[oyaKey].score;
-  const topScore = Math.max(...Object.values(players).map((player) => player.score));
+  const topScore = Math.max(
+    ...Object.values(players).map((player) => player.score),
+  );
   const isTobi = Object.values(players).some((player) => player.score <= 0);
 
   const [wind, roundStr] = details.current_round.split("_");
-
   const roundMap: Record<string, number> = {
     EAST: 1,
     SOUTH: 2,
@@ -695,7 +783,6 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-
   const roundNum = parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
@@ -721,8 +808,10 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
         details.status = "FINISHED";
         details.finish_reason = "NORMAL";
       } else {
-        const absoluteLimitIdx = details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
-        const isAbsoluteLast = currentWindIdx === absoluteLimitIdx && roundNum === 4;
+        const absoluteLimitIdx =
+          details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
+        const isAbsoluteLast =
+          currentWindIdx === absoluteLimitIdx && roundNum === 4;
 
         if (isAbsoluteLast) {
           details.status = "FINISHED";
@@ -883,25 +972,23 @@ export async function getMahjongMatches(
       const details = normalizeDetails(match.match_details.details);
       const lastLog = details.logs.at(-1);
       const shouldShowLastCompletedRound = details.status === "FINISHED";
-
       const displayRound =
         shouldShowLastCompletedRound && typeof lastLog?.round === "string"
           ? lastLog.round
           : details.current_round;
-
       const displayHonba =
         shouldShowLastCompletedRound && typeof lastLog?.honba === "number"
           ? lastLog.honba
           : details.honba;
+
       const players = match.match_players.map((matchPlayer) => {
         const name =
-          (matchPlayer.user_id ? matchPlayer.users?.nickname : matchPlayer.guest_name) ??
-          "이름 없음";
-
+          (matchPlayer.user_id
+            ? matchPlayer.users?.nickname
+            : matchPlayer.guest_name) ?? "이름 없음";
         const key = matchPlayer.user_id
           ? `user_${matchPlayer.user_id}`
           : `guest_${matchPlayer.guest_name}`;
-
         const playerState = details.players[key];
 
         return {
@@ -940,7 +1027,9 @@ export async function getMahjongMatches(
 
       if (keyword) {
         const matchIdText = String(match.id);
-        const playerNames = match.players.map((player) => player.name.toLowerCase());
+        const playerNames = match.players.map((player) =>
+          player.name.toLowerCase(),
+        );
 
         return (
           matchIdText.includes(keyword) ||
