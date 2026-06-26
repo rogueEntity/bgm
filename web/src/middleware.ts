@@ -38,5 +38,17 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /**
+     * 인증이 필요한 페이지에만 middleware 적용.
+     *
+     * 제외:
+     * - api
+     * - _next/static
+     * - _next/image
+     * - favicon / icon / apple-touch-icon
+     * - public 정적 파일(svg, png, jpg, ico, css 등)
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|favicon-32x32.png|apple-touch-icon.png|.*\\..*).*)",
+  ],
 };
