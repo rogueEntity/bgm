@@ -1,7 +1,7 @@
 // web/src/app/actions/notice.action.ts
 "use server";
 
-import { auth } from "@/auth";
+import { requireAdminUser } from "@/lib/admin";
 import { db } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -37,42 +37,8 @@ function normalizeNoticeId(value: FormDataEntryValue | null) {
   return id;
 }
 
-async function getCurrentDbUser() {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    throw new Error("로그인이 필요합니다.");
-  }
-
-  const providerId = session.user.id;
-  // @ts-ignore
-  const provider = session.user.provider as string | undefined;
-
-  if (!provider) {
-    throw new Error("로그인 제공자 정보를 찾을 수 없습니다.");
-  }
-
-  const user = await db.users.findUnique({
-    where: {
-      provider_provider_id: {
-        provider,
-        provider_id: providerId,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (!user) {
-    throw new Error("사용자 정보를 찾을 수 없습니다.");
-  }
-
-  return user;
-}
-
 export async function createHomeNotice(formData: FormData) {
-  const currentUser = await getCurrentDbUser();
+  const currentUser = await requireAdminUser();
 
   const title = normalizeString(formData.get("title"));
   const summary = normalizeNullableString(formData.get("summary"));
@@ -104,7 +70,7 @@ export async function createHomeNotice(formData: FormData) {
 }
 
 export async function updateHomeNotice(formData: FormData) {
-  await getCurrentDbUser();
+  await requireAdminUser();
 
   const id = normalizeNoticeId(formData.get("id"));
   const title = normalizeString(formData.get("title"));
@@ -133,6 +99,7 @@ export async function updateHomeNotice(formData: FormData) {
   });
 
   revalidatePath("/");
+  revalidatePath(`/notices/${id}`);
   revalidatePath("/admin/notices");
   revalidatePath(`/admin/notices/${id}/edit`);
 
@@ -140,7 +107,7 @@ export async function updateHomeNotice(formData: FormData) {
 }
 
 export async function deleteHomeNotice(formData: FormData) {
-  await getCurrentDbUser();
+  await requireAdminUser();
 
   const id = normalizeNoticeId(formData.get("id"));
 
@@ -151,6 +118,7 @@ export async function deleteHomeNotice(formData: FormData) {
   });
 
   revalidatePath("/");
+  revalidatePath(`/notices/${id}`);
   revalidatePath("/admin/notices");
 
   redirect("/admin/notices");

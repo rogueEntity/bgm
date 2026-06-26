@@ -1,19 +1,15 @@
 // web/src/app/(main)/admin/notices/[id]/edit/page.tsx
-import { auth } from "@/auth";
 import NoticeForm from "@/components/notices/NoticeForm";
+import { requireAdminUser } from "@/lib/admin";
 import { db } from "@/lib/prisma";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 export default async function NoticeEditPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-
-  if (!session) {
-    redirect("/");
-  }
+  await requireAdminUser();
 
   const resolvedParams = await params;
   const noticeId = Number(resolvedParams.id);

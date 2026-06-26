@@ -10,22 +10,43 @@ export async function getCurrentUserWithAdmin() {
   }
 
   const providerId = session.user.id;
+  // @ts-ignore
+  const provider = session.user.provider as string | undefined;
 
-  const user = await db.users.findFirst({
-    where: {
-      provider_id: providerId,
-    },
-    select: {
-      id: true,
-      nickname: true,
-      avatar_emoji: true,
-      admin_users: {
+  const user = provider
+    ? await db.users.findUnique({
+        where: {
+          provider_provider_id: {
+            provider,
+            provider_id: providerId,
+          },
+        },
         select: {
           id: true,
+          nickname: true,
+          avatar_emoji: true,
+          admin_users: {
+            select: {
+              id: true,
+            },
+          },
         },
-      },
-    },
-  });
+      })
+    : await db.users.findFirst({
+        where: {
+          provider_id: providerId,
+        },
+        select: {
+          id: true,
+          nickname: true,
+          avatar_emoji: true,
+          admin_users: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
 
   if (!user) return null;
 

@@ -1,10 +1,9 @@
 // web/src/app/(main)/admin/notices/page.tsx
-import { auth } from "@/auth";
 import { deleteHomeNotice } from "@/app/actions/notice.action";
 import NoticeForm from "@/components/notices/NoticeForm";
+import { requireAdminUser } from "@/lib/admin";
 import { db } from "@/lib/prisma";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 const CATEGORY_LABEL: Record<string, string> = {
   NOTICE: "공지",
@@ -45,12 +44,8 @@ function getCategoryClassName(category: string) {
   return "bg-foreground/10 text-foreground/70 border-foreground/10";
 }
 
-export default async function NoticesPage() {
-  const session = await auth();
-
-  if (!session) {
-    redirect("/");
-  }
+export default async function AdminNoticesPage() {
+  await requireAdminUser();
 
   const notices = await db.home_notices.findMany({
     include: {
@@ -155,6 +150,13 @@ export default async function NoticesPage() {
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+                      <Link
+                        href={`/notices/${notice.id}`}
+                        className="rounded-xl border border-foreground/10 px-4 py-2 text-center text-sm font-semibold hover:bg-foreground/5 transition"
+                      >
+                        보기
+                      </Link>
+
                       <Link
                         href={`/admin/notices/${notice.id}/edit`}
                         className="rounded-xl border border-foreground/10 px-4 py-2 text-center text-sm font-semibold hover:bg-foreground/5 transition"

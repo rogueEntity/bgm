@@ -11,15 +11,6 @@ type HomeMatchDetails = {
   honba?: number;
 };
 
-type HomeNewsItem = {
-  id: number;
-  category: "공지" | "업데이트" | "이벤트" | "시스템";
-  title: string;
-  summary: string;
-  date: string;
-  isPinned?: boolean;
-};
-
 type RankingItem = {
   key: string;
   name: string;
@@ -37,38 +28,17 @@ type PopularGameItem = {
   playCount: number;
 };
 
-const HOME_NEWS: HomeNewsItem[] = [
-  {
-    id: 1,
-    category: "공지",
-    title: "BGM 홈 화면이 새롭게 준비 중입니다.",
-    summary:
-      "새 소식, 내 활동 요약, 최근 기록, 인기 게임, 통합 랭킹을 홈에서 확인할 수 있습니다.",
-    date: "2026.06.25",
-    isPinned: true,
-  },
-  {
-    id: 2,
-    category: "업데이트",
-    title: "리치마작 기록 기능을 계속 개선하고 있습니다.",
-    summary:
-      "대국 기록, 진행 중 대국, 통계 기능을 중심으로 사용성을 다듬는 중입니다.",
-    date: "2026.06.25",
-  },
-  {
-    id: 3,
-    category: "시스템",
-    title: "다른 게임 기록도 확장할 수 있는 구조로 준비합니다.",
-    summary:
-      "홈 화면은 특정 게임에 종속되지 않는 통합 활동 대시보드 방향으로 구성됩니다.",
-    date: "2026.06.25",
-  },
-];
-
 const STATUS_LABEL: Record<string, string> = {
   PLAYING: "진행 중",
   FINISHED: "완료",
   CANCELED: "취소",
+};
+
+const NOTICE_CATEGORY_LABEL: Record<string, string> = {
+  NOTICE: "공지",
+  UPDATE: "업데이트",
+  EVENT: "이벤트",
+  SYSTEM: "시스템",
 };
 
 const ROUND_NAME_MAP: Record<string, string> = {
@@ -141,16 +111,20 @@ function getStatusClassName(status?: string) {
   return "bg-foreground/10 text-foreground/70 border-foreground/10";
 }
 
-function getNewsCategoryClassName(category: HomeNewsItem["category"]) {
-  if (category === "공지") {
+function getNoticeCategoryLabel(category: string) {
+  return NOTICE_CATEGORY_LABEL[category] ?? category;
+}
+
+function getNoticeCategoryClassName(category: string) {
+  if (category === "NOTICE") {
     return "bg-blue-500/10 text-blue-500 border-blue-500/20";
   }
 
-  if (category === "업데이트") {
+  if (category === "UPDATE") {
     return "bg-green-500/10 text-green-500 border-green-500/20";
   }
 
-  if (category === "이벤트") {
+  if (category === "EVENT") {
     return "bg-purple-500/10 text-purple-500 border-purple-500/20";
   }
 
@@ -202,7 +176,7 @@ function getPlayerAvatarEmoji(player: {
     avatar_emoji: string;
   } | null;
 }) {
-  return player.users?.avatar_emoji ?? "🎲";
+  return player.users?.avatar_emoji ?? "";
 }
 
 function withCompetitionRank<T>(
@@ -243,7 +217,21 @@ async function getHomeData(providerId?: string) {
       })
     : null;
 
-  const [recentMatches, recent30Matches] = await Promise.all([
+  const [homeNotices, recentMatches, recent30Matches] = await Promise.all([
+    db.home_notices.findMany({
+      where: {
+        is_published: true,
+      },
+      orderBy: [
+        {
+          is_pinned: "desc",
+        },
+        {
+          created_at: "desc",
+        },
+      ],
+      take: 3,
+    }),
     db.matches.findMany({
       include: {
         games: true,
@@ -372,6 +360,7 @@ async function getHomeData(providerId?: string) {
 
   return {
     me,
+    homeNotices,
     recentMatches,
     myActivitySummary: {
       playCount: myRecent30Matches.length,
@@ -402,6 +391,7 @@ export default async function Home() {
 
   const {
     me,
+    homeNotices,
     recentMatches,
     myActivitySummary,
     popularGames,
@@ -413,7 +403,7 @@ export default async function Home() {
       {/* 상단 환영 문구 */}
       <section className="rounded-2xl border border-foreground/10 bg-foreground/[0.03] p-6 md:p-8">
         <div>
-          <div className="mb-3 text-4xl">{avatarEmoji ?? "🎲"}</div>
+          <div className="mb-3 text-4xl">{avatarEmoji ?? ""}</div>
           <h1 className="text-2xl md:text-3xl font-bold">
             환영합니다, {nickname ?? "플레이어"}님!
           </h1>
@@ -435,44 +425,53 @@ export default async function Home() {
         </div>
 
         <div className="grid gap-3">
-          {HOME_NEWS.map((news) => (
-            <Link
-              key={news.id}
-              href={`/notices/${news.id}`}
-              className="block rounded-2xl border border-foreground/10 p-5 bg-background hover:bg-foreground/[0.03] transition"
-            >
-              <article>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getNewsCategoryClassName(
-                          news.category
-                        )}`}
-                      >
-                        {news.category}
-                      </span>
-
-                      {news.isPinned && (
-                        <span className="inline-flex items-center rounded-full border border-yellow-500/20 bg-yellow-500/10 px-2.5 py-1 text-xs font-semibold text-yellow-600">
-                          고정
+          {homeNotices.length === 0 ? (
+            <div className="rounded-2xl border border-foreground/10 p-5 text-sm text-foreground/60">
+              등록된 새 소식이 없습니다.
+            </div>
+          ) : (
+            homeNotices.map((notice) => (
+              <Link
+                key={notice.id}
+                href={`/notices/${notice.id}`}
+                className="block rounded-2xl border border-foreground/10 p-5 bg-background hover:bg-foreground/[0.03] transition"
+              >
+                <article>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getNoticeCategoryClassName(
+                            notice.category
+                          )}`}
+                        >
+                          {getNoticeCategoryLabel(notice.category)}
                         </span>
+
+                        {notice.is_pinned && (
+                          <span className="inline-flex items-center rounded-full border border-yellow-500/20 bg-yellow-500/10 px-2.5 py-1 text-xs font-semibold text-yellow-600">
+                            고정
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="font-semibold">{notice.title}</h3>
+
+                      {(notice.summary || notice.content) && (
+                        <p className="mt-1 text-sm text-foreground/60 line-clamp-2">
+                          {notice.summary ?? notice.content}
+                        </p>
                       )}
                     </div>
 
-                    <h3 className="font-semibold">{news.title}</h3>
-                    <p className="mt-1 text-sm text-foreground/60">
-                      {news.summary}
-                    </p>
+                    <time className="text-xs text-foreground/40 whitespace-nowrap">
+                      {formatDate(notice.created_at)}
+                    </time>
                   </div>
-
-                  <time className="text-xs text-foreground/40 whitespace-nowrap">
-                    {news.date}
-                  </time>
-                </div>
-              </article>
-            </Link>
-          ))}
+                </article>
+              </Link>
+            ))
+          )}
         </div>
       </section>
 
@@ -678,7 +677,7 @@ export default async function Home() {
                         {player.rank}
                       </span>
                       <span className="text-xl">
-                        {player.avatarEmoji ?? "🎲"}
+                        {player.avatarEmoji ?? ""}
                       </span>
                       <span className="font-semibold truncate">
                         {player.name}
