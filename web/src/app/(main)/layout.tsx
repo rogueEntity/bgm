@@ -2,6 +2,8 @@ import { auth, signOut } from "@/auth";
 import Link from "next/link";
 import React from "react";
 import { isCurrentUserAdmin } from "@/lib/admin";
+import { redirect } from "next/navigation";
+import { getCurrentDbUser } from "@/lib/current-user";
 
 export default async function MainLayout({
   children,
@@ -10,10 +12,19 @@ export default async function MainLayout({
 }) {
   const session = await auth();
 
-  // @ts-ignore
-  const nickname = session?.user?.nickname;
-  // @ts-ignore
-  const avatarEmoji = session?.user?.avatarEmoji;
+  if (!session) {
+    redirect("/login");
+  }
+
+  const currentUser = await getCurrentDbUser();
+
+  if (!currentUser?.nickname || !currentUser?.avatar_emoji) {
+    redirect("/onboarding");
+  }
+
+  const nickname = currentUser.nickname;
+  const avatarEmoji = currentUser.avatar_emoji;
+
   const isAdmin = await isCurrentUserAdmin();
 
   return (
