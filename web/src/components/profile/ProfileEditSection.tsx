@@ -23,7 +23,7 @@ export default function ProfileEditSection({
           defaultNickname={nickname}
           defaultAvatarEmoji={avatarEmoji}
           submitLabel="내 정보 저장"
-          onCancel={() => setIsEditing(false)}
+          onCancelAction={() => setIsEditing(false)}
         />
       </div>
     );

@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/auth";
 import Link from "next/link";
 import React from "react";
+import { isCurrentUserAdmin } from "@/lib/admin";
 
 export default async function MainLayout({
   children,
@@ -13,6 +14,7 @@ export default async function MainLayout({
   const nickname = session?.user?.nickname;
   // @ts-ignore
   const avatarEmoji = session?.user?.avatarEmoji;
+  const isAdmin = await isCurrentUserAdmin();
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background text-foreground">
@@ -63,6 +65,14 @@ export default async function MainLayout({
           >
             🀄 리치마작
           </Link>
+          {isAdmin && (
+            <Link
+              href="/admin/notices"
+              className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base"
+            >
+              ⚙️ 공지 관리
+            </Link>
+          )}
         </nav>
 
         <div className="hidden md:block mt-auto pt-8">
