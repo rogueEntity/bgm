@@ -1,0 +1,29 @@
+services:
+  bgm-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: bgm-web
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Seoul
+
+      DATABASE_URL: ${BGM_DATABASE_URL}
+
+      AUTH_SECRET: ${BGM_AUTH_SECRET}
+      AUTH_URL: ${BGM_AUTH_URL}
+      AUTH_TRUST_HOST: ${BGM_AUTH_TRUST_HOST}
+
+      AUTH_GOOGLE_ID: ${BGM_AUTH_GOOGLE_ID}
+      AUTH_GOOGLE_SECRET: ${BGM_AUTH_GOOGLE_SECRET}
+
+      AUTH_KAKAO_ID: ${BGM_AUTH_KAKAO_ID}
+      AUTH_KAKAO_SECRET: ${BGM_AUTH_KAKAO_SECRET}
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "${BGM_PORT}:3000"
