@@ -17,7 +17,7 @@ type ProfileFormProps = {
   defaultNickname?: string;
   defaultAvatarEmoji?: string;
   submitLabel?: string;
-  onCancel?: () => void;
+  onCancelAction?: () => void;
 };
 
 export default function ProfileForm({
@@ -25,7 +25,7 @@ export default function ProfileForm({
   defaultNickname = "",
   defaultAvatarEmoji = AVATAR_EMOJIS[0],
   submitLabel,
-  onCancel,
+  onCancelAction,
 }: ProfileFormProps) {
   const [selectedAvatar, setSelectedAvatar] = useState(defaultAvatarEmoji);
   const [nickname, setNickname] = useState(defaultNickname);
@@ -157,10 +157,10 @@ export default function ProfileForm({
       </section>
 
       <div className="flex gap-2">
-        {onCancel && (
+        {onCancelAction && (
           <button
             type="button"
-            onClick={onCancel}
+            onClick={onCancelAction}
             className="flex-1 rounded-xl border border-foreground/10 px-4 py-3 text-sm font-semibold transition hover:bg-foreground/5"
           >
             취소

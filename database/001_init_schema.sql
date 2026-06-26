@@ -63,6 +63,68 @@ CREATE TABLE user_game_stats (
     UNIQUE(user_id, game_id)
 );
 
+-- 7. 홈 공지사항 (Home_Notices) 테이블
+-- 메인 홈에 노출할 공지, 업데이트, 이벤트, 시스템 안내를 저장합니다.
+CREATE TABLE home_notices (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    summary VARCHAR(500),
+    content TEXT,
+    category VARCHAR(30) NOT NULL DEFAULT 'NOTICE',
+    is_pinned BOOLEAN NOT NULL DEFAULT false,
+    is_published BOOLEAN NOT NULL DEFAULT true,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 홈 공지사항 조회 최적화용 인덱스
+CREATE INDEX home_notices_is_published_is_pinned_created_at_idx
+ON home_notices(is_published, is_pinned, created_at);
+
+CREATE INDEX home_notices_category_idx
+ON home_notices(category);
+
+-- 8. 관리자 권한 (Admin_Users) 테이블
+-- 이 테이블에 등록된 유저만 공지 등록/수정/삭제 등 관리자 기능을 사용할 수 있습니다.
+CREATE TABLE admin_users (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 초기 테스트용 게임 데이터 삽입
 INSERT INTO games (name, min_players, max_players) VALUES
 ('리치마작', 4, 4);
+
+-- 초기 테스트용 공지 데이터 삽입
+INSERT INTO home_notices (
+    title,
+    summary,
+    content,
+    category,
+    is_pinned,
+    is_published
+)
+VALUES (
+    'BGM 홈 화면이 새롭게 준비 중입니다.',
+    '새 소식, 내 활동 요약, 최근 기록, 인기 게임, 통합 랭킹을 홈에서 확인할 수 있습니다.',
+    'BGM 홈 화면이 통합 게임 활동 대시보드 형태로 개선됩니다.',
+    'NOTICE',
+    true,
+    true
+), (
+    '리치마작 기록 기능을 계속 개선하고 있습니다.',
+    '다양한 기능을 개발 중입니다.',
+    '랭킹, 작사 정보, 도전과제, 라이벌 기능을 개발 중입니다.',
+    'UPDATE',
+    false,
+    true
+), (
+    '다른 게임 기록도 확장할 수 있는 구조로 준비합니다.',
+    '홈 화면은 특정 게임에 종속되지 않는 통합 활동 대시보드 방향으로 구성됩니다.',
+    '앞으로 다른 게임도 자연스럽게 추가할 수 있도록 구조를 정리하고 있습니다.',
+    'SYSTEM',
+    false,
+    true
+);
