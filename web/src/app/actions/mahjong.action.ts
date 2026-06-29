@@ -68,7 +68,7 @@ type RecordRyuukyokuInput = {
   tenpai_keys: string[];
   current_riichi_keys: string[];
   is_final: boolean;
-  nagashi_mangan_winner_key?: string | null;
+  nagashi_mangan_winner_keys?: string[];
 };
 
 type MahjongScoreMap = Record<string, number>;
@@ -1483,36 +1483,55 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
   let isOyaTenpai: boolean;
 
   if (isNagashiMangan) {
-    const winnerKey = data.nagashi_mangan_winner_key;
+    const winnerKeys = Array.from(
+      new Set([
+        ...(data.nagashi_mangan_winner_keys ?? []),
+      ]),
+    );
 
-    if (!winnerKey || !players[winnerKey]) {
-      throw new Error("유국만관 대상자가 올바르지 않습니다.");
+    if (winnerKeys.length === 0) {
+      throw new Error("유국만관 대상자가 없습니다.");
     }
 
-    const winner = players[winnerKey];
-    const isWinnerOya = winner.wind === "EAST";
-    const allKeys = Object.keys(players);
-
-    let collected = 0;
-
-    allKeys.forEach((key) => {
-      if (key === winnerKey) return;
-
-      const payment = isWinnerOya
-        ? 4000 + currentHonba * 100
-        : players[key].wind === "EAST"
-          ? 4000 + currentHonba * 100
-          : 2000 + currentHonba * 100;
-
-      players[key].score -= payment;
-      collected += payment;
+    winnerKeys.forEach((winnerKey) => {
+      if (!players[winnerKey]) {
+        throw new Error("유국만관 대상자가 올바르지 않습니다.");
+      }
     });
 
-    players[winnerKey].score += collected;
+    const allKeys = Object.keys(players);
 
-    // 유국만관은 화료 취급에 가깝게 본다.
-    // 친이 유국만관이면 연장, 자가 유국만관이면 다음 국으로 넘어가도록 사용.
-    isOyaTenpai = isWinnerOya;
+    // 작혼 기준:
+    // - 텐파이/노텐 벌점 없음
+    // - 리치 공탁금 받지 않음
+    // - 본장 점수 받지 않음
+    // - 복수 유국만관은 다가화와 무관하게 각각 정산
+    winnerKeys.forEach((winnerKey) => {
+      const winner = players[winnerKey];
+      const isWinnerOya = winner.wind === "EAST";
+      let collected = 0;
+
+      allKeys.forEach((payerKey) => {
+        if (payerKey === winnerKey) return;
+
+        const payment = isWinnerOya
+          ? 4000
+          : players[payerKey].wind === "EAST"
+            ? 4000
+            : 2000;
+
+        players[payerKey].score -= payment;
+        collected += payment;
+      });
+
+      players[winnerKey].score += collected;
+    });
+
+    // 작혼 기준:
+    // 유국만관을 누가 했는지와 무관하게 친 텐파이 여부로 연장 판단.
+    isOyaTenpai = data.tenpai_keys.some(
+      (key) => players[key]?.wind === "EAST",
+    );
   } else if (isExhaustive) {
     const allKeys = Object.keys(players);
     const tenpaiCount = data.tenpai_keys.length;
@@ -1622,16 +1641,22 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     details.honba = currentHonba;
   }
 
+  const nagashiManganWinnerKeys = isNagashiMangan
+  ? Array.from(
+      new Set([
+        ...(data.nagashi_mangan_winner_keys ?? []),
+      ]),
+    )
+  : [];
+
   details.logs.push({
     timestamp: new Date().toISOString(),
     type: "RYUUKYOKU",
     round: currentRound,
     honba: currentHonba,
     ryuukyoku_type: data.type,
-    tenpai_keys: isExhaustive ? data.tenpai_keys : [],
-    nagashi_mangan_winner_key: isNagashiMangan
-      ? data.nagashi_mangan_winner_key
-      : null,
+    tenpai_keys: isExhaustive || isNagashiMangan ? data.tenpai_keys : [],
+    nagashi_mangan_winner_keys: nagashiManganWinnerKeys,
     riichi_keys: data.current_riichi_keys,
     score_deltas: scoreDeltas,
     result_scores: resultScores,

@@ -116,7 +116,7 @@ export default function ScoreForm({
   const [isForceFinish, setIsForceFinish] = useState(false);
   const [ryuukyokuType, setRyuukyokuType] = useState<RyuukyokuType | null>(null);
   const [tenpaiKeys, setTenpaiKeys] = useState<string[]>([]);
-  const [nagashiManganWinnerKey, setNagashiManganWinnerKey] = useState(firstPlayerKey);
+  const [nagashiManganWinnerKeys, setNagashiManganWinnerKeys] = useState<string[]>([]);
 
   const getWinTotalHan = (win: WinFormState) => {
     const totalDora = win.dora_indicator + win.red_dora;
@@ -406,6 +406,14 @@ export default function ScoreForm({
     );
   };
 
+  const toggleNagashiManganWinner = (stateKey: string) => {
+  setNagashiManganWinnerKeys((prev) =>
+    prev.includes(stateKey)
+      ? prev.filter((key) => key !== stateKey)
+      : [...prev, stateKey],
+  );
+};
+
   const renderPlayerSelectButtons = ({
     value,
     onChange,
@@ -495,8 +503,8 @@ export default function ScoreForm({
       return;
     }
 
-    if (ryuukyokuType === "유국만관" && !nagashiManganWinnerKey) {
-      alert("유국만관 대상자를 선택해주세요.");
+    if (ryuukyokuType === "유국만관" && nagashiManganWinnerKeys.length === 0) {
+      alert("유국만관 대상자를 1명 이상 선택해주세요.");
       return;
     }
 
@@ -506,17 +514,21 @@ export default function ScoreForm({
       await recordRyuukyoku({
         match_id: matchId,
         type: ryuukyokuType,
-        tenpai_keys: ryuukyokuType === "황패유국" ? tenpaiKeys : [],
+        tenpai_keys:
+          ryuukyokuType === "황패유국" || ryuukyokuType === "유국만관"
+            ? tenpaiKeys
+            : [],
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
-        nagashi_mangan_winner_key: ryuukyokuType === "유국만관" ? nagashiManganWinnerKey : null,
+        nagashi_mangan_winner_keys:
+          ryuukyokuType === "유국만관" ? nagashiManganWinnerKeys : [],
       });
 
       alert("유국이 기록되었습니다.");
       setRyuukyokuType(null);
       setTenpaiKeys([]);
       setCurrentRiichiKeys([]);
-      setNagashiManganWinnerKey(firstPlayerKey);
+      setNagashiManganWinnerKeys([]);
       setIsForceFinish(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -1155,30 +1167,69 @@ export default function ScoreForm({
           )}
 
           {ryuukyokuType === "유국만관" && (
-            <div className="space-y-3">
-              <p className="text-sm font-bold text-foreground/80">
-                유국만관 대상자를 선택해주세요
-              </p>
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-foreground/80">
+                  유국만관 대상자를 모두 선택해주세요
+                </p>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {players.map((player) => {
-                  const isSelected = nagashiManganWinnerKey === player.stateKey;
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {players.map((player) => {
+                    const isSelected = nagashiManganWinnerKeys.includes(player.stateKey);
 
-                  return (
-                    <button
-                      key={player.stateKey}
-                      type="button"
-                      onClick={() => setNagashiManganWinnerKey(player.stateKey)}
-                      className={`py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                        isSelected
-                          ? "bg-blue-600 text-white border-blue-600 shadow-inner"
-                          : "bg-white dark:bg-background border-foreground/10"
-                      }`}
-                    >
-                      {getWindLabel(player.wind)} {player.name}
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={player.stateKey}
+                        type="button"
+                        onClick={() => toggleNagashiManganWinner(player.stateKey)}
+                        className={`py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600 shadow-inner"
+                            : "bg-white dark:bg-background border-foreground/10"
+                        }`}
+                      >
+                        {getWindLabel(player.wind)} {player.name}
+                        {isSelected && "유국만관"}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-xs text-foreground/50">
+                  복수 유국만관도 선택할 수 있습니다. 다가화 규칙과 무관하게 각각 만관 정산합니다.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-foreground/80">
+                  텐파이인 작사를 모두 체크해주세요
+                </p>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {players.map((player) => {
+                    const isTenpai = tenpaiKeys.includes(player.stateKey);
+
+                    return (
+                      <button
+                        key={player.stateKey}
+                        type="button"
+                        onClick={() => toggleTenpaiPlayer(player.stateKey)}
+                        className={`py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                          isTenpai
+                            ? "bg-green-600 text-white border-green-600 shadow-inner"
+                            : "bg-white dark:bg-background border-foreground/10"
+                        }`}
+                      >
+                        {getWindLabel(player.wind)} {player.name}
+                        {isTenpai && "텐파이"}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-xs text-foreground/50">
+                  유국만관 여부와 관계없이 친 텐파이 여부로 연장 여부를 결정합니다.
+                </p>
               </div>
             </div>
           )}
