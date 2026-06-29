@@ -93,38 +93,69 @@ CREATE TABLE admin_users (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 9. 마작 유저 도전과제 진행률 (Mahjong_User_Achievements) 테이블
+-- 마작 전용 도전과제의 유저별 진행률과 완료 여부를 저장합니다.
+CREATE TABLE mahjong_user_achievements (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    achievement_id VARCHAR(100) NOT NULL,
+
+    progress INTEGER NOT NULL DEFAULT 0,
+    completed BOOLEAN NOT NULL DEFAULT false,
+    completed_at TIMESTAMP WITH TIME ZONE,
+
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(user_id, achievement_id)
+);
+
+CREATE INDEX mahjong_user_achievements_user_id_idx
+ON mahjong_user_achievements(user_id);
+
+CREATE INDEX mahjong_user_achievements_achievement_id_idx
+ON mahjong_user_achievements(achievement_id);
+
+-- 10. 마작 유저 획득 배지 (Mahjong_User_Badges) 테이블
+-- 마작 도전과제 보상 등으로 유저가 획득한 배지를 저장합니다.
+CREATE TABLE mahjong_user_badges (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    badge_id VARCHAR(100) NOT NULL,
+
+    earned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(user_id, badge_id)
+);
+
+CREATE INDEX mahjong_user_badges_user_id_idx
+ON mahjong_user_badges(user_id);
+
+CREATE INDEX mahjong_user_badges_badge_id_idx
+ON mahjong_user_badges(badge_id);
+
+-- 11. 마작 유저 장착 배지 (Mahjong_User_Equipped_Badges) 테이블
+-- 닉네임 옆에 노출할 마작 배지를 슬롯 단위로 저장합니다. slot은 1~3까지만 허용합니다.
+CREATE TABLE mahjong_user_equipped_badges (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    badge_id VARCHAR(100) NOT NULL,
+    slot INTEGER NOT NULL,
+
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(user_id, slot),
+    UNIQUE(user_id, badge_id),
+    CONSTRAINT mahjong_user_equipped_badges_slot_check CHECK (slot BETWEEN 1 AND 3)
+);
+
+CREATE INDEX mahjong_user_equipped_badges_user_id_idx
+ON mahjong_user_equipped_badges(user_id);
+
+CREATE INDEX mahjong_user_equipped_badges_badge_id_idx
+ON mahjong_user_equipped_badges(badge_id);
+
 -- 초기 테스트용 게임 데이터 삽입
 INSERT INTO games (name, min_players, max_players) VALUES
 ('리치마작', 4, 4);
-
--- 초기 테스트용 공지 데이터 삽입
-INSERT INTO home_notices (
-    title,
-    summary,
-    content,
-    category,
-    is_pinned,
-    is_published
-)
-VALUES (
-    'BGM 홈 화면이 새롭게 준비 중입니다.',
-    '새 소식, 내 활동 요약, 최근 기록, 인기 게임, 통합 랭킹을 홈에서 확인할 수 있습니다.',
-    'BGM 홈 화면이 통합 게임 활동 대시보드 형태로 개선됩니다.',
-    'NOTICE',
-    true,
-    true
-), (
-    '리치마작 기록 기능을 계속 개선하고 있습니다.',
-    '다양한 기능을 개발 중입니다.',
-    '랭킹, 작사 정보, 도전과제, 라이벌 기능을 개발 중입니다.',
-    'UPDATE',
-    false,
-    true
-), (
-    '다른 게임 기록도 확장할 수 있는 구조로 준비합니다.',
-    '홈 화면은 특정 게임에 종속되지 않는 통합 활동 대시보드 방향으로 구성됩니다.',
-    '앞으로 다른 게임도 자연스럽게 추가할 수 있도록 구조를 정리하고 있습니다.',
-    'SYSTEM',
-    false,
-    true
-);

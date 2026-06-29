@@ -4,6 +4,8 @@ import { db } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import MatchResultDetails from "@/components/mahjong/MatchResultDetails";
 import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
+import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
+import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 
 export default async function MatchDetailPage({
   params,
@@ -15,7 +17,7 @@ export default async function MatchDetailPage({
 
   if (isNaN(matchId)) return notFound();
 
-  // 💡 1. 이름 정보를 가져오기 위해 match_players와 users를 함께 불러옵니다.
+  // 1. 이름 정보를 가져오기 위해 match_players와 users를 함께 불러옵니다.
   const match = await db.matches.findUnique({
     where: { id: matchId },
     include: {
@@ -29,16 +31,36 @@ export default async function MatchDetailPage({
   if (!match || !match.match_details) return notFound();
 
   const details = match.match_details.details as any;
-  const playersState = details.players;
+  const playersState = details.players ?? {};
 
-  // 💡 2. DB에서 가져온 진짜 이름(닉네임 or 게스트명)을 JSON 데이터에 주입합니다.
+  const userIds = Array.from(
+    new Set(
+      match.match_players
+        .map((mp) => mp.user_id)
+        .filter((userId): userId is string => userId !== null),
+    ),
+  );
+
+  const equippedBadgeMap = await getMahjongEquippedBadgesByUserIds(userIds);
+
+  // 2. DB에서 가져온 진짜 이름(닉네임 or 게스트명)을 JSON 데이터에 주입합니다.
+  // 3. 가입 유저라면 장착 배지도 같이 주입합니다.
   match.match_players.forEach((mp) => {
-    const displayName = (mp.user_id ? mp.users?.nickname : mp.guest_name) ?? "이름 없음";
-    const stateKey = mp.user_id ? `user_${mp.user_id}` : `guest_${mp.guest_name}`;
+    const displayName =
+      (mp.user_id ? mp.users?.nickname : mp.guest_name) ?? "이름 없음";
 
-    // details.players 객체 안에 name 속성을 강제로 추가!
+    const stateKey = mp.user_id
+      ? `user_${mp.user_id}`
+      : `guest_${mp.guest_name}`;
+
     if (playersState[stateKey]) {
       playersState[stateKey].name = displayName;
+
+      const userId = getUserIdFromPlayerKey(stateKey);
+
+      playersState[stateKey].equipped_badges = userId
+        ? equippedBadgeMap[userId] ?? []
+        : [];
     }
   });
 
@@ -52,7 +74,7 @@ export default async function MatchDetailPage({
         </div>
       </div>
 
-      {/* 이제 이름이 포함된 details가 넘어가서 순위표에 닉네임이 정상 출력됩니다. */}
+      {/* 이름과 장착 배지가 포함된 details가 넘어갑니다. */}
       <MatchResultDetails details={details} />
       <MahjongRoundLogCards details={details} />
     </div>

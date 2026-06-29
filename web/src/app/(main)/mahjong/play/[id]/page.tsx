@@ -1,9 +1,13 @@
 // web/src/app/(main)/mahjong/play/[id]/page.tsx
+
 import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 
 import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
+import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
+import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
+import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 
 import ScoreForm from "./ScoreForm";
 
@@ -87,6 +91,16 @@ export default async function MahjongPlayPage({
     scoreboard.map((player) => [player.stateKey, player.name]),
   );
 
+  const userIds = Array.from(
+    new Set(
+      scoreboard
+        .map((player) => getUserIdFromPlayerKey(player.stateKey))
+        .filter((userId): userId is string => userId !== null),
+    ),
+  );
+
+  const equippedBadgeMap = await getMahjongEquippedBadgesByUserIds(userIds);
+
   // 라운드 이름 한글 변환기
   const roundNameMap: Record<string, string> = {
     EAST_1: "동 1국", EAST_2: "동 2국", EAST_3: "동 3국", EAST_4: "동 4국",
@@ -94,6 +108,7 @@ export default async function MahjongPlayPage({
     WEST_1: "서 1국", WEST_2: "서 2국", WEST_3: "서 3국", WEST_4: "서 4국",
     NORTH_1: "북 1국", NORTH_2: "북 2국", NORTH_3: "북 3국", NORTH_4: "북 4국",
   };
+
   const windNameMap: Record<string, string> = {
     EAST: "동(東)",
     SOUTH: "남(南)",
@@ -104,41 +119,46 @@ export default async function MahjongPlayPage({
   const riichiSticksCount = details.riichi_sticks ?? 0;
 
   return (
-      <div className="flex flex-col gap-8 p-4">
-        <div className="w-full max-w-2xl mx-auto space-y-8">
-          {/* 상단 헤더: 대국 정보 */}
-          <header className="bg-foreground text-background p-6 rounded-2xl flex items-center justify-between shadow-lg relative overflow-hidden">
-            {/* 좌측 상단 게임 모드 뱃지 */}
-            <div className="absolute top-0 left-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-br-lg opacity-90">
-              {gameMode}
-            </div>
+    <div className="flex flex-col gap-8 p-4">
+      <div className="w-full max-w-2xl mx-auto space-y-8">
+        {/* 상단 헤더: 대국 정보 */}
+        <header className="bg-foreground text-background p-6 rounded-2xl flex items-center justify-between shadow-lg relative overflow-hidden">
+          {/* 좌측 상단 게임 모드 뱃지 */}
+          <div className="absolute top-0 left-0 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-br-lg opacity-90">
+            {gameMode}
+          </div>
 
-            <div className="mt-2">
-              <h2 className="text-3xl font-black mb-1">
-                {roundNameMap[details.current_round] || details.current_round}
-              </h2>
-              <div className="flex gap-3 text-sm font-bold opacity-80">
-                <span>{details.honba || 0} 본장</span>
-                <span>리치봉 {riichiSticksCount}개</span>
-              </div>
+          <div className="mt-2">
+            <h2 className="text-3xl font-black mb-1">
+              {roundNameMap[details.current_round] || details.current_round}
+            </h2>
+            <div className="flex gap-3 text-sm font-bold opacity-80">
+              <span>{details.honba || 0} 본장</span>
+              <span>리치봉 {riichiSticksCount}개</span>
             </div>
-            <div className="text-right">
-              <span className="text-xs opacity-60 block mb-1">총 공탁금</span>
-              <span className="text-xl font-black">
-                {riichiSticksCount * 1000} 점
-              </span>
-            </div>
-          </header>
+          </div>
+          <div className="text-right">
+            <span className="text-xs opacity-60 block mb-1">총 공탁금</span>
+            <span className="text-xl font-black">
+              {riichiSticksCount * 1000} 점
+            </span>
+          </div>
+        </header>
 
-          {/* 중단: 점수판 그리드 (기존 디자인 유지) */}
-          <div className="grid grid-cols-2 gap-4">
-            {scoreboard.map((player) => (
+        {/* 중단: 점수판 그리드 (기존 디자인 유지) */}
+        <div className="grid grid-cols-2 gap-4">
+          {scoreboard.map((player) => {
+            const userId = getUserIdFromPlayerKey(player.stateKey);
+            const badges = userId ? equippedBadgeMap[userId] ?? [] : [];
+
+            return (
               <div
                 key={player.stateKey}
                 className={`p-5 rounded-2xl flex flex-col items-center justify-center border relative transition-all
-                  ${player.wind === "EAST" 
-                    ? "bg-red-50/50 border-red-200 dark:bg-red-900/20 dark:border-red-900/50" 
-                    : "bg-foreground/5 border-foreground/10"
+                  ${
+                    player.wind === "EAST"
+                      ? "bg-red-50/50 border-red-200 dark:bg-red-900/20 dark:border-red-900/50"
+                      : "bg-foreground/5 border-foreground/10"
                   }
                 `}
               >
@@ -156,36 +176,51 @@ export default async function MahjongPlayPage({
                 >
                   {windNameMap[player.wind] ?? "-"}
                 </span>
-                <span className="text-xl font-black mb-2">{player.name}</span>
-                <span className={`text-2xl font-black tracking-tighter ${player.score < 0 ? "text-red-500" : "text-blue-600 dark:text-blue-400"}`}>
+
+                <span className="text-xl font-black mb-2 max-w-full">
+                  <NicknameWithBadges
+                    nickname={player.name}
+                    badges={badges}
+                    badgeSize="sm"
+                    className="max-w-full justify-center"
+                    nameClassName="max-w-[8rem]"
+                  />
+                </span>
+
+                <span
+                  className={`text-2xl font-black tracking-tighter ${
+                    player.score < 0
+                      ? "text-red-500"
+                      : "text-blue-600 dark:text-blue-400"
+                  }`}
+                >
                   {player.score.toLocaleString()}
                 </span>
               </div>
-            ))}
+            );
+          })}
+        </div>
+
+        {!isRecorder && (
+          <MahjongRoundLogCards details={details} playerNameMap={playerNameMap} />
+        )}
+      </div>
+
+      {isRecorder && (
+        <>
+          {/* 하단: 점수 기록 폼 */}
+          <div className="w-full max-w-2xl mx-auto">
+            <ScoreForm matchId={matchId} players={scoreboard} />
           </div>
-          {!isRecorder && (
+
+          <div className="w-full max-w-2xl mx-auto">
             <MahjongRoundLogCards
               details={details}
               playerNameMap={playerNameMap}
             />
-          )}
-        </div>
-
-        {isRecorder && (
-          <>
-            {/* 하단: 점수 기록 폼 */}
-            <div className="w-full max-w-2xl mx-auto">
-              <ScoreForm matchId={matchId} players={scoreboard} />
-            </div>
-
-            <div className="w-full max-w-2xl mx-auto">
-              <MahjongRoundLogCards
-                details={details}
-                playerNameMap={playerNameMap}
-              />
-            </div>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

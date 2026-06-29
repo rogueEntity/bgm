@@ -190,9 +190,7 @@ export default async function MahjongDashboardPage() {
 
         <Link
           href="/mahjong/achievements"
-          aria-disabled={!ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS}
-          tabIndex={ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS ? undefined : -1}
-          className={`rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition${disabledDashboardCardClass}`}
+          className={`rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition`}
         >
           <div className="mb-3 text-2xl">🎖️</div>
           <h3 className="font-bold">도전과제</h3>

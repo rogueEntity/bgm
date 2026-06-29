@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { calculateMahjongScore } from "@/lib/mahjong-score";
+import { syncMahjongAchievementsForMatch } from "@/lib/mahjong-achievements";
 
 // --- 타입 ---
 type GameMode = "동풍전" | "반장전" | "전장전";
@@ -789,6 +790,15 @@ function getFinishedPlayerResults({
   });
 }
 
+// 도전과제 계산 중 오류가 나도 대국 기록 저장 자체가 실패하지 않도록 안전 호출 함수
+async function safeSyncMahjongAchievements(matchId: number) {
+  try {
+    await syncMahjongAchievementsForMatch(matchId);
+  } catch (error) {
+    console.error("[Mahjong Achievements Sync Failed]", error);
+  }
+}
+
 function collectPlayerMatchStats({
   details,
   playerKey,
@@ -1416,6 +1426,8 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     round: currentRound,
     honba: currentHonba,
     is_tsumo: data.is_tsumo,
+    is_final: details.status === "FINISHED",
+    forced_end: details.finish_reason === "FORCE_FINISH",
     riichi_keys: data.current_riichi_keys,
     wins: normalizedWins,
     score_deltas: scoreDeltas,
@@ -1437,6 +1449,8 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     details,
     matchPlayers: match.match_players,
   });
+
+  await safeSyncMahjongAchievements(data.match_id);
 
   revalidatePath(`/mahjong/play/${data.match_id}`);
   revalidatePath(`/mahjong/detail/${data.match_id}`);
@@ -1658,6 +1672,8 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     round: currentRound,
     honba: currentHonba,
     ryuukyoku_type: data.type,
+    is_final: details.status === "FINISHED",
+    forced_end: details.finish_reason === "FORCE_FINISH",
     tenpai_keys: isExhaustive || isNagashiMangan ? data.tenpai_keys : [],
     nagashi_mangan_winner_keys: nagashiManganWinnerKeys,
     riichi_keys: data.current_riichi_keys,
@@ -1680,6 +1696,8 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     details,
     matchPlayers: match.match_players,
   });
+
+  await safeSyncMahjongAchievements(data.match_id);
 
   revalidatePath(`/mahjong/play/${data.match_id}`);
   revalidatePath(`/mahjong/detail/${data.match_id}`);
