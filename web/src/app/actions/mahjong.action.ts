@@ -57,10 +57,18 @@ type RecordMahjongResultInput = {
 
 type RecordRyuukyokuInput = {
   match_id: number;
-  type: "황패유국" | "구종구패" | "사풍연타" | "사개깡" | "사가리치" | "삼가화";
+  type:
+    | "황패유국"
+    | "구종구패"
+    | "사풍연타"
+    | "사개깡"
+    | "사가리치"
+    | "삼가화"
+    | "유국만관";
   tenpai_keys: string[];
   current_riichi_keys: string[];
   is_final: boolean;
+  nagashi_mangan_winner_key?: string | null;
 };
 
 type MahjongScoreMap = Record<string, number>;
@@ -1453,6 +1461,7 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const players = details.players;
   const isExhaustive = data.type === "황패유국";
+  const isNagashiMangan = data.type === "유국만관";
   const currentRound = details.current_round;
   const currentHonba = details.honba || 0;
 
@@ -1473,13 +1482,42 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   let isOyaTenpai: boolean;
 
-  if (isExhaustive) {
+  if (isNagashiMangan) {
+    const winnerKey = data.nagashi_mangan_winner_key;
+
+    if (!winnerKey || !players[winnerKey]) {
+      throw new Error("유국만관 대상자가 올바르지 않습니다.");
+    }
+
+    const winner = players[winnerKey];
+    const isWinnerOya = winner.wind === "EAST";
+    const allKeys = Object.keys(players);
+
+    let collected = 0;
+
+    allKeys.forEach((key) => {
+      if (key === winnerKey) return;
+
+      const payment = isWinnerOya
+        ? 4000 + currentHonba * 100
+        : players[key].wind === "EAST"
+          ? 4000 + currentHonba * 100
+          : 2000 + currentHonba * 100;
+
+      players[key].score -= payment;
+      collected += payment;
+    });
+
+    players[winnerKey].score += collected;
+
+    // 유국만관은 화료 취급에 가깝게 본다.
+    // 친이 유국만관이면 연장, 자가 유국만관이면 다음 국으로 넘어가도록 사용.
+    isOyaTenpai = isWinnerOya;
+  } else if (isExhaustive) {
     const allKeys = Object.keys(players);
     const tenpaiCount = data.tenpai_keys.length;
 
-    isOyaTenpai = data.tenpai_keys.some(
-      (key) => players[key].wind === "EAST",
-    );
+    isOyaTenpai = data.tenpai_keys.some((key) => players[key].wind === "EAST");
 
     if (tenpaiCount > 0 && tenpaiCount < 4) {
       const reward = 3000 / tenpaiCount;
@@ -1590,7 +1628,10 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     round: currentRound,
     honba: currentHonba,
     ryuukyoku_type: data.type,
-    tenpai_keys: data.tenpai_keys,
+    tenpai_keys: isExhaustive ? data.tenpai_keys : [],
+    nagashi_mangan_winner_key: isNagashiMangan
+      ? data.nagashi_mangan_winner_key
+      : null,
     riichi_keys: data.current_riichi_keys,
     score_deltas: scoreDeltas,
     result_scores: resultScores,

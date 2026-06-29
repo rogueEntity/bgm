@@ -35,7 +35,8 @@ type RyuukyokuType =
   | "사풍연타"
   | "사개깡"
   | "사가리치"
-  | "삼가화";
+  | "삼가화"
+  | "유국만관";
 
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
 
@@ -48,6 +49,7 @@ const RYUUKYOKU_TYPES: RyuukyokuType[] = [
   "사개깡",
   "사가리치",
   "삼가화",
+  "유국만관",
 ];
 
 const TSUMO_ONLY_YAKU_NAMES = ["멘젠쯔모", "해저로월", "영상개화"];
@@ -114,6 +116,7 @@ export default function ScoreForm({
   const [isForceFinish, setIsForceFinish] = useState(false);
   const [ryuukyokuType, setRyuukyokuType] = useState<RyuukyokuType | null>(null);
   const [tenpaiKeys, setTenpaiKeys] = useState<string[]>([]);
+  const [nagashiManganWinnerKey, setNagashiManganWinnerKey] = useState(firstPlayerKey);
 
   const getWinTotalHan = (win: WinFormState) => {
     const totalDora = win.dora_indicator + win.red_dora;
@@ -126,11 +129,12 @@ export default function ScoreForm({
   };
 
   const getYakumanCount = (win: WinFormState) => {
-    return win.selected_yaku_ids.filter((id) => {
+    return win.selected_yaku_ids.reduce((sum, id) => {
       const yaku = ALL_YAKU.find((item) => item.id === id);
+      if (!yaku?.isYakuman) return sum;
 
-      return yaku?.isYakuman;
-    }).length;
+      return sum + (yaku.yakumanMultiplier ?? 1);
+    }, 0);
   };
 
   const hasYakuman = (win: WinFormState) => {
@@ -491,21 +495,28 @@ export default function ScoreForm({
       return;
     }
 
+    if (ryuukyokuType === "유국만관" && !nagashiManganWinnerKey) {
+      alert("유국만관 대상자를 선택해주세요.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       await recordRyuukyoku({
         match_id: matchId,
         type: ryuukyokuType,
-        tenpai_keys: tenpaiKeys,
+        tenpai_keys: ryuukyokuType === "황패유국" ? tenpaiKeys : [],
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
+        nagashi_mangan_winner_key: ryuukyokuType === "유국만관" ? nagashiManganWinnerKey : null,
       });
 
       alert("유국이 기록되었습니다.");
       setRyuukyokuType(null);
       setTenpaiKeys([]);
       setCurrentRiichiKeys([]);
+      setNagashiManganWinnerKey(firstPlayerKey);
       setIsForceFinish(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -1136,6 +1147,35 @@ export default function ScoreForm({
                       <span>{getWindLabel(player.wind)}</span>
                       <span>{player.name}</span>
                       {isTenpai && <span>텐파이</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {ryuukyokuType === "유국만관" && (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-foreground/80">
+                유국만관 대상자를 선택해주세요
+              </p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {players.map((player) => {
+                  const isSelected = nagashiManganWinnerKey === player.stateKey;
+
+                  return (
+                    <button
+                      key={player.stateKey}
+                      type="button"
+                      onClick={() => setNagashiManganWinnerKey(player.stateKey)}
+                      className={`py-3 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                        isSelected
+                          ? "bg-blue-600 text-white border-blue-600 shadow-inner"
+                          : "bg-white dark:bg-background border-foreground/10"
+                      }`}
+                    >
+                      {getWindLabel(player.wind)} {player.name}
                     </button>
                   );
                 })}
