@@ -44,6 +44,7 @@ type MahjongRoundLog = {
   // ryuukyoku
   ryuukyoku_type?: string;
   tenpai_keys?: string[];
+  nagashi_mangan_winner_keys?: string[];
 
   // score
   score_deltas?: ScoreMap;
@@ -141,6 +142,17 @@ function getRyuukyokuType(log: MahjongRoundLog) {
 
 function getTenpaiKeys(log: MahjongRoundLog) {
   return log.tenpai_keys ?? [];
+}
+
+function getNagashiManganWinnerKeys(log: MahjongRoundLog) {
+  if (
+    Array.isArray(log.nagashi_mangan_winner_keys) &&
+    log.nagashi_mangan_winner_keys.length > 0
+  ) {
+    return log.nagashi_mangan_winner_keys;
+  }
+
+  return [];
 }
 
 function getLogWins(log: MahjongRoundLog): MahjongWinLog[] {
@@ -553,8 +565,17 @@ export default function MahjongRoundLogCards({
                       )}
 
                       {isRyuukyoku && (
-                        <div className="mt-1 text-sm text-foreground/60">
+                        <div>
                           <p>{getRyuukyokuType(log)}</p>
+
+                          {getNagashiManganWinnerKeys(log).length > 0 && (
+                            <p>
+                              유국만관:{" "}
+                              {getNagashiManganWinnerKeys(log)
+                                .map((key) => getPlayerName(key))
+                                .join(", ")}
+                            </p>
+                          )}
 
                           {getTenpaiKeys(log).length > 0 && (
                             <p>

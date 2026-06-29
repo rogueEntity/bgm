@@ -57,10 +57,18 @@ type RecordMahjongResultInput = {
 
 type RecordRyuukyokuInput = {
   match_id: number;
-  type: "황패유국" | "구종구패" | "사풍연타" | "사개깡" | "사가리치" | "삼가화";
+  type:
+    | "황패유국"
+    | "구종구패"
+    | "사풍연타"
+    | "사개깡"
+    | "사가리치"
+    | "삼가화"
+    | "유국만관";
   tenpai_keys: string[];
   current_riichi_keys: string[];
   is_final: boolean;
+  nagashi_mangan_winner_keys?: string[];
 };
 
 type MahjongScoreMap = Record<string, number>;
@@ -170,6 +178,7 @@ type YakuLike = {
   name: string;
   han?: YakuHanValue;
   isYakuman?: boolean;
+  yakumanMultiplier?: number;
 };
 
 export type MahjongMatchListFilter = {
@@ -361,6 +370,9 @@ function normalizeLog(log: Record<string, unknown>) {
       honba: log.honba,
       ryuukyoku_type: log.ryuukyoku_type,
       tenpai_keys: Array.isArray(log.tenpai_keys) ? log.tenpai_keys : [],
+      nagashi_mangan_winner_keys: Array.isArray(log.nagashi_mangan_winner_keys)
+        ? log.nagashi_mangan_winner_keys
+        : [],
       riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
       score_deltas:
         typeof log.score_deltas === "object" && log.score_deltas !== null
@@ -422,10 +434,15 @@ function assertUniqueValues(values: string[], message: string) {
 }
 
 function getYakumanCount(selectedYakuIds: string[]) {
-  return selectedYakuIds.filter((id) => {
+  return selectedYakuIds.reduce((sum, id) => {
     const yaku = ALL_YAKU.find((item) => item.id === id);
-    return yaku?.isYakuman;
-  }).length;
+
+    if (!yaku?.isYakuman) {
+      return sum;
+    }
+
+    return sum + (yaku.yakumanMultiplier ?? 1);
+  }, 0);
 }
 
 function isChiitoitsuWin(selectedYakuIds: string[]) {
@@ -1453,6 +1470,7 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const players = details.players;
   const isExhaustive = data.type === "황패유국";
+  const isNagashiMangan = data.type === "유국만관";
   const currentRound = details.current_round;
   const currentHonba = details.honba || 0;
 
@@ -1473,13 +1491,59 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   let isOyaTenpai: boolean;
 
-  if (isExhaustive) {
+  if (isNagashiMangan) {
+    const winnerKeys = Array.from(
+      new Set(data.nagashi_mangan_winner_keys ?? []),
+    );
+
+    if (winnerKeys.length === 0) {
+      throw new Error("유국만관 대상자가 없습니다.");
+    }
+
+    winnerKeys.forEach((winnerKey) => {
+      if (!players[winnerKey]) {
+        throw new Error("유국만관 대상자가 올바르지 않습니다.");
+      }
+    });
+
+    const allKeys = Object.keys(players);
+
+    // 작혼 기준:
+    // - 텐파이/노텐 벌점 없음
+    // - 리치 공탁금 받지 않음
+    // - 본장 점수 받지 않음
+    // - 복수 유국만관은 다가화와 무관하게 각각 정산
+    winnerKeys.forEach((winnerKey) => {
+      const winner = players[winnerKey];
+      const isWinnerOya = winner.wind === "EAST";
+      let collected = 0;
+
+      allKeys.forEach((payerKey) => {
+        if (payerKey === winnerKey) return;
+
+        const payment = isWinnerOya
+          ? 4000
+          : players[payerKey].wind === "EAST"
+            ? 4000
+            : 2000;
+
+        players[payerKey].score -= payment;
+        collected += payment;
+      });
+
+      players[winnerKey].score += collected;
+    });
+
+    // 작혼 기준:
+    // 유국만관을 누가 했는지와 무관하게 친 텐파이 여부로 연장 판단.
+    isOyaTenpai = data.tenpai_keys.some(
+      (key) => players[key]?.wind === "EAST",
+    );
+  } else if (isExhaustive) {
     const allKeys = Object.keys(players);
     const tenpaiCount = data.tenpai_keys.length;
 
-    isOyaTenpai = data.tenpai_keys.some(
-      (key) => players[key].wind === "EAST",
-    );
+    isOyaTenpai = data.tenpai_keys.some((key) => players[key].wind === "EAST");
 
     if (tenpaiCount > 0 && tenpaiCount < 4) {
       const reward = 3000 / tenpaiCount;
@@ -1584,13 +1648,18 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     details.honba = currentHonba;
   }
 
+  const nagashiManganWinnerKeys = isNagashiMangan
+    ? Array.from(new Set(data.nagashi_mangan_winner_keys ?? []))
+    : [];
+
   details.logs.push({
     timestamp: new Date().toISOString(),
     type: "RYUUKYOKU",
     round: currentRound,
     honba: currentHonba,
     ryuukyoku_type: data.type,
-    tenpai_keys: data.tenpai_keys,
+    tenpai_keys: isExhaustive || isNagashiMangan ? data.tenpai_keys : [],
+    nagashi_mangan_winner_keys: nagashiManganWinnerKeys,
     riichi_keys: data.current_riichi_keys,
     score_deltas: scoreDeltas,
     result_scores: resultScores,
