@@ -407,12 +407,12 @@ export default function ScoreForm({
   };
 
   const toggleNagashiManganWinner = (stateKey: string) => {
-  setNagashiManganWinnerKeys((prev) =>
-    prev.includes(stateKey)
-      ? prev.filter((key) => key !== stateKey)
-      : [...prev, stateKey],
-  );
-};
+    setNagashiManganWinnerKeys((prev) =>
+      prev.includes(stateKey)
+        ? prev.filter((key) => key !== stateKey)
+        : [...prev, stateKey],
+    );
+  };
 
   const renderPlayerSelectButtons = ({
     value,
@@ -536,6 +536,18 @@ export default function ScoreForm({
       alert("유국 기록 실패!");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRyuukyokuTypeChange = (type: RyuukyokuType) => {
+    setRyuukyokuType(type);
+
+    if (type !== "황패유국" && type !== "유국만관") {
+      setTenpaiKeys([]);
+    }
+
+    if (type !== "유국만관") {
+      setNagashiManganWinnerKeys([]);
     }
   };
 
@@ -1122,7 +1134,7 @@ export default function ScoreForm({
                 <button
                   key={type}
                   type="button"
-                  onClick={() => setRyuukyokuType(type)}
+                  onClick={() => handleRyuukyokuTypeChange(type)}
                   className={`py-3 rounded-xl border font-bold text-sm transition-all ${
                     ryuukyokuType === type
                       ? "bg-orange-500 text-white border-orange-500 shadow-md scale-[1.02]"

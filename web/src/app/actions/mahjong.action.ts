@@ -178,6 +178,7 @@ type YakuLike = {
   name: string;
   han?: YakuHanValue;
   isYakuman?: boolean;
+  yakumanMultiplier?: number;
 };
 
 export type MahjongMatchListFilter = {
@@ -369,6 +370,9 @@ function normalizeLog(log: Record<string, unknown>) {
       honba: log.honba,
       ryuukyoku_type: log.ryuukyoku_type,
       tenpai_keys: Array.isArray(log.tenpai_keys) ? log.tenpai_keys : [],
+      nagashi_mangan_winner_keys: Array.isArray(log.nagashi_mangan_winner_keys)
+        ? log.nagashi_mangan_winner_keys
+        : [],
       riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
       score_deltas:
         typeof log.score_deltas === "object" && log.score_deltas !== null
@@ -430,10 +434,15 @@ function assertUniqueValues(values: string[], message: string) {
 }
 
 function getYakumanCount(selectedYakuIds: string[]) {
-  return selectedYakuIds.filter((id) => {
+  return selectedYakuIds.reduce((sum, id) => {
     const yaku = ALL_YAKU.find((item) => item.id === id);
-    return yaku?.isYakuman;
-  }).length;
+
+    if (!yaku?.isYakuman) {
+      return sum;
+    }
+
+    return sum + (yaku.yakumanMultiplier ?? 1);
+  }, 0);
 }
 
 function isChiitoitsuWin(selectedYakuIds: string[]) {
@@ -1484,9 +1493,7 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   if (isNagashiMangan) {
     const winnerKeys = Array.from(
-      new Set([
-        ...(data.nagashi_mangan_winner_keys ?? []),
-      ]),
+      new Set(data.nagashi_mangan_winner_keys ?? []),
     );
 
     if (winnerKeys.length === 0) {
@@ -1642,12 +1649,8 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
   }
 
   const nagashiManganWinnerKeys = isNagashiMangan
-  ? Array.from(
-      new Set([
-        ...(data.nagashi_mangan_winner_keys ?? []),
-      ]),
-    )
-  : [];
+    ? Array.from(new Set(data.nagashi_mangan_winner_keys ?? []))
+    : [];
 
   details.logs.push({
     timestamp: new Date().toISOString(),
