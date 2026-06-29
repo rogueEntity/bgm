@@ -205,6 +205,9 @@ export type MahjongMatchListItem = {
     wind: MahjongPlayerState["wind"] | null;
     score: number | null;
     rank: number | null;
+    avatar_image_key: string | null;
+    avatar_image_updated_at: Date | null;
+    avatar_emoji: string | null;
   }[];
 };
 
@@ -1819,6 +1822,9 @@ export async function getMahjongMatches(
           wind: playerState?.wind ?? null,
           score: playerState?.score ?? matchPlayer.final_score ?? null,
           rank: matchPlayer.rank ?? null,
+          avatar_image_key: matchPlayer.users?.avatar_image_key ?? null,
+          avatar_image_updated_at: matchPlayer.users?.avatar_image_updated_at ?? null,
+          avatar_emoji: matchPlayer.users?.avatar_emoji ?? null,
         };
       });
 

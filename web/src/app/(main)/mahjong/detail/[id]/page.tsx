@@ -6,6 +6,7 @@ import MatchResultDetails from "@/components/mahjong/MatchResultDetails";
 import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
 import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import { getAvatarImageUrl } from "@/lib/avatar";
 
 export default async function MatchDetailPage({
   params,
@@ -61,6 +62,13 @@ export default async function MatchDetailPage({
       playersState[stateKey].equipped_badges = userId
         ? equippedBadgeMap[userId] ?? []
         : [];
+
+      playersState[stateKey].avatar_image_url = getAvatarImageUrl(
+        mp.users?.avatar_image_key,
+        mp.users?.avatar_image_updated_at,
+      );
+
+      playersState[stateKey].avatar_emoji = mp.users?.avatar_emoji ?? null;
     }
   });
 

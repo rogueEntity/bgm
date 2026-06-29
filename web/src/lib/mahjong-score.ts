@@ -137,7 +137,11 @@ export function calculateMahjongScore({
   isTsumo: boolean;
   yakumanCount?: number;
 }): MahjongCalculatedScore {
-  if (!Number.isFinite(han) || han <= 0) {
+  if (!Number.isFinite(yakumanCount) || yakumanCount < 0) {
+    throw new Error("역만 수가 올바르지 않습니다.");
+  }
+
+  if (yakumanCount === 0 && (!Number.isFinite(han) || han <= 0)) {
     throw new Error("판수는 1 이상이어야 합니다.");
   }
 

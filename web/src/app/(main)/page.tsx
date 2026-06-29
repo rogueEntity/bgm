@@ -1,5 +1,7 @@
 // web/src/app/(main)/page.tsx
 import { auth } from "@/auth";
+import UserAvatar from "@/components/common/UserAvatar";
+import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -15,6 +17,8 @@ type RankingItem = {
   key: string;
   name: string;
   avatarEmoji?: string | null;
+  avatarImageKey?: string | null;
+  avatarImageUpdatedAt?: Date | string | null;
   playCount: number;
 };
 
@@ -179,9 +183,25 @@ function getPlayerAvatarEmoji(player: {
   return player.users?.avatar_emoji ?? "";
 }
 
+function getPlayerAvatarImageKey(player: {
+  users: {
+    avatar_image_key: string | null;
+  } | null;
+}) {
+  return player.users?.avatar_image_key ?? null;
+}
+
+function getPlayerAvatarImageUpdatedAt(player: {
+  users: {
+    avatar_image_updated_at: Date | null;
+  } | null;
+}) {
+  return player.users?.avatar_image_updated_at ?? null;
+}
+
 function withCompetitionRank<T>(
   items: T[],
-  getScore: (item: T) => number
+  getScore: (item: T) => number,
 ): Array<T & { rank: number }> {
   let prevScore: number | null = null;
   let prevRank = 0;
@@ -213,6 +233,8 @@ async function getHomeData(providerId?: string) {
           id: true,
           nickname: true,
           avatar_emoji: true,
+          avatar_image_key: true,
+          avatar_image_updated_at: true,
         },
       })
     : null;
@@ -243,6 +265,8 @@ async function getHomeData(providerId?: string) {
                 id: true,
                 nickname: true,
                 avatar_emoji: true,
+                avatar_image_key: true,
+                avatar_image_updated_at: true,
               },
             },
           },
@@ -269,6 +293,8 @@ async function getHomeData(providerId?: string) {
                 id: true,
                 nickname: true,
                 avatar_emoji: true,
+                avatar_image_key: true,
+                avatar_image_updated_at: true,
               },
             },
           },
@@ -282,12 +308,12 @@ async function getHomeData(providerId?: string) {
 
   const myRecent30Matches = me
     ? recent30Matches.filter((match) =>
-        match.match_players.some((player) => player.user_id === me.id)
+        match.match_players.some((player) => player.user_id === me.id),
       )
     : [];
 
   const myPlayedGameIds = new Set(
-    myRecent30Matches.map((match) => match.game_id)
+    myRecent30Matches.map((match) => match.game_id),
   );
 
   const myFavoriteGame = (() => {
@@ -342,6 +368,8 @@ async function getHomeData(providerId?: string) {
           key,
           name: getPlayerDisplayName(player),
           avatarEmoji: getPlayerAvatarEmoji(player),
+          avatarImageKey: getPlayerAvatarImageKey(player),
+          avatarImageUpdatedAt: getPlayerAvatarImageUpdatedAt(player),
           playCount: (prev?.playCount ?? 0) + 1,
         });
       });
@@ -352,10 +380,10 @@ async function getHomeData(providerId?: string) {
       return a.name.localeCompare(b.name, "ko-KR");
     });
 
-    return withCompetitionRank(
-      sortedRanking,
-      (item) => item.playCount
-    ).slice(0, 5);
+    return withCompetitionRank(sortedRanking, (item) => item.playCount).slice(
+      0,
+      5,
+    );
   })();
 
   return {
@@ -398,14 +426,30 @@ export default async function Home() {
     integratedRanking,
   } = await getHomeData(providerId);
 
+  const myNickname = me?.nickname ?? nickname ?? "플레이어";
+  const myAvatarEmoji = me?.avatar_emoji ?? avatarEmoji ?? null;
+  const myAvatarImageUrl = getAvatarImageUrl(
+    me?.avatar_image_key,
+    me?.avatar_image_updated_at,
+  );
+
   return (
     <div className="space-y-8">
       {/* 상단 환영 문구 */}
       <section className="rounded-2xl border border-foreground/10 bg-foreground/[0.03] p-6 md:p-8">
         <div>
-          <div className="mb-3 text-4xl">{avatarEmoji ?? ""}</div>
+          <div className="mb-3">
+            <UserAvatar
+              imageUrl={myAvatarImageUrl}
+              emoji={myAvatarEmoji}
+              name={myNickname}
+              size="lg"
+              className="h-16 w-16 rounded-2xl text-3xl"
+            />
+          </div>
+
           <h1 className="text-2xl md:text-3xl font-bold">
-            환영합니다, {nickname ?? "플레이어"}님!
+            환영합니다, {myNickname}님!
           </h1>
           <p className="mt-2 text-sm md:text-base text-foreground/60">
             최근 게임 기록과 동호회 소식을 한눈에 확인해보세요.
@@ -442,7 +486,7 @@ export default async function Home() {
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span
                           className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getNoticeCategoryClassName(
-                            notice.category
+                            notice.category,
                           )}`}
                         >
                           {getNoticeCategoryLabel(notice.category)}
@@ -539,12 +583,12 @@ export default async function Home() {
                 const matchHref = getMatchHref(
                   match.id,
                   match.games.name,
-                  status
+                  status,
                 );
 
                 const myPlayer = me
                   ? match.match_players.find(
-                      (player) => player.user_id === me.id
+                      (player) => player.user_id === me.id,
                     )
                   : undefined;
 
@@ -566,7 +610,7 @@ export default async function Home() {
 
                           <span
                             className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusClassName(
-                              status
+                              status,
                             )}`}
                           >
                             {getStatusLabel(status)}
@@ -656,7 +700,8 @@ export default async function Home() {
           <div>
             <h2 className="text-xl font-bold">통합 랭킹</h2>
             <p className="mt-1 text-sm text-foreground/60">
-              최근 30일 기준 최다 참여 랭킹입니다. 동점자는 공동 순위로 표시합니다.
+              최근 30일 기준 최다 참여 랭킹입니다. 동점자는 공동 순위로
+              표시합니다.
             </p>
           </div>
 
@@ -667,28 +712,41 @@ export default async function Home() {
               </div>
             ) : (
               <div className="divide-y divide-foreground/10">
-                {integratedRanking.map((player) => (
-                  <div
-                    key={player.key}
-                    className="flex items-center justify-between gap-3 p-5"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-sm font-bold">
-                        {player.rank}
-                      </span>
-                      <span className="text-xl">
-                        {player.avatarEmoji ?? ""}
-                      </span>
-                      <span className="font-semibold truncate">
-                        {player.name}
+                {integratedRanking.map((player) => {
+                  const avatarImageUrl = getAvatarImageUrl(
+                    player.avatarImageKey,
+                    player.avatarImageUpdatedAt,
+                  );
+
+                  return (
+                    <div
+                      key={player.key}
+                      className="flex items-center justify-between gap-3 p-5"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-sm font-bold">
+                          {player.rank}
+                        </span>
+
+                        <UserAvatar
+                          imageUrl={avatarImageUrl}
+                          emoji={player.avatarEmoji}
+                          name={player.name}
+                          size="sm"
+                          className="h-8 w-8 text-sm"
+                        />
+
+                        <span className="font-semibold truncate">
+                          {player.name}
+                        </span>
+                      </div>
+
+                      <span className="text-sm text-foreground/60 whitespace-nowrap">
+                        {player.playCount.toLocaleString()}회
                       </span>
                     </div>
-
-                    <span className="text-sm text-foreground/60 whitespace-nowrap">
-                      {player.playCount.toLocaleString()}회
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

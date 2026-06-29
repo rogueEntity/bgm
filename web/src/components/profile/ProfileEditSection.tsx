@@ -1,4 +1,4 @@
-// web/src/components/ProfileEditSection.tsx
+// web/src/components/profile/ProfileEditSection.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,11 +7,15 @@ import ProfileForm from "@/components/profile/ProfileForm";
 type ProfileEditSectionProps = {
   nickname: string;
   avatarEmoji: string;
+  avatarImageUrl?: string | null;
+  hasAvatarImage?: boolean;
 };
 
 export default function ProfileEditSection({
   nickname,
   avatarEmoji,
+  avatarImageUrl,
+  hasAvatarImage = false,
 }: ProfileEditSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -22,6 +26,8 @@ export default function ProfileEditSection({
           mode="edit"
           defaultNickname={nickname}
           defaultAvatarEmoji={avatarEmoji}
+          defaultAvatarImageUrl={avatarImageUrl}
+          hasAvatarImage={hasAvatarImage}
           submitLabel="내 정보 저장"
           onCancelAction={() => setIsEditing(false)}
         />
