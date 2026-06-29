@@ -2,6 +2,7 @@
 
 import React from "react";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
+import UserAvatar from "@/components/common/UserAvatar";
 
 interface MatchResultDetailsProps {
   details: any;
@@ -58,13 +59,21 @@ export default function MatchResultDetails({
                       {index + 1}
                     </div>
 
+                    <UserAvatar
+                      imageUrl={player.avatar_image_url}
+                      emoji={player.avatar_emoji}
+                      name={player.name}
+                      size="sm"
+                      className="h-8 w-8 text-sm"
+                    />
+
                     <span className="min-w-0 font-extrabold text-lg">
                       <NicknameWithBadges
                         nickname={player.name ?? "이름 없음"}
                         badges={player.equipped_badges ?? []}
                         badgeSize="sm"
                         className="max-w-full"
-                        nameClassName="max-w-[9rem] md:max-w-[14rem]"
+                        nameClassName="max-w-[7rem] md:max-w-[12rem]"
                       />
                     </span>
                   </div>

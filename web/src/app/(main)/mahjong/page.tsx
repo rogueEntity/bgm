@@ -1,8 +1,12 @@
 // web/src/app/(main)/mahjong/page.tsx
 
-import Link from "next/link";
+import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import { auth } from "@/auth";
+import UserAvatar from "@/components/common/UserAvatar";
+import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
+import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
+import Link from "next/link";
 
 type MahjongDetailsSnapshot = {
   current_round?: string;
@@ -35,12 +39,16 @@ const disabledDashboardCardClass = ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS
   ? ""
   : " pointer-events-none cursor-not-allowed opacity-45 grayscale";
 
-async function getMyActiveMahjongMatch() {
+async function getMyMahjongDashboardData() {
   const session = await auth();
   const providerId = session?.user?.id as string | undefined;
 
   if (!providerId) {
-    return null;
+    return {
+      me: null,
+      activeMatch: null,
+      equippedBadges: [],
+    };
   }
 
   const me = await db.users.findFirst({
@@ -49,43 +57,60 @@ async function getMyActiveMahjongMatch() {
     },
     select: {
       id: true,
+      nickname: true,
+      avatar_emoji: true,
+      avatar_image_key: true,
+      avatar_image_updated_at: true,
     },
   });
 
   if (!me) {
-    return null;
+    return {
+      me: null,
+      activeMatch: null,
+      equippedBadges: [],
+    };
   }
 
-  const matches = await db.matches.findMany({
-    where: {
-      match_players: {
-        some: {
-          user_id: me.id,
+  const [matches, equippedBadgeMap] = await Promise.all([
+    db.matches.findMany({
+      where: {
+        match_players: {
+          some: {
+            user_id: me.id,
+          },
         },
       },
-    },
-    include: {
-      match_details: true,
-    },
-    orderBy: {
-      play_date: "desc",
-    },
-    take: 20,
-  });
+      include: {
+        match_details: true,
+      },
+      orderBy: {
+        play_date: "desc",
+      },
+      take: 20,
+    }),
+    getMahjongEquippedBadgesByUserIds([me.id]),
+  ]);
 
-  return (
+  const activeMatch =
     matches.find((match) => {
       const details = match.match_details?.details as
         | MahjongDetailsSnapshot
         | undefined;
 
       return details?.status === "PLAYING";
-    }) ?? null
-  );
+    }) ?? null;
+
+  return {
+    me,
+    activeMatch,
+    equippedBadges: equippedBadgeMap[me.id] ?? [],
+  };
 }
 
 export default async function MahjongDashboardPage() {
-  const activeMatch = await getMyActiveMahjongMatch();
+  const { me, activeMatch, equippedBadges } =
+    await getMyMahjongDashboardData();
 
   const activeDetails = activeMatch?.match_details?.details as
     | MahjongDetailsSnapshot
@@ -96,6 +121,11 @@ export default async function MahjongDashboardPage() {
       ? ROUND_NAME_MAP[activeDetails.current_round]
       : activeDetails?.current_round;
 
+  const avatarImageUrl = getAvatarImageUrl(
+    me?.avatar_image_key,
+    me?.avatar_image_updated_at,
+  );
+
   return (
     <main className="space-y-6">
       {/* 1. 헤더 영역 */}
@@ -105,6 +135,33 @@ export default async function MahjongDashboardPage() {
           오늘도 즐거운 마작 되세요!
         </p>
       </section>
+
+      {/* 1-1. 내 리치마작 프로필 */}
+      {me && (
+        <section className="rounded-2xl border border-foreground/10 bg-foreground/[0.03] p-5">
+          <div className="flex items-center gap-3">
+            <UserAvatar
+              imageUrl={avatarImageUrl}
+              emoji={me.avatar_emoji}
+              name={me.nickname}
+              size="lg"
+              className="h-14 w-14 rounded-2xl text-2xl"
+            />
+
+            <div className="min-w-0">
+              <p className="text-sm text-foreground/60">내 리치마작 프로필</p>
+
+              <NicknameWithBadges
+                nickname={me.nickname}
+                badges={equippedBadges}
+                badgeSize="sm"
+                className="mt-1 max-w-full"
+                nameClassName="max-w-[12rem] truncate text-xl font-black"
+              />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 2. 핵심 액션 영역 (진행 중인 대국 & 새 대국) */}
       <section className="space-y-3">
@@ -190,7 +247,7 @@ export default async function MahjongDashboardPage() {
 
         <Link
           href="/mahjong/achievements"
-          className={`rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition`}
+          className="rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition"
         >
           <div className="mb-3 text-2xl">🎖️</div>
           <h3 className="font-bold">도전과제</h3>

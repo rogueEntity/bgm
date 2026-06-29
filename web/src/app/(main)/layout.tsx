@@ -1,9 +1,12 @@
+// web/src/app/(main)/layout.tsx
 import { auth, signOut } from "@/auth";
 import Link from "next/link";
 import React from "react";
 import { isCurrentUserAdmin } from "@/lib/admin";
 import { redirect } from "next/navigation";
 import { getCurrentDbUser } from "@/lib/current-user";
+import UserAvatar from "@/components/common/UserAvatar";
+import { getAvatarImageUrl } from "@/lib/avatar";
 
 export default async function MainLayout({
   children,
@@ -24,6 +27,10 @@ export default async function MainLayout({
 
   const nickname = currentUser.nickname;
   const avatarEmoji = currentUser.avatar_emoji;
+  const avatarImageUrl = getAvatarImageUrl(
+    currentUser.avatar_image_key,
+    currentUser.avatar_image_updated_at,
+  );
 
   const isAdmin = await isCurrentUserAdmin();
 
@@ -46,7 +53,13 @@ export default async function MainLayout({
               href="/me"
               className="flex items-center gap-1.5 bg-foreground/5 px-2 py-1.5 rounded-lg border border-foreground/10 transition hover:bg-foreground/10"
             >
-              <span className="text-lg leading-none">{avatarEmoji}</span>
+              <UserAvatar
+                imageUrl={avatarImageUrl}
+                emoji={avatarEmoji}
+                name={nickname}
+                size="sm"
+                className="h-[18px] w-[18px] text-sm"
+              />
               <span className="text-xs font-bold leading-none">{nickname}</span>
             </Link>
 
@@ -91,7 +104,13 @@ export default async function MainLayout({
             href="/me"
             className="flex items-center gap-3 px-4 py-3 mb-3 rounded-xl bg-foreground/5 border border-foreground/10 transition hover:bg-foreground/10"
           >
-            <div className="text-2xl">{avatarEmoji}</div>
+            <UserAvatar
+              imageUrl={avatarImageUrl}
+              emoji={avatarEmoji}
+              name={nickname}
+              size="sm"
+              className="h-8 w-8 text-2xl"
+            />
             <div className="font-bold">{nickname}</div>
           </Link>
 
@@ -109,10 +128,7 @@ export default async function MainLayout({
       </aside>
 
       {/* 오른쪽 메인 콘텐츠 영역 (page.tsx가 여기에 렌더링 됨) */}
-      <main className="flex-1 p-6 md:p-10 flex flex-col">
-        {children}
-      </main>
-
+      <main className="flex-1 p-6 md:p-10 flex flex-col">{children}</main>
     </div>
   );
 }

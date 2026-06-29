@@ -6,6 +6,8 @@ import { getMahjongMatches } from "@/app/actions/mahjong.action";
 import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import UserAvatar from "@/components/common/UserAvatar";
+import { getAvatarImageUrl } from "@/lib/avatar";
 
 type MahjongMatchesPageProps = {
   searchParams: Promise<{
@@ -286,6 +288,11 @@ export default async function MahjongMatchesPage({
                           ? equippedBadgeMap[userId] ?? []
                           : [];
 
+                        const avatarImageUrl = getAvatarImageUrl(
+                          player.avatar_image_key,
+                          player.avatar_image_updated_at,
+                        );
+
                         return (
                           <div
                             key={player.key}
@@ -293,13 +300,23 @@ export default async function MahjongMatchesPage({
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="min-w-0 font-bold text-sm">
-                                <NicknameWithBadges
-                                  nickname={`${player.wind ? `${WIND_LABEL[player.wind]} ` : ""}${player.name}`}
-                                  badges={badges}
-                                  badgeSize="sm"
-                                  className="max-w-full"
-                                  nameClassName="max-w-[6.5rem] sm:max-w-[9rem]"
-                                />
+                                <span className="inline-flex min-w-0 items-center gap-1.5 align-middle">
+                                  <UserAvatar
+                                    imageUrl={avatarImageUrl}
+                                    emoji={player.avatar_emoji}
+                                    name={player.name}
+                                    size="sm"
+                                    className="h-5 w-5 text-xs"
+                                  />
+
+                                  <NicknameWithBadges
+                                    nickname={`${player.wind ? `${WIND_LABEL[player.wind]} ` : ""}${player.name}`}
+                                    badges={badges}
+                                    badgeSize="sm"
+                                    className="max-w-full"
+                                    nameClassName="max-w-[6rem] sm:max-w-[9rem]"
+                                  />
+                                </span>
                               </span>
 
                               {player.rank && (
