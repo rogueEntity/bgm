@@ -16,18 +16,21 @@ model games {
 }
 
 model users {
-  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  provider        String            @db.VarChar(50)
-  provider_id     String            @db.VarChar(255)
-  nickname        String            @db.VarChar(100)
-  avatar_emoji    String            @db.VarChar(1)
-  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  provider     String    @db.VarChar(50)
+  provider_id  String    @db.VarChar(255)
+  nickname     String    @db.VarChar(100)
+  avatar_emoji String    @db.VarChar(1)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
 
-  match_players   match_players[]
-  matches         matches[]
-  user_game_stats user_game_stats[]
-  home_notices    home_notices[]
-  admin_users     admin_users?
+  match_players                match_players[]
+  matches                      matches[]
+  user_game_stats              user_game_stats[]
+  home_notices                 home_notices[]
+  admin_users                  admin_users?
+  mahjong_user_achievements    mahjong_user_achievements[]
+  mahjong_user_badges          mahjong_user_badges[]
+  mahjong_user_equipped_badges mahjong_user_equipped_badges[]
 
   @@unique([provider, provider_id])
 }
@@ -37,7 +40,7 @@ model admin_users {
   user_id    String   @unique @db.Uuid
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
-  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model user_game_stats {
@@ -84,18 +87,68 @@ model match_players {
 }
 
 model home_notices {
-  id           Int       @id @default(autoincrement())
-  title        String    @db.VarChar(200)
-  summary      String?   @db.VarChar(500)
+  id           Int      @id @default(autoincrement())
+  title        String   @db.VarChar(200)
+  summary      String?  @db.VarChar(500)
   content      String?
-  category     String    @default("NOTICE") @db.VarChar(30)
-  is_pinned    Boolean   @default(false)
-  is_published Boolean   @default(true)
-  created_by   String?   @db.Uuid
-  created_at   DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  users        users?    @relation(fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  category     String   @default("NOTICE") @db.VarChar(30)
+  is_pinned    Boolean  @default(false)
+  is_published Boolean  @default(true)
+  created_by   String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  users        users?   @relation(fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([is_published, is_pinned, created_at])
   @@index([category])
+}
+
+model mahjong_user_achievements {
+  id             Int    @id @default(autoincrement())
+  user_id        String @db.Uuid
+  achievement_id String @db.VarChar(100)
+
+  progress     Int       @default(0)
+  completed    Boolean   @default(false)
+  completed_at DateTime? @db.Timestamptz(6)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, achievement_id])
+  @@index([user_id])
+  @@index([achievement_id])
+}
+
+model mahjong_user_badges {
+  id       Int    @id @default(autoincrement())
+  user_id  String @db.Uuid
+  badge_id String @db.VarChar(100)
+
+  earned_at DateTime @default(now()) @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, badge_id])
+  @@index([user_id])
+  @@index([badge_id])
+}
+
+model mahjong_user_equipped_badges {
+  id       Int    @id @default(autoincrement())
+  user_id  String @db.Uuid
+  badge_id String @db.VarChar(100)
+  slot     Int
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, slot])
+  @@unique([user_id, badge_id])
+  @@index([user_id])
+  @@index([badge_id])
 }

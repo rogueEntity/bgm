@@ -1,6 +1,11 @@
+// web/src/app/(main)/mahjong/matches/page.tsx
+
 import Link from "next/link";
 
 import { getMahjongMatches } from "@/app/actions/mahjong.action";
+import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
+import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
+import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 
 type MahjongMatchesPageProps = {
   searchParams: Promise<{
@@ -107,6 +112,17 @@ export default async function MahjongMatchesPage({
     only_mine: onlyMine,
   });
 
+  const userIds = Array.from(
+    new Set(
+      matches
+        .flatMap((match) => match.players)
+        .map((player) => getUserIdFromPlayerKey(player.key))
+        .filter((userId): userId is string => userId !== null),
+    ),
+  );
+
+  const equippedBadgeMap = await getMahjongEquippedBadgesByUserIds(userIds);
+
   return (
     <div className="max-w-3xl mx-auto w-full space-y-6">
       <header className="space-y-2">
@@ -146,7 +162,9 @@ export default async function MahjongMatchesPage({
           </label>
 
           <label className="space-y-1">
-            <span className="text-xs font-bold text-foreground/60">대국 방식</span>
+            <span className="text-xs font-bold text-foreground/60">
+              대국 방식
+            </span>
             <select
               name="game_mode"
               defaultValue={gameMode}
@@ -254,35 +272,49 @@ export default async function MahjongMatchesPage({
                       <div className="text-right text-sm font-bold text-foreground/60">
                         <div>{match.game_mode}</div>
                         <div>
-                          {ROUND_NAME_MAP[match.current_round] ?? match.current_round} / {match.honba}본장
+                          {ROUND_NAME_MAP[match.current_round] ??
+                            match.current_round}{" "}
+                          / {match.honba}본장
                         </div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {sortedPlayers.map((player) => (
-                        <div
-                          key={player.key}
-                          className="bg-background/60 rounded-xl p-3 border border-foreground/5"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-sm truncate">
-                              {player.wind ? `${WIND_LABEL[player.wind]} ` : ""}
-                              {player.name}
-                            </span>
+                      {sortedPlayers.map((player) => {
+                        const userId = getUserIdFromPlayerKey(player.key);
+                        const badges = userId
+                          ? equippedBadgeMap[userId] ?? []
+                          : [];
 
-                            {player.rank && (
-                              <span className="text-xs font-black text-foreground/50">
-                                {player.rank}위
+                        return (
+                          <div
+                            key={player.key}
+                            className="bg-background/60 rounded-xl p-3 border border-foreground/5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 font-bold text-sm">
+                                <NicknameWithBadges
+                                  nickname={`${player.wind ? `${WIND_LABEL[player.wind]} ` : ""}${player.name}`}
+                                  badges={badges}
+                                  badgeSize="sm"
+                                  className="max-w-full"
+                                  nameClassName="max-w-[6.5rem] sm:max-w-[9rem]"
+                                />
                               </span>
-                            )}
-                          </div>
 
-                          <div className="font-black mt-1">
-                            {player.score?.toLocaleString() ?? "-"}점
+                              {player.rank && (
+                                <span className="shrink-0 text-xs font-black text-foreground/50">
+                                  {player.rank}위
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="font-black mt-1">
+                              {player.score?.toLocaleString() ?? "-"}점
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </Link>
                 </li>
