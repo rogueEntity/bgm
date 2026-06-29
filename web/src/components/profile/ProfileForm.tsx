@@ -1,13 +1,17 @@
-// web/src/components/ProfileForm.tsx
+// web/src/components/profile/ProfileForm.tsx
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
 import { AVATAR_EMOJIS } from "@/constants/avatars";
 import {
   checkNicknameDuplication,
   checkMyNicknameDuplication,
+  deleteMyAvatar,
   saveOnboardingProfile,
   updateMyProfile,
+  uploadMyAvatar,
 } from "@/app/actions/user.action";
 
 type ProfileFormMode = "onboarding" | "edit";
@@ -16,6 +20,8 @@ type ProfileFormProps = {
   mode: ProfileFormMode;
   defaultNickname?: string;
   defaultAvatarEmoji?: string;
+  defaultAvatarImageUrl?: string | null;
+  hasAvatarImage?: boolean;
   submitLabel?: string;
   onCancelAction?: () => void;
 };
@@ -24,16 +30,30 @@ export default function ProfileForm({
   mode,
   defaultNickname = "",
   defaultAvatarEmoji = AVATAR_EMOJIS[0],
+  defaultAvatarImageUrl = null,
+  hasAvatarImage = false,
   submitLabel,
   onCancelAction,
 }: ProfileFormProps) {
+  const router = useRouter();
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [selectedAvatar, setSelectedAvatar] = useState(defaultAvatarEmoji);
   const [nickname, setNickname] = useState(defaultNickname);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(
-    defaultNickname ? true : null
+    defaultNickname ? true : null,
   );
   const [isChecking, setIsChecking] = useState(false);
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(
+    null,
+  );
+  const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
+  const [avatarMessageType, setAvatarMessageType] = useState<
+    "success" | "error" | null
+  >(null);
+
   const [isPending, startTransition] = useTransition();
+  const [isAvatarPending, startAvatarTransition] = useTransition();
 
   const trimmedNickname = nickname.trim();
   const nicknameChanged = trimmedNickname !== defaultNickname.trim();
@@ -82,6 +102,57 @@ export default function ProfileForm({
     }
   };
 
+  const handleUploadAvatar = () => {
+    if (!selectedAvatarFile) {
+      setAvatarMessage("업로드할 이미지를 선택해 주세요.");
+      setAvatarMessageType("error");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", selectedAvatarFile);
+
+    startAvatarTransition(() => {
+      void (async () => {
+        const result = await uploadMyAvatar(formData);
+
+        setAvatarMessage(result.message);
+        setAvatarMessageType(result.success ? "success" : "error");
+
+        if (result.success) {
+          setSelectedAvatarFile(null);
+
+          if (avatarFileInputRef.current) {
+            avatarFileInputRef.current.value = "";
+          }
+
+          router.refresh();
+        }
+      })();
+    });
+  };
+
+  const handleDeleteAvatar = () => {
+    startAvatarTransition(() => {
+      void (async () => {
+        const result = await deleteMyAvatar();
+
+        setAvatarMessage(result.message);
+        setAvatarMessageType(result.success ? "success" : "error");
+
+        if (result.success) {
+          setSelectedAvatarFile(null);
+
+          if (avatarFileInputRef.current) {
+            avatarFileInputRef.current.value = "";
+          }
+
+          router.refresh();
+        }
+      })();
+    });
+  };
+
   const action = mode === "edit" ? updateMyProfile : saveOnboardingProfile;
 
   return (
@@ -93,6 +164,82 @@ export default function ProfileForm({
       className="space-y-6"
     >
       <input type="hidden" name="avatarEmoji" value={selectedAvatar} />
+
+      {mode === "edit" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground/70">
+            프로필 사진
+          </h2>
+
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-foreground/10 text-4xl">
+              {defaultAvatarImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={defaultAvatarImageUrl}
+                  alt="현재 프로필 이미지"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span>{selectedAvatar}</span>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-2">
+              <input
+                ref={avatarFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setSelectedAvatarFile(file);
+                  setAvatarMessage(null);
+                  setAvatarMessageType(null);
+                }}
+                className="block w-full text-sm text-foreground/70 file:mr-3 file:rounded-lg file:border-0 file:bg-foreground file:px-3 file:py-2 file:text-sm file:font-semibold file:text-background hover:file:opacity-90"
+              />
+
+              <p className="text-xs text-foreground/40">
+                jpg, png, webp 이미지를 5MB 이하로 업로드할 수 있습니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleUploadAvatar}
+              disabled={!selectedAvatarFile || isAvatarPending}
+              className="flex-1 rounded-xl border border-foreground/10 px-4 py-3 text-sm font-semibold transition hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isAvatarPending ? "처리 중..." : "사진 업로드"}
+            </button>
+
+            {hasAvatarImage && (
+              <button
+                type="button"
+                onClick={handleDeleteAvatar}
+                disabled={isAvatarPending}
+                className="flex-1 rounded-xl border border-red-500/20 px-4 py-3 text-sm font-semibold text-red-500 transition hover:bg-red-500/5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                사진 삭제
+              </button>
+            )}
+          </div>
+
+          {avatarMessage && (
+            <p
+              className={`text-sm ${
+                avatarMessageType === "success"
+                  ? "text-green-600"
+                  : "text-red-500"
+              }`}
+            >
+              {avatarMessage}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground/70">
@@ -115,6 +262,12 @@ export default function ProfileForm({
             </button>
           ))}
         </div>
+
+        {mode === "edit" && (
+          <p className="text-xs text-foreground/40">
+            프로필 사진이 없을 때 대표 이모지가 표시됩니다.
+          </p>
+        )}
       </section>
 
       <section className="space-y-3">

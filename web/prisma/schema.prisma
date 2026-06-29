@@ -16,12 +16,14 @@ model games {
 }
 
 model users {
-  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  provider     String    @db.VarChar(50)
-  provider_id  String    @db.VarChar(255)
-  nickname     String    @db.VarChar(100)
-  avatar_emoji String    @db.VarChar(1)
-  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  id                       String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  provider                 String    @db.VarChar(50)
+  provider_id              String    @db.VarChar(255)
+  nickname                 String    @db.VarChar(100)
+  avatar_emoji             String    @db.VarChar(1)
+  avatar_image_key         String?
+  avatar_image_updated_at  DateTime? @db.Timestamptz(6)
+  created_at               DateTime? @default(now()) @db.Timestamptz(6)
 
   match_players                match_players[]
   matches                      matches[]

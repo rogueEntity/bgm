@@ -1,8 +1,10 @@
 // web/src/app/(main)/me/page.tsx
 import { auth } from "@/auth";
+import ProfileEditSection from "@/components/profile/ProfileEditSection";
+import UserAvatar from "@/components/common/UserAvatar";
+import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import ProfileEditSection from "@/components/profile/ProfileEditSection";
 
 function getProviderLabel(provider?: string | null) {
   switch (provider) {
@@ -41,6 +43,8 @@ export default async function MyPage() {
     select: {
       nickname: true,
       avatar_emoji: true,
+      avatar_image_key: true,
+      avatar_image_updated_at: true,
       provider: true,
     },
   });
@@ -48,6 +52,11 @@ export default async function MyPage() {
   if (!user) {
     redirect("/onboarding");
   }
+
+  const avatarImageUrl = getAvatarImageUrl(
+    user.avatar_image_key,
+    user.avatar_image_updated_at,
+  );
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-6">
@@ -60,9 +69,13 @@ export default async function MyPage() {
         </div>
 
         <div className="mt-8 flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-foreground/10 text-4xl">
-            {user.avatar_emoji}
-          </div>
+          <UserAvatar
+            imageUrl={avatarImageUrl}
+            emoji={user.avatar_emoji}
+            name={user.nickname}
+            size="lg"
+            className="rounded-2xl border border-foreground/10"
+          />
 
           <div className="min-w-0">
             <p className="truncate text-xl font-bold">{user.nickname}</p>
@@ -76,6 +89,8 @@ export default async function MyPage() {
       <ProfileEditSection
         nickname={user.nickname}
         avatarEmoji={user.avatar_emoji}
+        avatarImageUrl={avatarImageUrl}
+        hasAvatarImage={!!user.avatar_image_key}
       />
     </main>
   );

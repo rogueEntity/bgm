@@ -3,8 +3,24 @@
 
 import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
+import {
+  deleteR2Object,
+  getAvatarImageKey,
+  uploadR2Object,
+} from "@/lib/r2";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import sharp from "sharp";
+
+const MAX_AVATAR_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+type AvatarActionResult = {
+  success: boolean;
+  message: string;
+  avatar_image_key?: string | null;
+};
 
 function normalizeNickname(nickname: FormDataEntryValue | string | null) {
   return String(nickname ?? "").trim();
@@ -35,6 +51,30 @@ async function getCurrentSessionUser() {
     provider,
     providerId,
   };
+}
+
+async function getCurrentDbUser() {
+  const { provider, providerId } = await getCurrentSessionUser();
+
+  const currentUser = await db.users.findUnique({
+    where: {
+      provider_provider_id: {
+        provider,
+        provider_id: providerId,
+      },
+    },
+    select: {
+      id: true,
+      avatar_image_key: true,
+      avatar_image_updated_at: true,
+    },
+  });
+
+  if (!currentUser) {
+    throw new Error("사용자 정보를 찾을 수 없습니다.");
+  }
+
+  return currentUser;
 }
 
 export async function saveOnboardingProfile(formData: FormData) {
@@ -159,6 +199,158 @@ export async function updateMyProfile(formData: FormData) {
   revalidatePath("/me");
 
   redirect("/me");
+}
+
+export async function uploadMyAvatar(
+  formData: FormData,
+): Promise<AvatarActionResult> {
+  let currentUser: Awaited<ReturnType<typeof getCurrentDbUser>>;
+
+  try {
+    currentUser = await getCurrentDbUser();
+  } catch (error) {
+    console.error("uploadMyAvatar auth error:", error);
+
+    return {
+      success: false,
+      message: "로그인이 필요합니다.",
+    };
+  }
+
+  const file = formData.get("avatar");
+
+  if (!(file instanceof File)) {
+    return {
+      success: false,
+      message: "업로드할 이미지를 선택해 주세요.",
+    };
+  }
+
+  if (file.size <= 0) {
+    return {
+      success: false,
+      message: "비어 있는 파일은 업로드할 수 없습니다.",
+    };
+  }
+
+  if (file.size > MAX_AVATAR_FILE_SIZE) {
+    return {
+      success: false,
+      message: "프로필 이미지는 5MB 이하만 업로드할 수 있습니다.",
+    };
+  }
+
+  if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+    return {
+      success: false,
+      message: "jpg, png, webp 이미지만 업로드할 수 있습니다.",
+    };
+  }
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const inputBuffer = Buffer.from(arrayBuffer);
+
+    const webpBuffer = await sharp(inputBuffer)
+      .rotate()
+      .resize(512, 512, {
+        fit: "cover",
+        position: "center",
+      })
+      .webp({
+        quality: 85,
+      })
+      .toBuffer();
+
+    const avatarImageKey = getAvatarImageKey(currentUser.id);
+
+    await uploadR2Object({
+      key: avatarImageKey,
+      body: webpBuffer,
+      contentType: "image/webp",
+
+      // avatars/{userId}.webp처럼 같은 key에 덮어쓰는 구조라서
+      // immutable 캐시는 피하는 게 안전함.
+      cacheControl: "public, max-age=300",
+    });
+
+    await db.users.update({
+      where: {
+        id: currentUser.id,
+      },
+      data: {
+        avatar_image_key: avatarImageKey,
+        avatar_image_updated_at: new Date(),
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/me");
+    revalidatePath("/mahjong");
+    revalidatePath("/onboarding");
+
+    return {
+      success: true,
+      message: "프로필 이미지가 변경되었습니다.",
+      avatar_image_key: avatarImageKey,
+    };
+  } catch (error) {
+    console.error("uploadMyAvatar error:", error);
+
+    return {
+      success: false,
+      message: "프로필 이미지 업로드 중 오류가 발생했습니다.",
+    };
+  }
+}
+
+export async function deleteMyAvatar(): Promise<AvatarActionResult> {
+  let currentUser: Awaited<ReturnType<typeof getCurrentDbUser>>;
+
+  try {
+    currentUser = await getCurrentDbUser();
+  } catch (error) {
+    console.error("deleteMyAvatar auth error:", error);
+
+    return {
+      success: false,
+      message: "로그인이 필요합니다.",
+    };
+  }
+
+  try {
+    if (currentUser.avatar_image_key) {
+      await deleteR2Object(currentUser.avatar_image_key);
+    }
+
+    await db.users.update({
+      where: {
+        id: currentUser.id,
+      },
+      data: {
+        avatar_image_key: null,
+        avatar_image_updated_at: null,
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/me");
+    revalidatePath("/mahjong");
+    revalidatePath("/onboarding");
+
+    return {
+      success: true,
+      message: "프로필 이미지가 삭제되었습니다.",
+      avatar_image_key: null,
+    };
+  } catch (error) {
+    console.error("deleteMyAvatar error:", error);
+
+    return {
+      success: false,
+      message: "프로필 이미지 삭제 중 오류가 발생했습니다.",
+    };
+  }
 }
 
 export async function checkNicknameDuplication(nickname: string) {
