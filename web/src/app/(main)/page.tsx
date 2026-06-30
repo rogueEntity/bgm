@@ -471,6 +471,12 @@ export default async function Home() {
               공지사항과 업데이트 소식을 확인합니다.
             </p>
           </div>
+          <Link
+              href="/notices"
+              className="shrink-0 text-sm font-semibold text-foreground/60 hover:text-foreground transition-colors"
+          >
+            더보기
+          </Link>
         </div>
 
         <div className="grid gap-3">

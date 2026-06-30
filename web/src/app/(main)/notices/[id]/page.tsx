@@ -45,9 +45,9 @@ function getCategoryClassName(category: string) {
 
 export default async function NoticeDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ id: string }>;
-}) {
+}>) {
   const resolvedParams = await params;
   const noticeId = Number(resolvedParams.id);
 
@@ -135,12 +135,11 @@ export default async function NoticeDetailPage({
       </section>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Link
-          href="/"
-          className="rounded-xl border border-foreground/10 px-4 py-2 text-center text-sm font-semibold hover:bg-foreground/5 transition"
-        >
-          홈으로
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/notices">목록으로</Link>
+          <Link href="/">홈으로</Link>
+          {isAdmin && <Link href={`/admin/notices/${notice.id}/edit`}>공지 수정</Link>}
+        </div>
 
         {isAdmin && (
           <Link
