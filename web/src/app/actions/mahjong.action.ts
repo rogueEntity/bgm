@@ -1991,6 +1991,10 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   const details = normalizeDetails(match.match_details.details);
 
+  if (match.deleted_at) {
+    throw new Error("삭제된 대국에는 기록을 추가할 수 없습니다.");
+  }
+
   if (details.status !== "PLAYING") {
     throw new Error("진행 중인 대국에만 기록을 추가할 수 있습니다.");
   }
@@ -2278,6 +2282,10 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
   }
 
   const details = normalizeDetails(match.match_details.details);
+
+  if (match.deleted_at) {
+    throw new Error("삭제된 대국에는 기록을 추가할 수 없습니다.");
+  }
 
   if (details.status !== "PLAYING") {
     throw new Error("진행 중인 대국에만 기록을 추가할 수 있습니다.");
@@ -2686,7 +2694,7 @@ export async function deleteMahjongMatch(matchId: number) {
 
   const details = normalizeDetails(match.match_details.details);
 
-  if (details.status === "DELETED") {
+  if (match.deleted_at || details.status === "DELETED") {
     return;
   }
 

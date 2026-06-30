@@ -10,7 +10,7 @@ const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type MahjongPlayerState = {
-  wind?: "EAST" | "SOUTH" | "WEST" | "NORTH" | string;
+  wind?: string;
   score?: number;
   name?: string;
 };
@@ -718,6 +718,7 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
   const matches = await db.matches.findMany({
     where: {
       game_id: mahjongGameId,
+      deleted_at: null,
       match_players: {
         some: {
           user_id: {
@@ -832,12 +833,31 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
       }
     }
 
+    const earnedBadgeIdList = Array.from(earnedBadgeIds);
+
     await db.mahjong_user_badges.deleteMany({
       where: {
         user_id: userId,
-        badge_id: {
-          notIn: Array.from(earnedBadgeIds),
-        },
+        ...(earnedBadgeIdList.length > 0
+            ? {
+              badge_id: {
+                notIn: earnedBadgeIdList,
+              },
+            }
+            : {}),
+      },
+    });
+
+    await db.mahjong_user_equipped_badges.deleteMany({
+      where: {
+        user_id: userId,
+        ...(earnedBadgeIdList.length > 0
+            ? {
+              badge_id: {
+                notIn: earnedBadgeIdList,
+              },
+            }
+            : {}),
       },
     });
 
@@ -891,7 +911,7 @@ export async function syncMahjongAchievementsForMatch(matchId: number) {
 
   const details = normalizeDetails(match.match_details?.details);
 
-  if (details.status === "DELETED") {
+  if (match.deleted_at || details.status === "DELETED") {
     const userIdsFromMatchPlayers = match.match_players
         .map((player) => player.user_id)
         .filter((userId): userId is string => typeof userId === "string");

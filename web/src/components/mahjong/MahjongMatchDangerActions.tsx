@@ -72,7 +72,7 @@ export default function MahjongMatchDangerActions({
             globalThis.location.href = redirectAfterDelete;
         } catch (error) {
             console.error(error);
-            alert(
+            globalThis.alert(
                 error instanceof Error
                     ? error.message
                     : "대국 삭제 중 오류가 발생했습니다.",
