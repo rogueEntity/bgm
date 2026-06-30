@@ -65,6 +65,8 @@ model matches {
   game_id       Int
   created_by    String?         @db.Uuid
   play_date     DateTime?       @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?
+  deleted_by    String?
   match_details match_details?
   match_players match_players[]
   users         users?          @relation(fields: [created_by], references: [id], onUpdate: NoAction)

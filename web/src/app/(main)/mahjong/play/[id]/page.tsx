@@ -1,6 +1,5 @@
 // web/src/app/(main)/mahjong/play/[id]/page.tsx
 
-import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 
@@ -10,14 +9,14 @@ import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 import ScoreForm from "./ScoreForm";
 
-type PlayerWind = "EAST" | "SOUTH" | "WEST" | "NORTH";
-
 type ScoreboardPlayer = {
   name: string;
-  wind: PlayerWind | string;
+  wind: string;
   score: number;
   stateKey: string;
   avatarImageUrl: string | null;
@@ -26,14 +25,14 @@ type ScoreboardPlayer = {
 
 export default async function MahjongPlayPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ id: string }>;
-}) {
+}>) {
   const resolvedParams = await params;
-  const matchId = parseInt(resolvedParams.id, 10);
+  const matchId = Number.parseInt(resolvedParams.id, 10);
 
   // 숫자가 아닌 이상한 주소로 접근하면 404 페이지로 보냄
-  if (isNaN(matchId)) return notFound();
+  if (Number.isNaN(matchId)) return notFound();
 
   // 1. DB에서 매치 정보, 참가자 목록, JSON 디테일을 한 번에 가져옴
   const match = await db.matches.findUnique({
@@ -47,31 +46,26 @@ export default async function MahjongPlayPage({
   });
 
   // 방이 없거나 초기화된 JSON 데이터가 없으면 404
-  if (!match || !match.match_details) return notFound();
+  if (!match?.match_details) return notFound();
+  if (match.deleted_at) return notFound();
 
   // 2. JSON 데이터 파싱
   const details = match.match_details.details as any;
+
+  if (details.status === "DELETED") {
+    return notFound();
+  }
 
   // [핵심] 대국이 종료된 상태면 강제로 상세(detail) 페이지로 리디렉션
   if (details.status === "FINISHED") {
     redirect(`/mahjong/detail/${matchId}`);
   }
 
-  const session = await auth();
-  const providerId = session?.user?.id as string | undefined;
-
-  const currentUser = providerId
-    ? await db.users.findFirst({
-        where: {
-          provider_id: providerId,
-        },
-        select: {
-          id: true,
-        },
-      })
-    : null;
+  const currentUser = await getCurrentUserWithAdmin();
 
   const isRecorder = currentUser?.id === match.created_by;
+  const canManageMatch = Boolean(isRecorder || currentUser?.isAdmin);
+  const canUndo = Array.isArray(details.logs) && details.logs.length > 0;
 
   const playersState = details.players;
 
@@ -186,6 +180,16 @@ export default async function MahjongPlayPage({
             </span>
           </div>
         </header>
+        {canManageMatch && (
+            <MahjongMatchDangerActions
+                matchId={matchId}
+                canManage={canManageMatch}
+                canUndo={canUndo}
+                redirectAfterDelete="/mahjong"
+                showUndo
+                showDelete
+            />
+        )}
 
         {/* 중단: 점수판 그리드 (기존 디자인 유지) */}
         <div className="grid grid-cols-2 gap-4">
