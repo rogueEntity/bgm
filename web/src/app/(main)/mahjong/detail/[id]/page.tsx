@@ -7,16 +7,18 @@ import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
 import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 import { getAvatarImageUrl } from "@/lib/avatar";
+import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 export default async function MatchDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ id: string }>;
-}) {
+}>) {
   const resolvedParams = await params;
   const matchId = Number(resolvedParams.id);
 
-  if (isNaN(matchId)) return notFound();
+  if (Number.isNaN(matchId)) return notFound();
 
   // 1. 이름 정보를 가져오기 위해 match_players와 users를 함께 불러옵니다.
   const match = await db.matches.findUnique({
@@ -29,9 +31,28 @@ export default async function MatchDetailPage({
     },
   });
 
-  if (!match || !match.match_details) return notFound();
+  if (!match?.match_details) return notFound();
+
+  if (match.deleted_at) return notFound();
 
   const details = match.match_details.details as any;
+
+  if (details.status === "DELETED") {
+    return notFound();
+  }
+
+  if (details.status !== "FINISHED") {
+    return notFound();
+  }
+
+  const currentUser = await getCurrentUserWithAdmin();
+
+  const canManageMatch = Boolean(
+      currentUser?.isAdmin || currentUser?.id === match.created_by,
+  );
+
+  const canUndo = Array.isArray(details.logs) && details.logs.length > 0;
+
   const playersState = details.players ?? {};
 
   const userIds = Array.from(
@@ -81,6 +102,17 @@ export default async function MatchDetailPage({
           <div>{details.game_mode ?? "동풍전"}</div>
         </div>
       </div>
+
+      {canManageMatch && (
+          <MahjongMatchDangerActions
+              matchId={matchId}
+              canManage={canManageMatch}
+              canUndo={canUndo}
+              redirectAfterDelete="/mahjong/matches"
+              showUndo
+              showDelete
+          />
+      )}
 
       {/* 이름과 장착 배지가 포함된 details가 넘어갑니다. */}
       <MatchResultDetails details={details} />

@@ -8,6 +8,7 @@ import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
+import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
 
 type MahjongMatchesPageProps = {
   searchParams: Promise<{
@@ -334,6 +335,19 @@ export default async function MahjongMatchesPage({
                       })}
                     </div>
                   </Link>
+
+                  {match.can_manage && (
+                      <div className="mt-2 px-1">
+                        <MahjongMatchDangerActions
+                            matchId={match.id}
+                            canManage={match.can_manage}
+                            canUndo={match.log_count > 0}
+                            redirectAfterDelete="/mahjong/matches"
+                            showUndo
+                            showDelete
+                        />
+                      </div>
+                  )}
                 </li>
               );
             })}

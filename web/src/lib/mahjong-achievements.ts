@@ -10,7 +10,7 @@ const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type MahjongPlayerState = {
-  wind?: "EAST" | "SOUTH" | "WEST" | "NORTH" | string;
+  wind?: string;
   score?: number;
   name?: string;
 };
@@ -64,7 +64,7 @@ type MahjongDetails = {
   logs?: MahjongRoundLog[];
   initial_score?: number;
   starting_score?: number;
-  status?: "PLAYING" | "FINISHED" | string;
+  status?: "PLAYING" | "FINISHED" | "DELETED" | string;
 };
 
 type UserPlayerEntry = {
@@ -718,6 +718,7 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
   const matches = await db.matches.findMany({
     where: {
       game_id: mahjongGameId,
+      deleted_at: null,
       match_players: {
         some: {
           user_id: {
@@ -749,12 +750,18 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
   }
 
   for (const match of matches) {
-    collectCompletedMatchStats({
-      statsByUserId,
-      matchPlayers: match.match_players,
-    });
-
     const details = normalizeDetails(match.match_details?.details);
+
+    if (details.status === "DELETED") {
+      continue;
+    }
+
+    if (details.status === "FINISHED") {
+      collectCompletedMatchStats({
+        statsByUserId,
+        matchPlayers: match.match_players,
+      });
+    }
 
     collectLogStats({
       statsByUserId,
@@ -786,25 +793,19 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
 
   for (const userId of uniqueUserIds) {
     const stats = ensureStats(statsByUserId, userId);
+    const earnedBadgeIds = new Set<string>();
 
     for (const achievement of MahjongAchievements) {
       const progress = getAchievementProgress(achievement, stats);
-      const newlyCompleted = progress >= achievement.goal;
+      const completed = progress >= achievement.goal;
 
       const existingAchievement = existingAchievementMap.get(
-        `${userId}:${achievement.id}`
+          `${userId}:${achievement.id}`
       );
 
-      // 정책:
-      // - progress는 현재 기록 기준으로 재계산
-      // - completed는 한 번 true가 되면 유지
-      // - completed_at은 최초 달성 시각 유지
-      // - badge는 한 번 획득하면 유지
-      const completed = existingAchievement?.completed || newlyCompleted;
-
-      const completedAt =
-        existingAchievement?.completed_at ??
-        (completed ? new Date() : null);
+      const completedAt = completed
+          ? existingAchievement?.completed_at ?? new Date()
+          : null;
 
       await db.mahjong_user_achievements.upsert({
         where: {
@@ -828,20 +829,61 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
       });
 
       if (completed) {
-        await db.mahjong_user_badges.upsert({
-          where: {
-            user_id_badge_id: {
-              user_id: userId,
-              badge_id: achievement.badgeId,
-            },
-          },
-          create: {
-            user_id: userId,
-            badge_id: achievement.badgeId,
-          },
-          update: {},
-        });
+        earnedBadgeIds.add(achievement.badgeId);
       }
+    }
+
+    const earnedBadgeIdList = Array.from(earnedBadgeIds);
+
+    await db.mahjong_user_badges.deleteMany({
+      where: {
+        user_id: userId,
+        ...(earnedBadgeIdList.length > 0
+            ? {
+              badge_id: {
+                notIn: earnedBadgeIdList,
+              },
+            }
+            : {}),
+      },
+    });
+
+    await db.mahjong_user_equipped_badges.deleteMany({
+      where: {
+        user_id: userId,
+        ...(earnedBadgeIdList.length > 0
+            ? {
+              badge_id: {
+                notIn: earnedBadgeIdList,
+              },
+            }
+            : {}),
+      },
+    });
+
+    await db.mahjong_user_equipped_badges.deleteMany({
+      where: {
+        user_id: userId,
+        badge_id: {
+          notIn: Array.from(earnedBadgeIds),
+        },
+      },
+    });
+
+    for (const badgeId of earnedBadgeIds) {
+      await db.mahjong_user_badges.upsert({
+        where: {
+          user_id_badge_id: {
+            user_id: userId,
+            badge_id: badgeId,
+          },
+        },
+        create: {
+          user_id: userId,
+          badge_id: badgeId,
+        },
+        update: {},
+      });
     }
   }
 }
@@ -869,8 +911,17 @@ export async function syncMahjongAchievementsForMatch(matchId: number) {
 
   const details = normalizeDetails(match.match_details?.details);
 
+  if (match.deleted_at || details.status === "DELETED") {
+    const userIdsFromMatchPlayers = match.match_players
+        .map((player) => player.user_id)
+        .filter((userId): userId is string => typeof userId === "string");
+
+    await syncMahjongAchievementsForUsers(userIdsFromMatchPlayers);
+    return;
+  }
+
   const userIdsFromDetails = getUserPlayerEntries(details.players).map(
-    (entry) => entry.userId
+      (entry) => entry.userId
   );
 
   const userIdsFromMatchPlayers = match.match_players

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 type HomeMatchDetails = {
-  status?: "PLAYING" | "FINISHED" | "CANCELED" | string;
+  status?: "PLAYING" | "FINISHED" | "CANCELED" | "DELETED" | string;
   current_round?: string;
   game_mode?: string;
   honba?: number;
@@ -36,6 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
   PLAYING: "진행 중",
   FINISHED: "완료",
   CANCELED: "취소",
+  DELETED: "삭제됨",
 };
 
 const NOTICE_CATEGORY_LABEL: Record<string, string> = {
@@ -255,6 +256,9 @@ async function getHomeData(providerId?: string) {
       take: 3,
     }),
     db.matches.findMany({
+      where: {
+        deleted_at: null,
+      },
       include: {
         games: true,
         match_details: true,
@@ -279,6 +283,7 @@ async function getHomeData(providerId?: string) {
     }),
     db.matches.findMany({
       where: {
+        deleted_at: null,
         play_date: {
           gte: recentFrom,
         },

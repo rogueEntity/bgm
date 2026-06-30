@@ -8,11 +8,15 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { calculateMahjongScore } from "@/lib/mahjong-score";
-import { syncMahjongAchievementsForMatch } from "@/lib/mahjong-achievements";
+import {
+  syncMahjongAchievementsForMatch,
+  syncMahjongAchievementsForUsers,
+} from "@/lib/mahjong-achievements";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 // --- 타입 ---
 type GameMode = "동풍전" | "반장전" | "전장전";
-type MahjongStatus = "PLAYING" | "FINISHED";
+type MahjongStatus = "PLAYING" | "FINISHED" | "DELETED";
 
 type MahjongPlayerState = {
   wind: "EAST" | "SOUTH" | "WEST" | "NORTH";
@@ -25,11 +29,14 @@ type MahjongDetails = {
   honba: number;
   riichi_sticks: number;
   players: Record<string, MahjongPlayerState>;
-  logs: Record<string, unknown>[];
+  initial_players?: Record<string, MahjongPlayerState>;
+  logs: Record<string, any>[];
   game_mode: GameMode;
   status: MahjongStatus;
   finish_reason?: "FORCE_FINISH" | "TOBI" | "NORMAL" | "MAX_ROUND_REACHED";
   stats_applied?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 };
 
 type MahjongWinInput = {
@@ -192,9 +199,12 @@ export type MahjongMatchListFilter = {
 
 export type MahjongMatchListItem = {
   id: number;
+  created_by: string | null;
+  can_manage: boolean;
+  log_count: number;
   play_date: string | null;
   game_mode: GameMode;
-  status: MahjongStatus;
+  status: Exclude<MahjongStatus, "DELETED">;
   current_round: string;
   honba: number;
   riichi_sticks: number;
@@ -348,31 +358,37 @@ function getRiichiStickReceiverKey({
 function normalizeLog(log: Record<string, unknown>) {
   if (log.type === "AGARI") {
     return {
+      ...log,
       timestamp: log.timestamp,
       type: "AGARI",
       round: log.round,
       honba: log.honba,
       is_tsumo: Boolean(log.is_tsumo),
+      is_final: Boolean(log.is_final),
+      forced_end: Boolean(log.forced_end),
       riichi_keys: Array.isArray(log.riichi_keys) ? log.riichi_keys : [],
       wins: Array.isArray(log.wins) ? log.wins : [],
       score_deltas:
-        typeof log.score_deltas === "object" && log.score_deltas !== null
-          ? log.score_deltas
-          : {},
+          typeof log.score_deltas === "object" && log.score_deltas !== null
+              ? log.score_deltas
+              : {},
       result_scores:
-        typeof log.result_scores === "object" && log.result_scores !== null
-          ? log.result_scores
-          : {},
+          typeof log.result_scores === "object" && log.result_scores !== null
+              ? log.result_scores
+              : {},
     };
   }
 
   if (log.type === "RYUUKYOKU") {
     return {
+      ...log,
       timestamp: log.timestamp,
       type: "RYUUKYOKU",
       round: log.round,
       honba: log.honba,
       ryuukyoku_type: log.ryuukyoku_type,
+      is_final: Boolean(log.is_final),
+      forced_end: Boolean(log.forced_end),
       tenpai_keys: Array.isArray(log.tenpai_keys) ? log.tenpai_keys : [],
       nagashi_mangan_winner_keys: Array.isArray(log.nagashi_mangan_winner_keys)
         ? log.nagashi_mangan_winner_keys
@@ -393,22 +409,33 @@ function normalizeLog(log: Record<string, unknown>) {
 }
 
 function normalizeDetails(rawDetails: unknown): MahjongDetails {
-  const details = rawDetails as Record<string, unknown>;
+  const details = rawDetails as Record<string, any>;
   const rawLogs = Array.isArray(details.logs) ? details.logs : [];
+  const players = (details.players ?? {}) as Record<string, MahjongPlayerState>;
 
   return {
     schema_version: Number(details.schema_version ?? 1),
     current_round: String(details.current_round ?? "EAST_1"),
     honba: Number(details.honba ?? 0),
     riichi_sticks: Number(details.riichi_sticks ?? 0),
-    players: (details.players ?? {}) as Record<string, MahjongPlayerState>,
-    logs: rawLogs.map((log) => normalizeLog(log as Record<string, unknown>)),
+    players,
+    initial_players:
+        typeof details.initial_players === "object" &&
+        details.initial_players !== null &&
+        !Array.isArray(details.initial_players)
+            ? (details.initial_players as Record<string, MahjongPlayerState>)
+            : undefined,
+    logs: rawLogs.map((log) => normalizeLog(log as Record<string, any>)),
     game_mode: (details.game_mode ?? "동풍전") as GameMode,
     status: (details.status ?? "PLAYING") as MahjongStatus,
     finish_reason: details.finish_reason as
-      | MahjongDetails["finish_reason"]
-      | undefined,
+        | MahjongDetails["finish_reason"]
+        | undefined,
     stats_applied: Boolean(details.stats_applied),
+    deleted_at:
+        typeof details.deleted_at === "string" ? details.deleted_at : undefined,
+    deleted_by:
+        typeof details.deleted_by === "string" ? details.deleted_by : undefined,
   };
 }
 
@@ -635,19 +662,19 @@ function normalizeSpecificStats(rawStats: unknown): MahjongSpecificStats {
       modes: {
         east: {
           ...createEmptyModeStats(),
-          ...(mahjong.modes?.east ?? {}),
+          ...mahjong.modes?.east,
         },
         south: {
           ...createEmptyModeStats(),
-          ...(mahjong.modes?.south ?? {}),
+          ...mahjong.modes?.south,
         },
         full: {
           ...createEmptyModeStats(),
-          ...(mahjong.modes?.full ?? {}),
+          ...mahjong.modes?.full,
         },
       },
       yaku_counts: {
-        ...(mahjong.yaku_counts ?? {}),
+        ...mahjong.yaku_counts,
       },
     },
   };
@@ -1065,6 +1092,782 @@ async function finalizeMahjongMatchStats({
   });
 }
 
+type MahjongMatchWithDetailsForRecalc = {
+  id: number;
+  game_id: number;
+  created_by: string | null;
+  match_players: {
+    id: number;
+    user_id: string | null;
+    guest_name: string | null;
+  }[];
+  match_details: {
+    match_id: number;
+    details: Prisma.JsonValue;
+  } | null;
+};
+
+async function getCurrentMahjongManager() {
+  const currentUser = await getCurrentUserWithAdmin();
+
+  if (!currentUser) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  return currentUser;
+}
+
+function assertCanManageMahjongMatch({
+                                       currentUser,
+                                       createdBy,
+                                     }: {
+  currentUser: Awaited<ReturnType<typeof getCurrentMahjongManager>>;
+  createdBy: string | null;
+}) {
+  if (currentUser.isAdmin) return;
+  if (createdBy && currentUser.id === createdBy) return;
+
+  throw new Error("대국 생성자 또는 관리자만 처리할 수 있습니다.");
+}
+
+function cloneMahjongPlayers(players: Record<string, MahjongPlayerState>) {
+  return structuredClone(players) as Record<
+      string,
+      MahjongPlayerState
+  >;
+}
+
+function createInitialPlayersForReplay({
+  details,
+  matchPlayers,
+}: {
+  details: MahjongDetails;
+  matchPlayers: {
+    id?: number;
+    user_id: string | null;
+    guest_name: string | null;
+  }[];
+}) {
+  if (
+      details.initial_players &&
+      Object.keys(details.initial_players).length > 0
+  ) {
+    return cloneMahjongPlayers(details.initial_players);
+  }
+
+  const firstLog = details.logs[0];
+
+  const firstResultScores =
+      typeof firstLog?.result_scores === "object" &&
+      firstLog.result_scores !== null
+          ? (firstLog.result_scores as Record<string, number>)
+          : {};
+
+  const firstScoreDeltas =
+      typeof firstLog?.score_deltas === "object" && firstLog.score_deltas !== null
+          ? (firstLog.score_deltas as Record<string, number>)
+          : {};
+
+  const sortedMatchPlayers = [...matchPlayers].sort(
+      (a, b) => (a.id ?? 0) - (b.id ?? 0),
+  );
+
+  const winds: MahjongPlayerState["wind"][] = [
+    "EAST",
+    "SOUTH",
+    "WEST",
+    "NORTH",
+  ];
+
+  return sortedMatchPlayers.reduce<Record<string, MahjongPlayerState>>(
+      (acc, matchPlayer, index) => {
+        const playerKey = getPlayerKeyFromMatchPlayer(matchPlayer);
+        const resultScore = Number(
+            firstResultScores[playerKey] ?? details.players[playerKey]?.score ?? 25000,
+        );
+        const scoreDelta = Number(firstScoreDeltas[playerKey] ?? 0);
+
+        acc[playerKey] = {
+          wind: winds[index] ?? "EAST",
+          score: resultScore - scoreDelta,
+        };
+
+        return acc;
+      },
+      {},
+  );
+}
+
+function createReplayBaseDetails({
+  details,
+  initialPlayers,
+}: {
+  details: MahjongDetails;
+  initialPlayers: Record<string, MahjongPlayerState>;
+}): MahjongDetails {
+  return {
+    schema_version: details.schema_version || 2,
+    current_round: "EAST_1",
+    honba: 0,
+    riichi_sticks: 0,
+    players: cloneMahjongPlayers(initialPlayers),
+    initial_players: cloneMahjongPlayers(initialPlayers),
+    logs: [],
+    game_mode: details.game_mode,
+    status: "PLAYING",
+    stats_applied: false,
+  };
+}
+
+function applyAgariLogForReplay(
+    details: MahjongDetails,
+    sourceLog: Record<string, any>,
+) {
+  const players = details.players;
+  const currentRound = details.current_round;
+  const currentHonba = details.honba || 0;
+  const initialScores: MahjongScoreMap = {};
+
+  Object.keys(players).forEach((key) => {
+    initialScores[key] = players[key].score;
+  });
+
+  const riichiKeys = Array.isArray(sourceLog.riichi_keys)
+      ? sourceLog.riichi_keys
+      : [];
+
+  riichiKeys.forEach((key) => {
+    if (!players[key]) return;
+    players[key].score -= 1000;
+  });
+
+  const wins = recalculateWins({
+    wins: Array.isArray(sourceLog.wins) ? sourceLog.wins : [],
+    players,
+    is_tsumo: Boolean(sourceLog.is_tsumo),
+  });
+
+  if (wins.length === 0) {
+    throw new Error("리플레이할 화료 기록에 화료 정보가 없습니다.");
+  }
+
+  const totalRiichiSticks = (details.riichi_sticks || 0) + riichiKeys.length;
+
+  const normalizedWins = wins.map((win) => ({
+    ...win,
+    score_deltas: createEmptyScoreMap(players),
+  }));
+
+  const riichiStickReceiverKey = getRiichiStickReceiverKey({
+    wins: normalizedWins,
+    players,
+    is_tsumo: Boolean(sourceLog.is_tsumo),
+  });
+
+  normalizedWins.forEach((win) => {
+    const winner = players[win.winner_key];
+    const isWinnerOya = winner.wind === "EAST";
+    let collected = 0;
+
+    if (sourceLog.is_tsumo) {
+      if (isWinnerOya) {
+        const basePayment = Math.ceil(win.base_score / 3 / 100) * 100;
+
+        Object.keys(players).forEach((key) => {
+          if (key === win.winner_key) return;
+
+          const payment = basePayment + currentHonba * 100;
+          players[key].score -= payment;
+          win.score_deltas[key] -= payment;
+          collected += payment;
+        });
+      } else {
+        const childBasePayment = Math.ceil(win.base_score / 4 / 100) * 100;
+        const oyaBasePayment = win.base_score - childBasePayment * 2;
+
+        Object.keys(players).forEach((key) => {
+          if (key === win.winner_key) return;
+
+          const payment =
+              players[key].wind === "EAST"
+                  ? oyaBasePayment + currentHonba * 100
+                  : childBasePayment + currentHonba * 100;
+
+          players[key].score -= payment;
+          win.score_deltas[key] -= payment;
+          collected += payment;
+        });
+      }
+    } else {
+      const loserKey = win.loser_key as string;
+      const payment = win.base_score + currentHonba * 300;
+
+      players[loserKey].score -= payment;
+      win.score_deltas[loserKey] -= payment;
+      collected += payment;
+    }
+
+    players[win.winner_key].score += collected;
+    win.score_deltas[win.winner_key] += collected;
+  });
+
+  if (totalRiichiSticks > 0) {
+    const riichiStickPoint = totalRiichiSticks * 1000;
+    players[riichiStickReceiverKey].score += riichiStickPoint;
+
+    const receiverWin = normalizedWins.find(
+        (win) => win.winner_key === riichiStickReceiverKey,
+    );
+
+    if (receiverWin) {
+      receiverWin.score_deltas[riichiStickReceiverKey] += riichiStickPoint;
+    }
+  }
+
+  details.riichi_sticks = 0;
+
+  const scoreDeltas: MahjongScoreMap = {};
+  const resultScores: MahjongScoreMap = {};
+
+  Object.keys(players).forEach((key) => {
+    scoreDeltas[key] = players[key].score - initialScores[key];
+    resultScores[key] = players[key].score;
+  });
+
+  const topScore = Math.max(
+      ...Object.values(players).map((player) => player.score),
+  );
+
+  const oyaWin = normalizedWins.find(
+      (win) => players[win.winner_key].wind === "EAST",
+  );
+
+  const isOyaWin = Boolean(oyaWin);
+  const mainWinnerKey = oyaWin?.winner_key ?? normalizedWins[0].winner_key;
+  const winnerScore = players[mainWinnerKey].score;
+  const isTobi = Object.values(players).some((player) => player.score <= 0);
+
+  const [wind, roundStr] = details.current_round.split("_");
+  const roundMap: Record<string, number> = {
+    EAST: 1,
+    SOUTH: 2,
+    WEST: 3,
+    NORTH: 4,
+  };
+
+  const currentWindIdx = roundMap[wind];
+  const modeLimitIdx = getModeLimitIdx(details.game_mode);
+  const roundNum = Number.parseInt(roundStr, 10);
+  const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
+  const isExtraRound = currentWindIdx > modeLimitIdx;
+  const isFinal = Boolean(sourceLog.is_final);
+  const forcedEnd = Boolean(sourceLog.forced_end);
+
+  if (isTobi || forcedEnd || isFinal) {
+    details.status = "FINISHED";
+
+    if (forcedEnd) {
+      details.finish_reason = "FORCE_FINISH";
+    } else if (isTobi) {
+      details.finish_reason = "TOBI";
+    } else {
+      details.finish_reason = "NORMAL";
+    }
+  } else if (isOyaWin) {
+    details.honba = currentHonba + 1;
+
+    if (
+        (isAllLast || isExtraRound) &&
+        winnerScore >= 30000 &&
+        winnerScore === topScore
+    ) {
+      details.status = "FINISHED";
+      details.finish_reason = "NORMAL";
+    }
+  } else if ((isAllLast || isExtraRound) && topScore >= 30000) {
+    details.status = "FINISHED";
+    details.finish_reason = "NORMAL";
+  } else {
+    const absoluteLimitIdx =
+        details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
+    const isAbsoluteLast = currentWindIdx === absoluteLimitIdx && roundNum === 4;
+
+    if (isAbsoluteLast) {
+      details.status = "FINISHED";
+      details.finish_reason = "MAX_ROUND_REACHED";
+    } else {
+      const nextRound = getNextRound(details.current_round);
+
+      if (nextRound) {
+        details.current_round = nextRound;
+        details.honba = 0;
+        rotateWinds(players);
+      } else {
+        details.status = "FINISHED";
+        details.finish_reason = "MAX_ROUND_REACHED";
+      }
+    }
+  }
+
+  if (details.status === "FINISHED") {
+    details.current_round = currentRound;
+    details.honba = currentHonba;
+  }
+
+  details.logs.push({
+    ...sourceLog,
+    type: "AGARI",
+    round: currentRound,
+    honba: currentHonba,
+    is_tsumo: Boolean(sourceLog.is_tsumo),
+    is_final: details.status === "FINISHED",
+    forced_end: details.finish_reason === "FORCE_FINISH",
+    riichi_keys: riichiKeys,
+    wins: normalizedWins,
+    score_deltas: scoreDeltas,
+    result_scores: resultScores,
+  });
+}
+
+function applyRyuukyokuLogForReplay(
+    details: MahjongDetails,
+    sourceLog: Record<string, any>,
+) {
+  const players = details.players;
+  const currentRound = details.current_round;
+  const currentHonba = details.honba || 0;
+  const ryuukyokuType = String(sourceLog.ryuukyoku_type ?? "황패유국");
+
+  const isExhaustive = ryuukyokuType === "황패유국";
+  const isNagashiMangan = ryuukyokuType === "유국만관";
+
+  const tenpaiKeys = Array.isArray(sourceLog.tenpai_keys)
+      ? sourceLog.tenpai_keys
+      : [];
+
+  const riichiKeys = Array.isArray(sourceLog.riichi_keys)
+      ? sourceLog.riichi_keys
+      : [];
+
+  const initialScores: MahjongScoreMap = {};
+
+  Object.keys(players).forEach((key) => {
+    initialScores[key] = players[key].score;
+  });
+
+  riichiKeys.forEach((key) => {
+    if (players[key]) {
+      players[key].score -= 1000;
+    }
+  });
+
+  details.riichi_sticks = details.riichi_sticks + riichiKeys.length;
+
+  let isOyaTenpai: boolean;
+
+  if (isNagashiMangan) {
+    const winnerKeys = Array.from(
+        new Set(
+            Array.isArray(sourceLog.nagashi_mangan_winner_keys)
+                ? sourceLog.nagashi_mangan_winner_keys
+                : [],
+        ),
+    );
+
+    const allKeys = Object.keys(players);
+
+    winnerKeys.forEach((winnerKey) => {
+      const winner = players[winnerKey];
+      if (!winner) return;
+
+      const isWinnerOya = winner.wind === "EAST";
+      let collected = 0;
+
+      allKeys.forEach((payerKey) => {
+        if (payerKey === winnerKey) return;
+
+        const payment = isWinnerOya
+            ? 4000
+            : players[payerKey].wind === "EAST"
+                ? 4000
+                : 2000;
+
+        players[payerKey].score -= payment;
+        collected += payment;
+      });
+
+      players[winnerKey].score += collected;
+    });
+
+    isOyaTenpai = tenpaiKeys.some((key) => players[key]?.wind === "EAST");
+  } else if (isExhaustive) {
+    const allKeys = Object.keys(players);
+    const tenpaiCount = tenpaiKeys.length;
+
+    isOyaTenpai = tenpaiKeys.some((key) => players[key]?.wind === "EAST");
+
+    if (tenpaiCount > 0 && tenpaiCount < 4) {
+      const reward = 3000 / tenpaiCount;
+      const penalty = 3000 / (4 - tenpaiCount);
+
+      allKeys.forEach((key) => {
+        if (tenpaiKeys.includes(key)) {
+          players[key].score += reward;
+        } else {
+          players[key].score -= penalty;
+        }
+      });
+    }
+  } else {
+    isOyaTenpai = true;
+  }
+
+  const scoreDeltas: MahjongScoreMap = {};
+  const resultScores: MahjongScoreMap = {};
+
+  Object.keys(players).forEach((key) => {
+    scoreDeltas[key] = players[key].score - initialScores[key];
+    resultScores[key] = players[key].score;
+  });
+
+  const oyaKey = Object.keys(players).find(
+      (key) => players[key].wind === "EAST",
+  ) as string;
+
+  const oyaScore = players[oyaKey].score;
+  const topScore = Math.max(
+      ...Object.values(players).map((player) => player.score),
+  );
+
+  const isTobi = Object.values(players).some((player) => player.score <= 0);
+  const [wind, roundStr] = details.current_round.split("_");
+  const roundMap: Record<string, number> = {
+    EAST: 1,
+    SOUTH: 2,
+    WEST: 3,
+    NORTH: 4,
+  };
+
+  const currentWindIdx = roundMap[wind];
+  const modeLimitIdx = getModeLimitIdx(details.game_mode);
+  const roundNum = Number.parseInt(roundStr, 10);
+  const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
+  const isExtraRound = currentWindIdx > modeLimitIdx;
+  const forcedEnd = Boolean(sourceLog.forced_end);
+  const isFinal = Boolean(sourceLog.is_final);
+
+  if (isTobi || forcedEnd || isFinal) {
+    details.status = "FINISHED";
+
+    if (forcedEnd) {
+      details.finish_reason = "FORCE_FINISH";
+    } else if (isTobi) {
+      details.finish_reason = "TOBI";
+    } else {
+      details.finish_reason = "NORMAL";
+    }
+  } else {
+    details.honba = currentHonba + 1;
+
+    if (isOyaTenpai) {
+      if (
+          (isAllLast || isExtraRound) &&
+          oyaScore >= 30000 &&
+          oyaScore === topScore
+      ) {
+        details.status = "FINISHED";
+        details.finish_reason = "NORMAL";
+      }
+    } else if ((isAllLast || isExtraRound) && topScore >= 30000) {
+      details.status = "FINISHED";
+      details.finish_reason = "NORMAL";
+    } else {
+      const absoluteLimitIdx =
+          details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
+      const isAbsoluteLast =
+          currentWindIdx === absoluteLimitIdx && roundNum === 4;
+
+      if (isAbsoluteLast) {
+        details.status = "FINISHED";
+        details.finish_reason = "MAX_ROUND_REACHED";
+      } else {
+        const nextRound = getNextRound(details.current_round);
+
+        if (nextRound) {
+          details.current_round = nextRound;
+          rotateWinds(players);
+        } else {
+          details.status = "FINISHED";
+          details.finish_reason = "MAX_ROUND_REACHED";
+        }
+      }
+    }
+  }
+
+  if (details.status === "FINISHED") {
+    details.current_round = currentRound;
+    details.honba = currentHonba;
+  }
+
+  details.logs.push({
+    ...sourceLog,
+    type: "RYUUKYOKU",
+    round: currentRound,
+    honba: currentHonba,
+    ryuukyoku_type: ryuukyokuType,
+    is_final: details.status === "FINISHED",
+    forced_end: details.finish_reason === "FORCE_FINISH",
+    tenpai_keys: isExhaustive || isNagashiMangan ? tenpaiKeys : [],
+    nagashi_mangan_winner_keys: isNagashiMangan
+        ? Array.from(
+            new Set(
+                Array.isArray(sourceLog.nagashi_mangan_winner_keys)
+                    ? sourceLog.nagashi_mangan_winner_keys
+                    : [],
+            ),
+        )
+        : [],
+    riichi_keys: riichiKeys,
+    score_deltas: scoreDeltas,
+    result_scores: resultScores,
+  });
+}
+
+function rebuildMahjongDetailsFromLogs({
+  originalDetails,
+  initialPlayers,
+  logs,
+}: {
+  originalDetails: MahjongDetails;
+  initialPlayers: Record<string, MahjongPlayerState>;
+  logs: Record<string, any>[];
+}) {
+  const rebuiltDetails = createReplayBaseDetails({
+    details: originalDetails,
+    initialPlayers,
+  });
+
+  logs.forEach((log) => {
+    if (log.type === "AGARI") {
+      applyAgariLogForReplay(rebuiltDetails, log);
+      return;
+    }
+
+    if (log.type === "RYUUKYOKU") {
+      applyRyuukyokuLogForReplay(rebuiltDetails, log);
+    }
+  });
+
+  rebuiltDetails.logs = rebuiltDetails.logs.map((log) =>
+      normalizeLog(log),
+  );
+
+  rebuiltDetails.stats_applied = false;
+
+  return rebuiltDetails;
+}
+
+async function recalculateAllMahjongStatsAndAchievements() {
+  const mahjongGame = await db.games.findUnique({
+    where: {
+      name: "리치마작",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!mahjongGame) return;
+
+  const matches = await db.matches.findMany({
+    where: {
+      game_id: mahjongGame.id,
+    },
+    include: {
+      match_details: true,
+      match_players: true,
+    },
+    orderBy: {
+      id: "asc",
+    },
+  });
+
+  const affectedUserIds = new Set<string>();
+
+  matches.forEach((match) => {
+    match.match_players.forEach((matchPlayer) => {
+      if (matchPlayer.user_id) {
+        affectedUserIds.add(matchPlayer.user_id);
+      }
+    });
+  });
+
+  await db.$transaction(async (tx) => {
+    await tx.user_game_stats.deleteMany({
+      where: {
+        game_id: mahjongGame.id,
+      },
+    });
+
+    await tx.match_players.updateMany({
+      where: {
+        matches: {
+          game_id: mahjongGame.id,
+        },
+      },
+      data: {
+        final_score: null,
+        rank: null,
+      },
+    });
+
+    for (const match of matches as MahjongMatchWithDetailsForRecalc[]) {
+      if (!match.match_details) continue;
+
+      const details = normalizeDetails(match.match_details.details);
+
+      if (details.status !== "FINISHED") {
+        continue;
+      }
+
+      const results = getFinishedPlayerResults({
+        details,
+        matchPlayers: match.match_players,
+      });
+
+      const modeKey = getStatsModeKey(details.game_mode);
+
+      for (const result of results) {
+        const matchPlayer = match.match_players.find(
+            (item) => getPlayerKeyFromMatchPlayer(item) === result.player_key,
+        );
+
+        if (matchPlayer) {
+          await tx.match_players.update({
+            where: {
+              id: matchPlayer.id,
+            },
+            data: {
+              final_score: result.final_score,
+              rank: result.rank,
+            },
+          });
+        }
+
+        if (!result.user_id) continue;
+
+        const playerMatchStats = collectPlayerMatchStats({
+          details,
+          playerKey: result.player_key,
+        });
+
+        const existingStats = await tx.user_game_stats.findFirst({
+          where: {
+            user_id: result.user_id,
+            game_id: mahjongGame.id,
+          },
+        });
+
+        const specificStats = normalizeSpecificStats(
+            existingStats?.specific_stats,
+        );
+
+        const modeStats = specificStats.mahjong.modes[modeKey];
+
+        modeStats.play_count += 1;
+        modeStats.rank_counts[
+            String(result.rank) as "1" | "2" | "3" | "4"
+            ] += 1;
+        modeStats.total_rank += result.rank;
+
+        if (result.is_tobi) {
+          modeStats.tobi_count += 1;
+        }
+
+        modeStats.round_count += playerMatchStats.round_count;
+        modeStats.agari_round_count += playerMatchStats.agari_round_count;
+        modeStats.agari_count += playerMatchStats.agari_count;
+        modeStats.tsumo_agari_count += playerMatchStats.tsumo_agari_count;
+        modeStats.deal_in_count += playerMatchStats.deal_in_count;
+        modeStats.riichi_count += playerMatchStats.riichi_count;
+        modeStats.open_win_count += playerMatchStats.open_win_count;
+        modeStats.riichi_win_count += playerMatchStats.riichi_win_count;
+        modeStats.total_agari_point += playerMatchStats.total_agari_point;
+        modeStats.max_honba = Math.max(
+            modeStats.max_honba,
+            playerMatchStats.max_honba,
+        );
+
+        Object.entries(playerMatchStats.yaku_counts).forEach(
+            ([yakuId, count]) => {
+              specificStats.mahjong.yaku_counts[yakuId] =
+                  (specificStats.mahjong.yaku_counts[yakuId] ?? 0) + count;
+            },
+        );
+
+        recalculateModeRates(modeStats);
+
+        const previousPlayCount = existingStats?.play_count ?? 0;
+        const nextPlayCount = previousPlayCount + 1;
+        const nextAccumulatedScore =
+            (existingStats?.accumulated_score ?? 0) + result.final_score;
+        const previousAverageRank = existingStats?.average_rank ?? 0;
+        const nextAverageRank = Number(
+            (
+                (previousAverageRank * previousPlayCount + result.rank) /
+                nextPlayCount
+            ).toFixed(2),
+        );
+        const nextMmr = (existingStats?.mmr ?? 1500) + result.uma;
+
+        if (existingStats) {
+          await tx.user_game_stats.update({
+            where: {
+              id: existingStats.id,
+            },
+            data: {
+              play_count: nextPlayCount,
+              accumulated_score: nextAccumulatedScore,
+              average_rank: nextAverageRank,
+              mmr: nextMmr,
+              specific_stats: toPrismaJson(specificStats),
+            },
+          });
+        } else {
+          await tx.user_game_stats.create({
+            data: {
+              user_id: result.user_id,
+              game_id: mahjongGame.id,
+              play_count: 1,
+              accumulated_score: result.final_score,
+              average_rank: result.rank,
+              mmr: 1500 + result.uma,
+              specific_stats: toPrismaJson(specificStats),
+            },
+          });
+        }
+      }
+
+      details.stats_applied = true;
+
+      await tx.match_details.update({
+        where: {
+          match_id: match.id,
+        },
+        data: {
+          details: toPrismaJson(details),
+        },
+      });
+    }
+  });
+
+  await syncMahjongAchievementsForUsers(Array.from(affectedUserIds));
+
+  revalidatePath("/mahjong");
+  revalidatePath("/mahjong/matches");
+  revalidatePath("/mahjong/achievements");
+}
+
 // -----------------
 // 1. 방 생성 액션
 // -----------------
@@ -1075,7 +1878,7 @@ export async function createMahjongMatch(
 ) {
   const session = await auth();
 
-  if (!session || !session.user) {
+  if (!session?.user) {
     throw new Error("Unauthorized");
   }
 
@@ -1100,15 +1903,13 @@ export async function createMahjongMatch(
     },
   });
 
-  if (!game) {
-    game = await db.games.create({
-      data: {
-        name: "리치마작",
-        min_players: 4,
-        max_players: 4,
-      },
-    });
-  }
+  game ??= await db.games.create({
+    data: {
+      name: "리치마작",
+      min_players: 4,
+      max_players: 4,
+    },
+  });
 
   const playerNames = players.map((player) => player.trim());
 
@@ -1134,7 +1935,7 @@ export async function createMahjongMatch(
     };
 
     return {
-      user_id: foundUserId ? foundUserId : null,
+      user_id: foundUserId || null,
       guest_name: foundUserId ? null : playerName,
     };
   });
@@ -1145,6 +1946,7 @@ export async function createMahjongMatch(
     honba: 0,
     riichi_sticks: 0,
     players: initialPlayersState,
+    initial_players: structuredClone(initialPlayersState),
     logs: [],
     game_mode: gameMode,
     status: "PLAYING",
@@ -1183,14 +1985,18 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     },
   });
 
-  if (!match || !match.match_details) {
+  if (!match?.match_details) {
     throw new Error("Match not found");
   }
 
   const details = normalizeDetails(match.match_details.details);
 
-  if (details.status === "FINISHED") {
-    throw new Error("이미 종료된 대국에는 기록을 추가할 수 없습니다.");
+  if (match.deleted_at) {
+    throw new Error("삭제된 대국에는 기록을 추가할 수 없습니다.");
+  }
+
+  if (details.status !== "PLAYING") {
+    throw new Error("진행 중인 대국에만 기록을 추가할 수 있습니다.");
   }
 
   const players = details.players;
@@ -1365,7 +2171,7 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-  const roundNum = parseInt(roundStr, 10);
+  const roundNum = Number.parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
 
@@ -1377,43 +2183,39 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     } else if (isTobi) {
       details.finish_reason = "TOBI";
     }
-  } else {
-    if (isOyaWin) {
-      details.honba = currentHonba + 1;
+  } else if (isOyaWin) {
+    details.honba = currentHonba + 1;
 
-      if (
+    if (
         (isAllLast || isExtraRound) &&
         winnerScore >= 30000 &&
         winnerScore === topScore
-      ) {
-        details.status = "FINISHED";
-        details.finish_reason = "NORMAL";
-      }
+    ) {
+      details.status = "FINISHED";
+      details.finish_reason = "NORMAL";
+    }
+  } else if ((isAllLast || isExtraRound) && topScore >= 30000) {
+    details.status = "FINISHED";
+    details.finish_reason = "NORMAL";
+  } else {
+    const absoluteLimitIdx =
+        details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
+    const isAbsoluteLast =
+        currentWindIdx === absoluteLimitIdx && roundNum === 4;
+
+    if (isAbsoluteLast) {
+      details.status = "FINISHED";
+      details.finish_reason = "MAX_ROUND_REACHED";
     } else {
-      if ((isAllLast || isExtraRound) && topScore >= 30000) {
-        details.status = "FINISHED";
-        details.finish_reason = "NORMAL";
+      const nextRound = getNextRound(details.current_round);
+
+      if (nextRound) {
+        details.current_round = nextRound;
+        details.honba = 0;
+        rotateWinds(players);
       } else {
-        const absoluteLimitIdx =
-          details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
-        const isAbsoluteLast =
-          currentWindIdx === absoluteLimitIdx && roundNum === 4;
-
-        if (isAbsoluteLast) {
-          details.status = "FINISHED";
-          details.finish_reason = "MAX_ROUND_REACHED";
-        } else {
-          const nextRound = getNextRound(details.current_round);
-
-          if (!nextRound) {
-            details.status = "FINISHED";
-            details.finish_reason = "MAX_ROUND_REACHED";
-          } else {
-            details.current_round = nextRound;
-            details.honba = 0;
-            rotateWinds(players);
-          }
-        }
+        details.status = "FINISHED";
+        details.finish_reason = "MAX_ROUND_REACHED";
       }
     }
   }
@@ -1475,14 +2277,18 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     },
   });
 
-  if (!match || !match.match_details) {
+  if (!match?.match_details) {
     throw new Error("Match not found");
   }
 
   const details = normalizeDetails(match.match_details.details);
 
-  if (details.status === "FINISHED") {
-    throw new Error("이미 종료된 대국에는 기록을 추가할 수 없습니다.");
+  if (match.deleted_at) {
+    throw new Error("삭제된 대국에는 기록을 추가할 수 없습니다.");
+  }
+
+  if (details.status !== "PLAYING") {
+    throw new Error("진행 중인 대국에만 기록을 추가할 수 있습니다.");
   }
 
   const players = details.players;
@@ -1608,7 +2414,7 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 
   const currentWindIdx = roundMap[wind];
   const modeLimitIdx = getModeLimitIdx(details.game_mode);
-  const roundNum = parseInt(roundStr, 10);
+  const roundNum = Number.parseInt(roundStr, 10);
   const isAllLast = currentWindIdx === modeLimitIdx && roundNum === 4;
   const isExtraRound = currentWindIdx > modeLimitIdx;
 
@@ -1632,29 +2438,27 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
         details.status = "FINISHED";
         details.finish_reason = "NORMAL";
       }
+    } else if ((isAllLast || isExtraRound) && topScore >= 30000) {
+      details.status = "FINISHED";
+      details.finish_reason = "NORMAL";
     } else {
-      if ((isAllLast || isExtraRound) && topScore >= 30000) {
-        details.status = "FINISHED";
-        details.finish_reason = "NORMAL";
-      } else {
-        const absoluteLimitIdx =
+      const absoluteLimitIdx =
           details.game_mode === "전장전" ? 4 : modeLimitIdx + 1;
-        const isAbsoluteLast =
+      const isAbsoluteLast =
           currentWindIdx === absoluteLimitIdx && roundNum === 4;
 
-        if (isAbsoluteLast) {
+      if (isAbsoluteLast) {
+        details.status = "FINISHED";
+        details.finish_reason = "MAX_ROUND_REACHED";
+      } else {
+        const nextRound = getNextRound(details.current_round);
+
+        if (nextRound) {
+          details.current_round = nextRound;
+          rotateWinds(players);
+        } else {
           details.status = "FINISHED";
           details.finish_reason = "MAX_ROUND_REACHED";
-        } else {
-          const nextRound = getNextRound(details.current_round);
-
-          if (!nextRound) {
-            details.status = "FINISHED";
-            details.finish_reason = "MAX_ROUND_REACHED";
-          } else {
-            details.current_round = nextRound;
-            rotateWinds(players);
-          }
         }
       }
     }
@@ -1709,38 +2513,20 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
 }
 
 export async function getMahjongMatches(
-  filter: MahjongMatchListFilter = {},
+    filter: MahjongMatchListFilter = {},
 ): Promise<MahjongMatchListItem[]> {
   const status = filter.status ?? "ALL";
   const gameMode = filter.game_mode ?? "ALL";
   const keyword = filter.keyword?.trim().toLowerCase() ?? "";
   const onlyMine = filter.only_mine ?? false;
   const take = filter.take ?? 50;
+  const fetchTake = Math.min(Math.max(take * 3, 100), 300);
 
-  let myUserId: string | null = null;
+  const currentUser = await getCurrentUserWithAdmin();
+  const myUserId = currentUser?.id ?? null;
 
-  if (onlyMine) {
-    const session = await auth();
-    const providerId = session?.user?.id as string | undefined;
-
-    if (!providerId) {
-      return [];
-    }
-
-    const me = await db.users.findFirst({
-      where: {
-        provider_id: providerId,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!me) {
-      return [];
-    }
-
-    myUserId = me.id;
+  if (onlyMine && !myUserId) {
+    return [];
   }
 
   const mahjongGame = await db.games.findUnique({
@@ -1759,15 +2545,16 @@ export async function getMahjongMatches(
   const matches = await db.matches.findMany({
     where: {
       game_id: mahjongGame.id,
-      ...(myUserId
-        ? {
+      deleted_at: null,
+      ...(onlyMine && myUserId
+          ? {
             match_players: {
               some: {
                 user_id: myUserId,
               },
             },
           }
-        : {}),
+          : {}),
     },
     include: {
       match_details: true,
@@ -1780,7 +2567,7 @@ export async function getMahjongMatches(
     orderBy: {
       play_date: "desc",
     },
-    take: 100,
+    take: fetchTake,
   });
 
   return matches
@@ -1790,6 +2577,10 @@ export async function getMahjongMatches(
       }
 
       const details = normalizeDetails(match.match_details.details);
+      if (details.status === "DELETED") {
+        return null;
+      }
+
       const lastLog = details.logs.at(-1);
 
       const shouldShowLastCompletedRound = details.status === "FINISHED";
@@ -1830,9 +2621,14 @@ export async function getMahjongMatches(
 
       return {
         id: match.id,
+        created_by: match.created_by,
+        can_manage: Boolean(
+            currentUser?.isAdmin || currentUser?.id === match.created_by,
+        ),
+        log_count: details.logs.length,
         play_date: match.play_date?.toISOString() ?? null,
         game_mode: details.game_mode,
-        status: details.status,
+        status: details.status as Exclude<MahjongStatus, "DELETED">,
         current_round: displayRound,
         honba: displayHonba,
         riichi_sticks: details.riichi_sticks,
@@ -1856,7 +2652,7 @@ export async function getMahjongMatches(
       if (keyword) {
         const matchIdText = String(match.id);
         const playerNames = match.players.map((player) =>
-          player.name.toLowerCase(),
+            player.name.toLowerCase(),
         );
 
         return (
@@ -1868,4 +2664,148 @@ export async function getMahjongMatches(
       return true;
     })
     .slice(0, take);
+}
+
+export async function deleteMahjongMatch(matchId: number) {
+  const currentUser = await getCurrentMahjongManager();
+
+  const match = await db.matches.findUnique({
+    where: {
+      id: matchId,
+    },
+    include: {
+      match_details: true,
+      match_players: {
+        select: {
+          user_id: true,
+        },
+      },
+    },
+  });
+
+  if (!match?.match_details) {
+    throw new Error("대국 기록을 찾을 수 없습니다.");
+  }
+
+  assertCanManageMahjongMatch({
+    currentUser,
+    createdBy: match.created_by,
+  });
+
+  const details = normalizeDetails(match.match_details.details);
+
+  if (match.deleted_at || details.status === "DELETED") {
+    return;
+  }
+
+  const nextDetails: MahjongDetails = {
+    ...details,
+    status: "DELETED",
+    stats_applied: false,
+    deleted_at: new Date().toISOString(),
+    deleted_by: currentUser.id,
+  };
+
+  const deletedAt = new Date();
+
+  await db.$transaction(async (tx) => {
+    await tx.match_details.update({
+      where: {
+        match_id: matchId,
+      },
+      data: {
+        details: toPrismaJson({
+          ...nextDetails,
+          deleted_at: deletedAt.toISOString(),
+        }),
+      },
+    });
+
+    await tx.matches.update({
+      where: {
+        id: matchId,
+      },
+      data: {
+        deleted_at: deletedAt,
+        deleted_by: currentUser.id,
+      },
+    });
+  });
+
+  await recalculateAllMahjongStatsAndAchievements();
+
+  revalidatePath("/mahjong");
+  revalidatePath("/mahjong/matches");
+  revalidatePath(`/mahjong/play/${matchId}`);
+  revalidatePath(`/mahjong/detail/${matchId}`);
+  revalidatePath("/mahjong/achievements");
+}
+
+export async function undoMahjongLastLog(matchId: number) {
+  const currentUser = await getCurrentMahjongManager();
+
+  const match = await db.matches.findUnique({
+    where: {
+      id: matchId,
+    },
+    include: {
+      match_details: true,
+      match_players: true,
+    },
+  });
+
+  if (!match?.match_details) {
+    throw new Error("대국 기록을 찾을 수 없습니다.");
+  }
+
+  assertCanManageMahjongMatch({
+    currentUser,
+    createdBy: match.created_by,
+  });
+
+  const details = normalizeDetails(match.match_details.details);
+
+  if (details.status === "DELETED") {
+    throw new Error("삭제된 대국은 UNDO할 수 없습니다.");
+  }
+
+  const logs = Array.isArray(details.logs) ? details.logs : [];
+
+  if (logs.length === 0) {
+    throw new Error("되돌릴 기록이 없습니다.");
+  }
+
+  const nextLogs = logs.slice(0, -1);
+
+  const initialPlayers = createInitialPlayersForReplay({
+    details,
+    matchPlayers: match.match_players,
+  });
+
+  const rebuiltDetails = rebuildMahjongDetailsFromLogs({
+    originalDetails: details,
+    initialPlayers,
+    logs: nextLogs,
+  });
+
+  rebuiltDetails.status = "PLAYING";
+  rebuiltDetails.finish_reason = undefined;
+  rebuiltDetails.stats_applied = false;
+
+  await db.match_details.update({
+    where: {
+      match_id: matchId,
+    },
+    data: {
+      details: toPrismaJson(rebuiltDetails),
+    },
+  });
+
+  await recalculateAllMahjongStatsAndAchievements();
+
+  revalidatePath("/mahjong");
+  revalidatePath("/mahjong/matches");
+  revalidatePath(`/mahjong/play/${matchId}`);
+  revalidatePath(`/mahjong/detail/${matchId}`);
+  revalidatePath("/mahjong/achievements");
 }

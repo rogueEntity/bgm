@@ -10,7 +10,7 @@ import Link from "next/link";
 
 type MahjongDetailsSnapshot = {
   current_round?: string;
-  status?: "PLAYING" | "FINISHED";
+  status?: "PLAYING" | "FINISHED" | "DELETED";
 };
 
 const ROUND_NAME_MAP: Record<string, string> = {
@@ -75,6 +75,7 @@ async function getMyMahjongDashboardData() {
   const [matches, equippedBadgeMap] = await Promise.all([
     db.matches.findMany({
       where: {
+        deleted_at: null,
         match_players: {
           some: {
             user_id: me.id,

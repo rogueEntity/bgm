@@ -61,14 +61,20 @@ model user_game_stats {
 }
 
 model matches {
-  id            Int             @id @default(autoincrement())
-  game_id       Int
-  created_by    String?         @db.Uuid
-  play_date     DateTime?       @default(now()) @db.Timestamptz(6)
+  id         Int       @id @default(autoincrement())
+  game_id    Int
+  created_by String?   @db.Uuid
+  play_date  DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  deleted_by String?   @db.Uuid
+
   match_details match_details?
   match_players match_players[]
-  users         users?          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
-  games         games           @relation(fields: [game_id], references: [id], onUpdate: NoAction)
+
+  users users? @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  games games @relation(fields: [game_id], references: [id], onUpdate: NoAction)
+
+  @@index([game_id, deleted_at, play_date])
 }
 
 model match_details {
