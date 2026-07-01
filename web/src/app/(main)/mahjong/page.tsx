@@ -76,11 +76,18 @@ async function getMyMahjongDashboardData() {
     db.matches.findMany({
       where: {
         deleted_at: null,
-        match_players: {
-          some: {
-            user_id: me.id,
+        OR: [
+          {
+            created_by: me.id,
           },
-        },
+          {
+            match_players: {
+              some: {
+                user_id: me.id,
+              },
+            },
+          },
+        ],
       },
       include: {
         match_details: true,
@@ -208,66 +215,73 @@ export default async function MahjongDashboardPage() {
       )}
 
       {/* 4. 하위 메뉴 카드 영역 (그리드 레이아웃) */}
-      <section className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Link
-          href="/mahjong/ranking"
-          className="rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition"
+            href="/mahjong/ranking"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
         >
-          <div className="mb-3 text-2xl">🏆</div>
-          <h3 className="font-bold">랭킹</h3>
-          <p className="mt-1 text-sm text-foreground/60">
-            작사들의 순위를 확인합니다.
-          </p>
+          <span className="text-3xl">🏆</span>
+          <span className="text-sm font-bold">랭킹</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+      작사들의 순위를 확인합니다.
+    </span>
         </Link>
 
         <Link
-          href="/mahjong/matches"
-          className="rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition"
+            href="/mahjong/matches"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
         >
-          <div className="mb-3 text-2xl">📜</div>
-          <h3 className="font-bold">대국 기록</h3>
-          <p className="mt-1 text-sm text-foreground/60">
-            완료된 대국과 진행 중인 대국을 확인합니다.
-          </p>
+          <span className="text-3xl">📜</span>
+          <span className="text-sm font-bold">대국 기록</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+      완료된 대국과 진행 중인 대국을 확인합니다.
+    </span>
         </Link>
 
         <Link
-          href="/mahjong/players"
-          aria-disabled={!ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS}
-          tabIndex={ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS ? undefined : -1}
-          className={`rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition${disabledDashboardCardClass}`}
+            href="/mahjong/guide"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
         >
-          <div className="mb-3 text-2xl">🧑‍💼</div>
-          <h3 className="font-bold">작사 정보</h3>
-          <p className="mt-1 text-sm text-foreground/60">
-            작사별 통계를 확인합니다.
-          </p>
+          <span className="text-3xl">📘</span>
+          <span className="text-sm font-bold">역·점수 안내</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+      역 족보와 점수 계산을 확인합니다.
+    </span>
         </Link>
 
         <Link
-          href="/mahjong/achievements"
-          className="rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition"
+            href="/mahjong/player"
+            className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10${disabledDashboardCardClass}`}
         >
-          <div className="mb-3 text-2xl">🎖️</div>
-          <h3 className="font-bold">도전과제</h3>
-          <p className="mt-1 text-sm text-foreground/60">
-            달성한 기록을 확인합니다.
-          </p>
+          <span className="text-3xl">🧑‍💼</span>
+          <span className="text-sm font-bold">작사 정보</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+      작사별 통계를 확인합니다.
+    </span>
         </Link>
 
         <Link
-          href="/mahjong/rivals"
-          aria-disabled={!ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS}
-          tabIndex={ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS ? undefined : -1}
-          className={`rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition${disabledDashboardCardClass}`}
+            href="/mahjong/achievements"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
         >
-          <div className="mb-3 text-2xl">⚔️</div>
-          <h3 className="font-bold">라이벌</h3>
-          <p className="mt-1 text-sm text-foreground/60">
-            라이벌과의 상대 전적을 확인합니다.
-          </p>
+          <span className="text-3xl">🎖️</span>
+          <span className="text-sm font-bold">도전과제</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+      달성한 기록을 확인합니다.
+    </span>
         </Link>
-      </section>
+
+        <Link
+            href="/mahjong/rival"
+            className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10${disabledDashboardCardClass}`}
+        >
+          <span className="text-3xl">⚔️</span>
+          <span className="text-sm font-bold">라이벌</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+      라이벌과의 상대 전적을 확인합니다.
+    </span>
+        </Link>
+      </div>
     </main>
   );
 }
