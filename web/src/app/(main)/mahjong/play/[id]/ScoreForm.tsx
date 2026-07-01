@@ -98,10 +98,18 @@ function createDefaultWin(winnerKey: string): WinFormState {
 export default function ScoreForm({
   matchId,
   players,
-}: {
+  currentRound,
+  honba,
+  logCount,
+  stateVersion,
+}: Readonly<{
   matchId: number;
   players: Player[];
-}) {
+  currentRound: string;
+  honba: number;
+  logCount: number;
+  stateVersion: number;
+}>) {
   const firstPlayerKey = players[0]?.stateKey ?? "";
   const secondPlayerKey = players[1]?.stateKey ?? firstPlayerKey;
 
@@ -513,15 +521,19 @@ export default function ScoreForm({
     try {
       await recordRyuukyoku({
         match_id: matchId,
+        expected_round: currentRound,
+        expected_honba: honba,
+        expected_log_count: logCount,
+        expected_version: stateVersion,
         type: ryuukyokuType,
         tenpai_keys:
-          ryuukyokuType === "황패유국" || ryuukyokuType === "유국만관"
-            ? tenpaiKeys
-            : [],
+            ryuukyokuType === "황패유국" || ryuukyokuType === "유국만관"
+                ? tenpaiKeys
+                : [],
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
         nagashi_mangan_winner_keys:
-          ryuukyokuType === "유국만관" ? nagashiManganWinnerKeys : [],
+            ryuukyokuType === "유국만관" ? nagashiManganWinnerKeys : [],
       });
 
       alert("유국이 기록되었습니다.");
@@ -533,6 +545,12 @@ export default function ScoreForm({
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
+
+      if (isStaleMahjongStateError(error)) {
+        handleStaleMahjongStateError();
+        return;
+      }
+
       alert("유국 기록 실패!");
     } finally {
       setIsSubmitting(false);
@@ -549,6 +567,20 @@ export default function ScoreForm({
     if (type !== "유국만관") {
       setNagashiManganWinnerKeys([]);
     }
+  };
+
+  const isStaleMahjongStateError = (error: unknown) => {
+    if (!(error instanceof Error)) return false;
+
+    return error.message.includes("STALE_MAHJONG_STATE");
+  };
+
+  const handleStaleMahjongStateError = () => {
+    alert(
+        "이미 다른 화면에서 대국이 기록되었습니다.\n최신 상태를 확인하기 위해 새로고침합니다.",
+    );
+
+    window.location.reload();
   };
 
   const handleSubmit = async (e: React.SubmitEvent) => {
@@ -651,6 +683,10 @@ export default function ScoreForm({
     try {
       await recordMahjongResult({
         match_id: matchId,
+        expected_round: currentRound,
+        expected_honba: honba,
+        expected_log_count: logCount,
+        expected_version: stateVersion,
         is_tsumo: isTsumo,
         wins: wins.map((win) => ({
           winner_key: win.winner_key,
@@ -675,6 +711,12 @@ export default function ScoreForm({
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
+
+      if (isStaleMahjongStateError(error)) {
+        handleStaleMahjongStateError();
+        return;
+      }
+
       alert("기록 실패!");
     } finally {
       setIsSubmitting(false);

@@ -55,7 +55,7 @@ type RecalculatedMahjongWin = MahjongWinInput & {
   score_deltas?: MahjongScoreMap;
 };
 
-type RecordMahjongResultInput = {
+type RecordMahjongResultInput = MahjongExpectedStateInput & {
   match_id: number;
   is_tsumo: boolean;
   wins: MahjongWinInput[];
@@ -63,7 +63,7 @@ type RecordMahjongResultInput = {
   is_final: boolean;
 };
 
-type RecordRyuukyokuInput = {
+type RecordRyuukyokuInput = MahjongExpectedStateInput & {
   match_id: number;
   type:
     | "황패유국"
@@ -243,6 +243,64 @@ const ROUND_ORDER = [
 ];
 
 const WIND_TURN_ORDER = ["EAST", "SOUTH", "WEST", "NORTH"] as const;
+
+const STALE_MAHJONG_STATE_ERROR =
+    "STALE_MAHJONG_STATE: 대국 상태가 최신이 아닙니다. 새로고침 후 다시 기록해주세요.";
+
+type MahjongExpectedStateInput = {
+  expected_round: string;
+  expected_honba: number;
+  expected_log_count: number;
+  expected_version: number;
+};
+
+function assertLatestMahjongState({
+                                    details,
+                                    currentVersion,
+                                    expected,
+                                  }: {
+  details: MahjongDetails;
+  currentVersion: number;
+  expected: MahjongExpectedStateInput;
+}) {
+  const currentLogCount = Array.isArray(details.logs) ? details.logs.length : 0;
+
+  if (
+      details.current_round !== expected.expected_round ||
+      (details.honba ?? 0) !== expected.expected_honba ||
+      currentLogCount !== expected.expected_log_count ||
+      currentVersion !== expected.expected_version
+  ) {
+    throw new Error(STALE_MAHJONG_STATE_ERROR);
+  }
+}
+
+async function updateMatchDetailsWithVersionGuard({
+  matchId,
+  expectedVersion,
+  details,
+}: {
+  matchId: number;
+  expectedVersion: number;
+  details: MahjongDetails;
+}) {
+  const updateResult = await db.match_details.updateMany({
+    where: {
+      match_id: matchId,
+      version: expectedVersion,
+    },
+    data: {
+      details: toPrismaJson(details),
+      version: {
+        increment: 1,
+      },
+    },
+  });
+
+  if (updateResult.count !== 1) {
+    throw new Error(STALE_MAHJONG_STATE_ERROR);
+  }
+}
 
 const DEFAULT_RANK_UMA: Record<number, number> = {
   1: 30,
@@ -1078,6 +1136,9 @@ async function finalizeMahjongMatchStats({
       },
       data: {
         details: toPrismaJson(latestDetails),
+        version: {
+          increment: 1,
+        },
       },
     });
 
@@ -1104,6 +1165,7 @@ type MahjongMatchWithDetailsForRecalc = {
   match_details: {
     match_id: number;
     details: Prisma.JsonValue;
+    version: number;
   } | null;
 };
 
@@ -1856,6 +1918,9 @@ async function recalculateAllMahjongStatsAndAchievements() {
         },
         data: {
           details: toPrismaJson(details),
+          version: {
+            increment: 1,
+          },
         },
       });
     }
@@ -1975,6 +2040,8 @@ export async function createMahjongMatch(
 // 2. 점수 기록, 화료 액션
 // -----------------
 export async function recordMahjongResult(data: RecordMahjongResultInput) {
+  const currentUser = await getCurrentMahjongManager();
+
   const match = await db.matches.findUnique({
     where: {
       id: data.match_id,
@@ -1989,7 +2056,18 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     throw new Error("Match not found");
   }
 
+  assertCanManageMahjongMatch({
+    currentUser,
+    createdBy: match.created_by,
+  });
+
   const details = normalizeDetails(match.match_details.details);
+
+  assertLatestMahjongState({
+    details,
+    currentVersion: match.match_details.version,
+    expected: data,
+  });
 
   if (match.deleted_at) {
     throw new Error("삭제된 대국에는 기록을 추가할 수 없습니다.");
@@ -2239,13 +2317,10 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
     result_scores: resultScores,
   });
 
-  await db.match_details.update({
-    where: {
-      match_id: match.match_details.match_id,
-    },
-    data: {
-      details: toPrismaJson(details),
-    },
+  await updateMatchDetailsWithVersionGuard({
+    matchId: match.match_details.match_id,
+    expectedVersion: data.expected_version,
+    details,
   });
 
   await finalizeMahjongMatchStats({
@@ -2267,6 +2342,8 @@ export async function recordMahjongResult(data: RecordMahjongResultInput) {
 // 3. 유국 처리 액션
 // -----------------
 export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
+  const currentUser = await getCurrentMahjongManager();
+
   const match = await db.matches.findUnique({
     where: {
       id: data.match_id,
@@ -2281,7 +2358,18 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     throw new Error("Match not found");
   }
 
+  assertCanManageMahjongMatch({
+    currentUser,
+    createdBy: match.created_by,
+  });
+
   const details = normalizeDetails(match.match_details.details);
+
+  assertLatestMahjongState({
+    details,
+    currentVersion: match.match_details.version,
+    expected: data,
+  });
 
   if (match.deleted_at) {
     throw new Error("삭제된 대국에는 기록을 추가할 수 없습니다.");
@@ -2488,13 +2576,10 @@ export async function recordRyuukyoku(data: RecordRyuukyokuInput) {
     result_scores: resultScores,
   });
 
-  await db.match_details.update({
-    where: {
-      match_id: match.match_details.match_id,
-    },
-    data: {
-      details: toPrismaJson(details),
-    },
+  await updateMatchDetailsWithVersionGuard({
+    matchId: match.match_details.match_id,
+    expectedVersion: data.expected_version,
+    details,
   });
 
   await finalizeMahjongMatchStats({
@@ -2718,6 +2803,9 @@ export async function deleteMahjongMatch(matchId: number) {
           ...nextDetails,
           deleted_at: deletedAt.toISOString(),
         }),
+        version: {
+          increment: 1,
+        },
       },
     });
 
@@ -2798,6 +2886,9 @@ export async function undoMahjongLastLog(matchId: number) {
     },
     data: {
       details: toPrismaJson(rebuiltDetails),
+      version: {
+        increment: 1,
+      },
     },
   });
 
