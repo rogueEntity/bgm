@@ -2,7 +2,8 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { getValidatedYakuList, calculateTotalHan } from "@/lib/mahjong-calc";
 import {
@@ -98,10 +99,41 @@ function createDefaultWin(winnerKey: string): WinFormState {
 export default function ScoreForm({
   matchId,
   players,
-}: {
+  currentRound,
+  honba,
+  logCount,
+  stateVersion,
+}: Readonly<{
   matchId: number;
   players: Player[];
-}) {
+  currentRound: string;
+  honba: number;
+  logCount: number;
+  stateVersion: number;
+}>) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
+    const shouldScrollTop = sessionStorage.getItem(
+        "mahjong-scroll-top-after-reload",
+    );
+
+    if (shouldScrollTop !== "true") return;
+
+    sessionStorage.removeItem("mahjong-scroll-top-after-reload");
+
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+  }, []);
+
   const firstPlayerKey = players[0]?.stateKey ?? "";
   const secondPlayerKey = players[1]?.stateKey ?? firstPlayerKey;
 
@@ -511,20 +543,37 @@ export default function ScoreForm({
     setIsSubmitting(true);
 
     try {
-      await recordRyuukyoku({
+      const result = await recordRyuukyoku({
         match_id: matchId,
+        expected_round: currentRound,
+        expected_honba: honba,
+        expected_log_count: logCount,
+        expected_version: stateVersion,
         type: ryuukyokuType,
         tenpai_keys:
-          ryuukyokuType === "황패유국" || ryuukyokuType === "유국만관"
-            ? tenpaiKeys
-            : [],
+            ryuukyokuType === "황패유국" || ryuukyokuType === "유국만관"
+                ? tenpaiKeys
+                : [],
         current_riichi_keys: currentRiichiKeys,
         is_final: isForceFinish,
         nagashi_mangan_winner_keys:
-          ryuukyokuType === "유국만관" ? nagashiManganWinnerKeys : [],
+            ryuukyokuType === "유국만관" ? nagashiManganWinnerKeys : [],
       });
 
+      if (!result.ok) {
+        if (result.code === "STALE_MAHJONG_STATE") {
+          handleStaleMahjongStateError(result.message);
+          return;
+        }
+
+        alert(result.message ?? "유국 기록 실패!");
+        return;
+      }
+
       alert("유국이 기록되었습니다.");
+
+      router.refresh();
+
       setRyuukyokuType(null);
       setTenpaiKeys([]);
       setCurrentRiichiKeys([]);
@@ -549,6 +598,16 @@ export default function ScoreForm({
     if (type !== "유국만관") {
       setNagashiManganWinnerKeys([]);
     }
+  };
+
+  const handleStaleMahjongStateError = (message?: string) => {
+    alert(
+        message ??
+        "이미 다른 화면에서 대국이 기록되었습니다.\n최신 상태를 확인하기 위해 새로고침합니다.",
+    );
+
+    sessionStorage.setItem("mahjong-scroll-top-after-reload", "true");
+    globalThis.location.reload();
   };
 
   const handleSubmit = async (e: React.SubmitEvent) => {
@@ -626,7 +685,7 @@ export default function ScoreForm({
         selectedYakuNames.includes("더블리치");
 
       if (currentRiichiKeys.includes(win.winner_key) && !hasRiichiYaku) {
-        const proceed = window.confirm(
+        const proceed = globalThis.confirm(
           "화료자가 이번 국에 리치를 선언했는데 '리치' 또는 '더블 리치' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?",
         );
 
@@ -638,7 +697,7 @@ export default function ScoreForm({
         isTsumo &&
         !selectedYakuNames.includes("멘젠쯔모")
       ) {
-        const proceed = window.confirm(
+        const proceed = globalThis.confirm(
           "멘젠 상태에서 쯔모 화료를 했는데 '멘젠쯔모' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?",
         );
 
@@ -649,8 +708,12 @@ export default function ScoreForm({
     setIsSubmitting(true);
 
     try {
-      await recordMahjongResult({
+      const result = await recordMahjongResult({
         match_id: matchId,
+        expected_round: currentRound,
+        expected_honba: honba,
+        expected_log_count: logCount,
+        expected_version: stateVersion,
         is_tsumo: isTsumo,
         wins: wins.map((win) => ({
           winner_key: win.winner_key,
@@ -664,7 +727,19 @@ export default function ScoreForm({
         is_final: isForceFinish,
       });
 
+      if (!result.ok) {
+        if (result.code === "STALE_MAHJONG_STATE") {
+          handleStaleMahjongStateError(result.message);
+          return;
+        }
+
+        alert(result.message ?? "기록 실패!");
+        return;
+      }
+
       alert("기록되었습니다.");
+
+      router.refresh();
 
       const nextDefault = createDefaultRoundWinState();
 

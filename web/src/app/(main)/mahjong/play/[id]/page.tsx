@@ -263,7 +263,14 @@ export default async function MahjongPlayPage({
         <>
           {/* 하단: 점수 기록 폼 */}
           <div className="w-full max-w-2xl mx-auto">
-            <ScoreForm matchId={matchId} players={scoreboard} />
+            <ScoreForm
+                matchId={matchId}
+                players={scoreboard}
+                currentRound={details.current_round}
+                honba={details.honba ?? 0}
+                logCount={Array.isArray(details.logs) ? details.logs.length : 0}
+                stateVersion={match.match_details.version}
+            />
           </div>
 
           <div className="w-full max-w-2xl mx-auto">
