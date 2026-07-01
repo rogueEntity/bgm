@@ -22,6 +22,19 @@ type AvatarActionResult = {
   avatar_image_key?: string | null;
 };
 
+const NICKNAME_MIN_LENGTH = 1;
+const NICKNAME_MAX_LENGTH = 6;
+
+function validateNickname(nickname: string) {
+  if (nickname.length < NICKNAME_MIN_LENGTH) {
+    throw new Error(`닉네임은 ${NICKNAME_MIN_LENGTH}자 이상 입력해 주세요.`);
+  }
+
+  if (nickname.length > NICKNAME_MAX_LENGTH) {
+    throw new Error(`닉네임은 ${NICKNAME_MAX_LENGTH}자 이하로 입력해 주세요.`);
+  }
+}
+
 function normalizeNickname(nickname: FormDataEntryValue | string | null) {
   return String(nickname ?? "").trim();
 }
@@ -86,6 +99,8 @@ export async function saveOnboardingProfile(formData: FormData) {
   if (!nickname || !avatarEmoji) {
     throw new Error("모든 필드를 입력해 주세요.");
   }
+
+  validateNickname(nickname);
 
   const duplicatedUser = await db.users.findFirst({
     where: {
@@ -152,6 +167,8 @@ export async function updateMyProfile(formData: FormData) {
   if (!nickname || !avatarEmoji) {
     throw new Error("모든 필드를 입력해 주세요.");
   }
+
+  validateNickname(nickname);
 
   const currentUser = await db.users.findUnique({
     where: {
@@ -356,7 +373,12 @@ export async function deleteMyAvatar(): Promise<AvatarActionResult> {
 export async function checkNicknameDuplication(nickname: string) {
   const normalizedNickname = nickname.trim();
 
-  if (!normalizedNickname) return false;
+  if (
+      normalizedNickname.length < NICKNAME_MIN_LENGTH ||
+      normalizedNickname.length > NICKNAME_MAX_LENGTH
+  ) {
+    return false;
+  }
 
   const existingUser = await db.users.findFirst({
     where: {
@@ -372,6 +394,13 @@ export async function checkNicknameDuplication(nickname: string) {
 
 export async function checkMyNicknameDuplication(nickname: string) {
   const normalizedNickname = nickname.trim();
+
+  if (
+      normalizedNickname.length < NICKNAME_MIN_LENGTH ||
+      normalizedNickname.length > NICKNAME_MAX_LENGTH
+  ) {
+    return false;
+  }
 
   if (!normalizedNickname) return false;
 
@@ -408,7 +437,12 @@ export async function checkMyNicknameDuplication(nickname: string) {
 export async function checkNicknameExists(nickname: string) {
   const normalizedNickname = nickname.trim();
 
-  if (!normalizedNickname) return false;
+  if (
+      normalizedNickname.length < NICKNAME_MIN_LENGTH ||
+      normalizedNickname.length > NICKNAME_MAX_LENGTH
+  ) {
+    return false;
+  }
 
   const user = await db.users.findFirst({
     where: {
