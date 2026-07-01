@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { getValidatedYakuList, calculateTotalHan } from "@/lib/mahjong-calc";
 import {
@@ -110,6 +111,8 @@ export default function ScoreForm({
   logCount: number;
   stateVersion: number;
 }>) {
+  const router = useRouter();
+
   const firstPlayerKey = players[0]?.stateKey ?? "";
   const secondPlayerKey = players[1]?.stateKey ?? firstPlayerKey;
 
@@ -541,9 +544,15 @@ export default function ScoreForm({
           handleStaleMahjongStateError(result.message);
           return;
         }
+
+        alert(result.message ?? "유국 기록 실패!");
+        return;
       }
 
       alert("유국이 기록되었습니다.");
+
+      router.refresh();
+
       setRyuukyokuType(null);
       setTenpaiKeys([]);
       setCurrentRiichiKeys([]);
@@ -701,9 +710,14 @@ export default function ScoreForm({
           handleStaleMahjongStateError(result.message);
           return;
         }
+
+        alert(result.message ?? "기록 실패!");
+        return;
       }
 
       alert("기록되었습니다.");
+
+      router.refresh();
 
       const nextDefault = createDefaultRoundWinState();
 
