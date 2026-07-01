@@ -34,7 +34,10 @@ export default function ProfileForm({
   hasAvatarImage = false,
   submitLabel,
   onCancelAction,
-}: ProfileFormProps) {
+}: Readonly<ProfileFormProps>) {
+  const NICKNAME_MIN_LENGTH = 1;
+  const NICKNAME_MAX_LENGTH = 6;
+
   const router = useRouter();
   const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -61,14 +64,18 @@ export default function ProfileForm({
 
   const shouldCheckNickname = mode === "onboarding" || nicknameChanged;
 
+  const nicknameLengthValid =
+      trimmedNickname.length >= NICKNAME_MIN_LENGTH &&
+      trimmedNickname.length <= NICKNAME_MAX_LENGTH;
+
   const canSubmit =
-    trimmedNickname.length > 0 &&
-    selectedAvatar.length > 0 &&
-    (!shouldCheckNickname || isAvailable === true) &&
-    !isPending;
+      nicknameLengthValid &&
+      selectedAvatar.length > 0 &&
+      (!shouldCheckNickname || isAvailable === true) &&
+      !isPending;
 
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const value = e.target.value.slice(0, NICKNAME_MAX_LENGTH);
 
     setNickname(value);
 
@@ -275,38 +282,57 @@ export default function ProfileForm({
 
         <div className="flex gap-2">
           <input
-            name="nickname"
-            value={nickname}
-            onChange={handleNicknameChange}
-            placeholder="닉네임을 입력해 주세요"
-            className="flex-1 rounded-xl border border-foreground/10 bg-background px-4 py-3 text-sm outline-none transition focus:border-foreground/40"
-            maxLength={20}
-            autoComplete="off"
+              name="nickname"
+              value={nickname}
+              minLength={NICKNAME_MIN_LENGTH}
+              maxLength={NICKNAME_MAX_LENGTH}
+              onChange={handleNicknameChange}
+              placeholder="닉네임을 입력해 주세요"
+              className="flex-1 rounded-xl border border-foreground/10 bg-background px-4 py-3 text-base outline-none transition focus:border-foreground/40 md:text-sm"
+              autoComplete="off"
           />
 
           <button
-            type="button"
-            onClick={handleCheckDuplicate}
-            disabled={!trimmedNickname || isChecking}
-            className="shrink-0 rounded-xl border border-foreground/10 px-4 py-3 text-sm font-medium transition hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={handleCheckDuplicate}
+              disabled={!nicknameLengthValid || isChecking}
+              className="shrink-0 rounded-xl border border-foreground/10 px-4 py-3 text-sm font-medium transition hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isChecking ? "확인 중..." : "중복 확인"}
           </button>
         </div>
 
-        {isAvailable === true && (
-          <p className="text-sm text-green-600">사용 가능한 닉네임입니다.</p>
-        )}
+        <div className="flex items-start justify-between gap-3 text-xs">
+          <div className="min-w-0 flex-1">
+            {isAvailable === true && (
+                <p className="text-green-600">사용 가능한 닉네임입니다.</p>
+            )}
 
-        {isAvailable === false && (
-          <p className="text-sm text-red-500">이미 사용 중인 닉네임입니다.</p>
-        )}
+            {isAvailable === false && (
+                <p className="text-red-500">이미 사용 중인 닉네임입니다.</p>
+            )}
 
-        {shouldCheckNickname && isAvailable === null && trimmedNickname && (
-          <p className="text-sm text-foreground/50">
-            닉네임 중복 확인을 해주세요.
+            {shouldCheckNickname && isAvailable === null && trimmedNickname && (
+                <p className="text-foreground/50">닉네임 중복 확인을 해주세요.</p>
+            )}
+
+            {trimmedNickname && trimmedNickname.length < NICKNAME_MIN_LENGTH && (
+                <p className="text-red-500">
+                  닉네임은 {NICKNAME_MIN_LENGTH}자 이상 입력해 주세요.
+                </p>
+            )}
+
+            {!trimmedNickname && (
+                <p className="text-foreground/40">
+                  닉네임은 {NICKNAME_MIN_LENGTH}~{NICKNAME_MAX_LENGTH}자까지 입력할 수 있습니다.
+                </p>
+            )}
+          </div>
+
+          <p className="shrink-0 text-foreground/40">
+            {trimmedNickname.length}/{NICKNAME_MAX_LENGTH}
           </p>
-        )}
+        </div>
       </section>
 
       <div className="flex gap-2">

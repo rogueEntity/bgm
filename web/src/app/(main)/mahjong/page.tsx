@@ -211,9 +211,7 @@ export default async function MahjongDashboardPage() {
       <section className="grid grid-cols-2 gap-3">
         <Link
           href="/mahjong/ranking"
-          aria-disabled={!ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS}
-          tabIndex={ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS ? undefined : -1}
-          className={`rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition${disabledDashboardCardClass}`}
+          className="rounded-2xl border border-foreground/10 bg-background p-5 hover:bg-foreground/[0.03] transition"
         >
           <div className="mb-3 text-2xl">🏆</div>
           <h3 className="font-bold">랭킹</h3>

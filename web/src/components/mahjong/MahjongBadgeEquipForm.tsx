@@ -184,57 +184,78 @@ export default function MahjongBadgeEquipForm({
         </div>
       </div>
 
-      <div className="mt-5">
-        <p className="text-sm font-semibold">획득한 배지</p>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {badges.length > 0 ? (
-            badges.map((badge) => {
-              const selected = selectedBadgeIdSet.has(badge.id);
-
-              return (
-                <button
-                  key={badge.id}
-                  type="button"
-                  onClick={() => toggleBadge(badge.id)}
-                  disabled={isPending}
-                  className={[
-                    "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                    selected
-                      ? "border-emerald-400/50 bg-emerald-400/[0.06]"
-                      : "border-foreground/10 bg-foreground/[0.03] hover:bg-foreground/[0.06]",
-                  ].join(" ")}
-                >
-                  <MahjongBadgeChip
-                    display={badge.display}
-                    name={badge.name}
-                    displayType={badge.displayType}
-                    rarity={badge.rarity}
-                  />
-
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">
-                      {badge.name}
-                    </span>
-                    <span className="block truncate text-xs text-foreground/50">
-                      {badge.description}
-                    </span>
-                  </span>
-
-                  {selected ? (
-                    <span className="ml-auto rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                      선택
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })
-          ) : (
-            <p className="text-sm text-foreground/50">
-              아직 획득한 배지가 없습니다.
-            </p>
-          )}
+      {/* 획득한 배지 */}
+      <div className="mt-8 space-y-3 md:mt-10">
+        <div>
+          <h3 className="text-lg font-bold">획득한 배지</h3>
+          <p className="mt-1 text-sm text-foreground/50">
+            장착할 배지를 선택하세요. 최대 3개까지 닉네임 옆에 표시됩니다.
+          </p>
         </div>
+
+        {badges.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {badges.map((badge) => {
+                const selected = selectedBadgeIdSet.has(badge.id);
+                const selectedIndex = selectedBadgeIds.indexOf(badge.id);
+
+                return (
+                    <button
+                        key={badge.id}
+                        type="button"
+                        onClick={() => toggleBadge(badge.id)}
+                        disabled={isPending}
+                        className={[
+                          "group flex min-w-0 items-start gap-3 rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
+                          selected
+                              ? "border-emerald-400/60 bg-emerald-400/[0.08] shadow-sm"
+                              : "border-foreground/10 bg-foreground/[0.03] hover:border-foreground/20 hover:bg-foreground/[0.06]",
+                        ].join(" ")}
+                    >
+                      <div className="shrink-0 pt-0.5">
+                        <MahjongBadgeChip
+                            display={badge.display}
+                            displayType={badge.displayType}
+                            rarity={badge.rarity}
+                            size="md"
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate font-bold">{badge.name}</p>
+
+                          {selected ? (
+                              <span className="shrink-0 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-300">
+                    Slot {selectedIndex + 1}
+                  </span>
+                          ) : null}
+                        </div>
+
+                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-foreground/55">
+                          {badge.description}
+                        </p>
+                      </div>
+
+                      <div
+                          className={[
+                            "ml-2 shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold transition",
+                            selected
+                                ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-600 dark:text-emerald-300"
+                                : "border-foreground/10 text-foreground/45 group-hover:border-emerald-400/40 group-hover:text-emerald-500",
+                          ].join(" ")}
+                      >
+                        {selected ? "선택됨" : "선택"}
+                      </div>
+                    </button>
+                );
+              })}
+            </div>
+        ) : (
+            <div className="rounded-2xl border border-dashed border-foreground/15 px-4 py-10 text-center text-sm text-foreground/45">
+              아직 획득한 배지가 없습니다.
+            </div>
+        )}
       </div>
 
       {message ? (
