@@ -668,9 +668,11 @@ export async function getMahjongPlayerProfile(
 
     const recentRanks = matchPlayers
         .map((matchPlayer) => {
-            const rank = getMatchPlayerRank(matchPlayer, userId);
+            const rank = Number(matchPlayer.rank);
 
-            if (!rank) return null;
+            if (!Number.isInteger(rank) || rank < 1 || rank > 4) {
+                return null;
+            }
 
             return {
                 matchId: matchPlayer.match_id,
