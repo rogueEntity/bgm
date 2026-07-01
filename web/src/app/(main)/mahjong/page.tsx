@@ -1,12 +1,14 @@
 // web/src/app/(main)/mahjong/page.tsx
 
-import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { db } from "@/lib/prisma";
+import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import UserAvatar from "@/components/common/UserAvatar";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
-import { db } from "@/lib/prisma";
-import Link from "next/link";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 type MahjongDetailsSnapshot = {
   current_round?: string;
@@ -117,6 +119,12 @@ async function getMyMahjongDashboardData() {
 }
 
 export default async function MahjongDashboardPage() {
+  const currentUser = await getCurrentUserWithAdmin();
+
+  if (!currentUser) {
+    redirect("/login");
+  }
+
   const { me, activeMatch, equippedBadges } =
     await getMyMahjongDashboardData();
 
@@ -223,8 +231,8 @@ export default async function MahjongDashboardPage() {
           <span className="text-3xl">🏆</span>
           <span className="text-sm font-bold">랭킹</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
-      작사들의 순위를 확인합니다.
-    </span>
+            작사들의 순위를 확인합니다.
+          </span>
         </Link>
 
         <Link
@@ -234,8 +242,8 @@ export default async function MahjongDashboardPage() {
           <span className="text-3xl">📜</span>
           <span className="text-sm font-bold">대국 기록</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
-      완료된 대국과 진행 중인 대국을 확인합니다.
-    </span>
+            완료된 대국과 진행 중인 대국을 확인합니다.
+          </span>
         </Link>
 
         <Link
@@ -245,19 +253,19 @@ export default async function MahjongDashboardPage() {
           <span className="text-3xl">📘</span>
           <span className="text-sm font-bold">역·점수 안내</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
-      역 족보와 점수 계산을 확인합니다.
-    </span>
+            역 족보와 점수 계산을 확인합니다.
+          </span>
         </Link>
 
         <Link
-            href="/mahjong/player"
-            className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10${disabledDashboardCardClass}`}
+            href={`/mahjong/players/${currentUser.id}`}
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
         >
           <span className="text-3xl">🧑‍💼</span>
           <span className="text-sm font-bold">작사 정보</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
-      작사별 통계를 확인합니다.
-    </span>
+            내 작사 통계를 확인합니다.
+          </span>
         </Link>
 
         <Link
@@ -267,8 +275,8 @@ export default async function MahjongDashboardPage() {
           <span className="text-3xl">🎖️</span>
           <span className="text-sm font-bold">도전과제</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
-      달성한 기록을 확인합니다.
-    </span>
+            달성한 기록을 확인합니다.
+          </span>
         </Link>
 
         <Link
@@ -278,8 +286,8 @@ export default async function MahjongDashboardPage() {
           <span className="text-3xl">⚔️</span>
           <span className="text-sm font-bold">라이벌</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
-      라이벌과의 상대 전적을 확인합니다.
-    </span>
+            라이벌과의 상대 전적을 확인합니다.
+          </span>
         </Link>
       </div>
     </main>
