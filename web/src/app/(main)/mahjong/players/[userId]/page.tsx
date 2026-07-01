@@ -6,6 +6,7 @@ import {
     MahjongModeDetailStats,
     MahjongPlayerProfileData,
 } from "@/lib/mahjong-profile";
+import React from "react";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -190,10 +191,10 @@ function MahjongStyleCard({
 }
 
 function MahjongRecentRankChart({
-                                    recentRanks,
-                                }: {
+    recentRanks,
+}: Readonly<{
     recentRanks: MahjongPlayerProfileData["recentRanks"];
-}) {
+}>) {
     const width = 320;
     const height = 160;
     const paddingX = 32;
@@ -315,38 +316,6 @@ function MahjongRecentRankChart({
                 </div>
             )}
         </section>
-    );
-}
-
-function RankLine({
-  rank,
-  recentRanks,
-}: Readonly<{
-    rank: number;
-    recentRanks: MahjongPlayerProfileData["recentRanks"];
-}>) {
-    return (
-        <>
-            <div className="text-sm font-black text-muted-foreground">{rank}위</div>
-            <div className="relative h-8 border-t border-foreground/10">
-                <div className="absolute inset-x-0 top-0 flex h-8 items-start justify-between">
-                    {recentRanks.map((item, index) => {
-                        const isActive = item.rank === rank;
-
-                        return (
-                            <div
-                                key={`${item.matchId}-${index}`}
-                                className="flex h-8 flex-1 justify-center"
-                            >
-                                {isActive ? (
-                                    <div className="mt-[-5px] size-3 rounded-full bg-primary" />
-                                ) : null}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </>
     );
 }
 
