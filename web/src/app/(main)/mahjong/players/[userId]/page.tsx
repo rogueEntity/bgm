@@ -6,6 +6,7 @@ import {
     MahjongModeDetailStats,
     MahjongPlayerProfileData,
 } from "@/lib/mahjong-profile";
+import React from "react";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -194,6 +195,31 @@ function MahjongRecentRankChart({
 }: Readonly<{
     recentRanks: MahjongPlayerProfileData["recentRanks"];
 }>) {
+    const width = 320;
+    const height = 160;
+    const paddingX = 32;
+    const paddingY = 20;
+
+    const points = recentRanks.map((item, index) => {
+        const x =
+            recentRanks.length <= 1
+                ? width / 2
+                : paddingX +
+                (index * (width - paddingX * 2)) / (recentRanks.length - 1);
+
+        const y = paddingY + ((item.rank - 1) * (height - paddingY * 2)) / 3;
+
+        return {
+            ...item,
+            x,
+            y,
+        };
+    });
+
+    const polylinePoints = points
+        .map((point) => `${point.x},${point.y}`)
+        .join(" ");
+
     return (
         <section className="rounded-3xl border border-foreground/10 bg-card p-5 shadow-sm">
             <div className="flex items-end justify-between gap-3">
@@ -204,51 +230,92 @@ function MahjongRecentRankChart({
             {recentRanks.length === 0 ? (
                 <EmptyText>아직 표시할 대국 기록이 없습니다.</EmptyText>
             ) : (
-                <div className="mt-5">
-                    <div className="grid grid-cols-[2.5rem_1fr] gap-y-3">
-                        {[1, 2, 3, 4].map((rank) => (
-                            <RankLine
-                                key={rank}
-                                rank={rank}
-                                recentRanks={recentRanks}
+                <div className="mt-5 overflow-hidden rounded-2xl border border-foreground/10 bg-foreground/[0.03] p-3">
+                    <svg
+                        viewBox={`0 0 ${width} ${height}`}
+                        className="h-44 w-full"
+                        role="img"
+                        aria-label="최근 대국 순위 그래프"
+                    >
+                        {[1, 2, 3, 4].map((rank) => {
+                            const y =
+                                paddingY + ((rank - 1) * (height - paddingY * 2)) / 3;
+
+                            return (
+                                <g key={rank}>
+                                    <line
+                                        x1={paddingX}
+                                        x2={width - paddingX}
+                                        y1={y}
+                                        y2={y}
+                                        stroke="currentColor"
+                                        strokeWidth="1"
+                                        strokeOpacity="0.14"
+                                        className="text-foreground"
+                                    />
+
+                                    <text
+                                        x="4"
+                                        y={y + 4}
+                                        fill="currentColor"
+                                        className="text-[10px] font-black text-muted-foreground"
+                                    >
+                                        {rank}위
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        {points.length >= 2 ? (
+                            <polyline
+                                points={polylinePoints}
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-primary"
                             />
+                        ) : null}
+
+                        {points.map((point, index) => (
+                            <g key={`${point.matchId}-${index}`} className="text-primary">
+                                <circle
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="8"
+                                    fill="currentColor"
+                                    fillOpacity="0.18"
+                                />
+                                <circle
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="4.5"
+                                    fill="currentColor"
+                                />
+                                <circle
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="4.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    className="text-background"
+                                />
+                            </g>
+                        ))}
+                    </svg>
+
+                    <div className="mt-2 flex justify-between px-8 text-[10px] font-bold text-muted-foreground">
+                        {recentRanks.map((item, index) => (
+                            <span key={`${item.matchId}-label-${index}`}>
+                {item.rank}위
+              </span>
                         ))}
                     </div>
                 </div>
             )}
         </section>
-    );
-}
-
-function RankLine({
-  rank,
-  recentRanks,
-}: Readonly<{
-    rank: number;
-    recentRanks: MahjongPlayerProfileData["recentRanks"];
-}>) {
-    return (
-        <>
-            <div className="text-sm font-black text-muted-foreground">{rank}위</div>
-            <div className="relative h-8 border-t border-foreground/10">
-                <div className="absolute inset-x-0 top-0 flex h-8 items-start justify-between">
-                    {recentRanks.map((item, index) => {
-                        const isActive = item.rank === rank;
-
-                        return (
-                            <div
-                                key={`${item.matchId}-${index}`}
-                                className="flex h-8 flex-1 justify-center"
-                            >
-                                {isActive ? (
-                                    <div className="mt-[-5px] size-3 rounded-full bg-primary" />
-                                ) : null}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </>
     );
 }
 

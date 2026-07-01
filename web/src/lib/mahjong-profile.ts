@@ -211,7 +211,7 @@ function getAvatarImageUrl(key: string | null) {
 function getSpecificStats(raw: unknown): SpecificMahjongStats {
     if (!raw || typeof raw !== "object") return {};
 
-    return raw as SpecificMahjongStats;
+    return raw;
 }
 
 function getStoredModeKey(
@@ -431,38 +431,6 @@ function getWinGraphFromLogs(logs: MahjongRoundLog[], userKeySet: Set<string>) {
     };
 }
 
-function getMatchPlayerRank(
-    matchPlayer: {
-        rank: number | null;
-        final_score: number | null;
-        matches: {
-            match_players: {
-                user_id: string | null;
-                final_score: number | null;
-            }[];
-        };
-    },
-    userId: string,
-) {
-    if (typeof matchPlayer.rank === "number") {
-        return matchPlayer.rank;
-    }
-
-    if (typeof matchPlayer.final_score !== "number") {
-        return null;
-    }
-
-    const sortedPlayers = [...matchPlayer.matches.match_players]
-        .filter((player) => typeof player.final_score === "number")
-        .sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0));
-
-    const rankIndex = sortedPlayers.findIndex((player) => player.user_id === userId);
-
-    if (rankIndex < 0) return null;
-
-    return rankIndex + 1;
-}
-
 export async function getMahjongPlayerProfile(
     userId: string,
 ): Promise<MahjongPlayerProfileData | null> {
@@ -668,9 +636,11 @@ export async function getMahjongPlayerProfile(
 
     const recentRanks = matchPlayers
         .map((matchPlayer) => {
-            const rank = getMatchPlayerRank(matchPlayer, userId);
+            const rank = Number(matchPlayer.rank);
 
-            if (!rank) return null;
+            if (!Number.isInteger(rank) || rank < 1 || rank > 4) {
+                return null;
+            }
 
             return {
                 matchId: matchPlayer.match_id,
