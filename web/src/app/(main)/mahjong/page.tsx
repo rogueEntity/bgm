@@ -9,6 +9,7 @@ import UserAvatar from "@/components/common/UserAvatar";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { getRecentMahjongNewsEvents } from "@/lib/mahjong-news";
 
 type MahjongDetailsSnapshot = {
   current_round?: string;
@@ -34,8 +35,6 @@ const ROUND_NAME_MAP: Record<string, string> = {
   NORTH_4: "북 4국",
 };
 
-const SHOW_RECENT_NEWS = false;
-
 async function getMyMahjongDashboardData() {
   const session = await auth();
   const providerId = session?.user?.id as string | undefined;
@@ -45,6 +44,7 @@ async function getMyMahjongDashboardData() {
       me: null,
       activeMatch: null,
       equippedBadges: [],
+      recentNews: [],
     };
   }
 
@@ -66,10 +66,11 @@ async function getMyMahjongDashboardData() {
       me: null,
       activeMatch: null,
       equippedBadges: [],
+      recentNews: [],
     };
   }
 
-  const [matches, equippedBadgeMap] = await Promise.all([
+  const [matches, equippedBadgeMap, recentNews] = await Promise.all([
     db.matches.findMany({
       where: {
         deleted_at: null,
@@ -95,6 +96,7 @@ async function getMyMahjongDashboardData() {
       take: 20,
     }),
     getMahjongEquippedBadgesByUserIds([me.id]),
+    getRecentMahjongNewsEvents(10),
   ]);
 
   const activeMatch =
@@ -110,6 +112,7 @@ async function getMyMahjongDashboardData() {
     me,
     activeMatch,
     equippedBadges: equippedBadgeMap[me.id] ?? [],
+    recentNews,
   };
 }
 
@@ -120,7 +123,7 @@ export default async function MahjongDashboardPage() {
     redirect("/login");
   }
 
-  const { me, activeMatch, equippedBadges } =
+  const { me, activeMatch, equippedBadges, recentNews } =
     await getMyMahjongDashboardData();
 
   const activeDetails = activeMatch?.match_details?.details as
@@ -205,17 +208,52 @@ export default async function MahjongDashboardPage() {
       </section>
 
       {/* 3. 타임라인 / 최신 소식 (커뮤니티 요소) */}
-      {SHOW_RECENT_NEWS && (
-        <section className="rounded-2xl border border-foreground/10 bg-background p-5">
-          <h3 className="mb-3 font-bold">최근 소식</h3>
+      <section className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black">최근 소식</h2>
+            <p className="mt-1 text-sm text-foreground/55">
+              작탁에서 방금 벌어진 따끈한 기록들입니다.
+            </p>
+          </div>
+        </div>
 
-          <ul className="space-y-2 text-sm text-foreground/70">
-            <li>김현욱님이 방금 전 대국에서 역만(국사무쌍)을 화료했습니다!</li>
-            <li>지인A님이 누적 10만 점을 돌파했습니다.</li>
-            <li>지인B님의 최근 5경기 평균 순위가 3.8위로 하락했습니다.</li>
-          </ul>
-        </section>
-      )}
+        {recentNews.length > 0 ? (
+            <ul className="space-y-3">
+              {recentNews.map((news) => (
+                  <li
+                      key={news.id}
+                      className="rounded-2xl border border-foreground/10 bg-background/70 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-lg">
+                        {news.event_type === "YAKUMAN" ? "🔥" : "🏆"}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
+                {news.event_type === "YAKUMAN"
+                    ? "역만"
+                    : "도전과제"}
+              </span>
+                          <p className="text-sm font-black">{news.title}</p>
+                        </div>
+
+                        <p className="mt-1 text-sm text-foreground/75">
+                          {news.message}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+              ))}
+            </ul>
+        ) : (
+            <div className="rounded-2xl border border-dashed border-foreground/15 p-5 text-sm text-foreground/55">
+              아직 새로운 소식이 없습니다. 첫 역만 뉴스의 주인공을 기다리는 중입니다.
+            </div>
+        )}
+      </section>
 
       {/* 4. 하위 메뉴 카드 영역 (그리드 레이아웃) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">

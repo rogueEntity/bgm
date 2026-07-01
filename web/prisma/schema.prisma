@@ -33,6 +33,7 @@ model users {
   mahjong_user_achievements    mahjong_user_achievements[]
   mahjong_user_badges          mahjong_user_badges[]
   mahjong_user_equipped_badges mahjong_user_equipped_badges[]
+  mahjong_news_events mahjong_news_events[]
 
   @@unique([provider, provider_id])
 }
@@ -70,6 +71,7 @@ model matches {
 
   match_details match_details?
   match_players match_players[]
+  mahjong_news_events mahjong_news_events[]
 
   users users? @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   games games @relation(fields: [game_id], references: [id], onUpdate: NoAction)
@@ -164,4 +166,31 @@ model mahjong_user_equipped_badges {
   @@unique([user_id, badge_id])
   @@index([user_id])
   @@index([badge_id])
+}
+
+model mahjong_news_events {
+  id             Int      @id @default(autoincrement())
+  event_key      String   @unique @db.VarChar(200)
+  event_type     String   @db.VarChar(30)
+
+  user_id        String   @db.Uuid
+  match_id       Int?
+
+  achievement_id String?  @db.VarChar(100)
+  yaku_id        String?  @db.VarChar(100)
+
+  title          String   @db.VarChar(200)
+  message        String   @db.VarChar(500)
+  metadata       Json?
+
+  occurred_at    DateTime @default(now()) @db.Timestamptz(6)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  users          users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  matches        matches? @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([event_type, occurred_at])
+  @@index([user_id, occurred_at])
+  @@index([match_id])
+  @@index([achievement_id])
 }
