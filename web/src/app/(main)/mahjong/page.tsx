@@ -35,11 +35,6 @@ const ROUND_NAME_MAP: Record<string, string> = {
 };
 
 const SHOW_RECENT_NEWS = false;
-const ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS = false;
-
-const disabledDashboardCardClass = ENABLE_UNIMPLEMENTED_DASHBOARD_LINKS
-  ? ""
-  : " pointer-events-none cursor-not-allowed opacity-45 grayscale";
 
 async function getMyMahjongDashboardData() {
   const session = await auth();
@@ -280,8 +275,8 @@ export default async function MahjongDashboardPage() {
         </Link>
 
         <Link
-            href="/mahjong/rival"
-            className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10${disabledDashboardCardClass}`}
+            href="/mahjong/rivals"
+            className={"flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"}
         >
           <span className="text-3xl">⚔️</span>
           <span className="text-sm font-bold">라이벌</span>
