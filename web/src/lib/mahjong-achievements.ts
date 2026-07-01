@@ -2,6 +2,10 @@
 
 import { MahjongAchievements } from "@/constants/mahjong-achievements";
 import { db } from "@/lib/prisma";
+import {
+  createMahjongAchievementNewsEvent,
+  syncMahjongNewsEventsForMatch,
+} from "@/lib/mahjong-news";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 const GUEST_PLAYER_KEY_PREFIX = "guest_";
@@ -828,6 +832,13 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
         },
       });
 
+      if (completed && existingAchievement?.completed !== true) {
+        await createMahjongAchievementNewsEvent({
+          userId,
+          achievementId: achievement.id,
+        });
+      }
+
       if (completed) {
         earnedBadgeIds.add(achievement.badgeId);
       }
@@ -932,4 +943,6 @@ export async function syncMahjongAchievementsForMatch(matchId: number) {
     ...userIdsFromDetails,
     ...userIdsFromMatchPlayers,
   ]);
+
+  await syncMahjongNewsEventsForMatch(matchId);
 }
