@@ -519,7 +519,7 @@ export default function ScoreForm({
     setIsSubmitting(true);
 
     try {
-      await recordRyuukyoku({
+      const result = await recordRyuukyoku({
         match_id: matchId,
         expected_round: currentRound,
         expected_honba: honba,
@@ -536,6 +536,13 @@ export default function ScoreForm({
             ryuukyokuType === "유국만관" ? nagashiManganWinnerKeys : [],
       });
 
+      if (!result.ok) {
+        if (result.code === "STALE_MAHJONG_STATE") {
+          handleStaleMahjongStateError(result.message);
+          return;
+        }
+      }
+
       alert("유국이 기록되었습니다.");
       setRyuukyokuType(null);
       setTenpaiKeys([]);
@@ -545,12 +552,6 @@ export default function ScoreForm({
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
-
-      if (isStaleMahjongStateError(error)) {
-        handleStaleMahjongStateError();
-        return;
-      }
-
       alert("유국 기록 실패!");
     } finally {
       setIsSubmitting(false);
@@ -569,18 +570,13 @@ export default function ScoreForm({
     }
   };
 
-  const isStaleMahjongStateError = (error: unknown) => {
-    if (!(error instanceof Error)) return false;
-
-    return error.message.includes("STALE_MAHJONG_STATE");
-  };
-
-  const handleStaleMahjongStateError = () => {
+  const handleStaleMahjongStateError = (message?: string) => {
     alert(
+        message ??
         "이미 다른 화면에서 대국이 기록되었습니다.\n최신 상태를 확인하기 위해 새로고침합니다.",
     );
 
-    window.location.reload();
+    globalThis.location.reload();
   };
 
   const handleSubmit = async (e: React.SubmitEvent) => {
@@ -658,7 +654,7 @@ export default function ScoreForm({
         selectedYakuNames.includes("더블리치");
 
       if (currentRiichiKeys.includes(win.winner_key) && !hasRiichiYaku) {
-        const proceed = window.confirm(
+        const proceed = globalThis.confirm(
           "화료자가 이번 국에 리치를 선언했는데 '리치' 또는 '더블 리치' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?",
         );
 
@@ -670,7 +666,7 @@ export default function ScoreForm({
         isTsumo &&
         !selectedYakuNames.includes("멘젠쯔모")
       ) {
-        const proceed = window.confirm(
+        const proceed = globalThis.confirm(
           "멘젠 상태에서 쯔모 화료를 했는데 '멘젠쯔모' 역이 선택되지 않았습니다.\n이대로 점수를 기록하시겠습니까?",
         );
 
@@ -681,7 +677,7 @@ export default function ScoreForm({
     setIsSubmitting(true);
 
     try {
-      await recordMahjongResult({
+      const result = await recordMahjongResult({
         match_id: matchId,
         expected_round: currentRound,
         expected_honba: honba,
@@ -700,6 +696,13 @@ export default function ScoreForm({
         is_final: isForceFinish,
       });
 
+      if (!result.ok) {
+        if (result.code === "STALE_MAHJONG_STATE") {
+          handleStaleMahjongStateError(result.message);
+          return;
+        }
+      }
+
       alert("기록되었습니다.");
 
       const nextDefault = createDefaultRoundWinState();
@@ -711,12 +714,6 @@ export default function ScoreForm({
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
-
-      if (isStaleMahjongStateError(error)) {
-        handleStaleMahjongStateError();
-        return;
-      }
-
       alert("기록 실패!");
     } finally {
       setIsSubmitting(false);
