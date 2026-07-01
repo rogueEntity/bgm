@@ -2,11 +2,13 @@
 import "server-only";
 
 import { db } from "@/lib/prisma";
+import { BADGE_MAP } from "@/constants/mahjong-achievements";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 
 type GameMode = "동풍전" | "반장전" | "전장전";
 
 type MahjongModeKey = "all" | "east" | "half" | "full";
+type StoredMahjongModeKey = "east" | "south" | "full";
 
 type MahjongWinLog = {
     winner_key?: string;
@@ -16,7 +18,7 @@ type MahjongWinLog = {
     fu?: number | null;
     dora_total?: number;
     selected_yaku_ids?: string[];
-    is_open?: boolean;
+    is_mengen?: boolean;
 };
 
 type MahjongRoundLog = {
@@ -33,24 +35,45 @@ type MahjongDetails = {
 
 type SpecificMahjongModeStats = {
     play_count?: number;
+
+    rank_counts?: Record<string, number>;
     rank_rates?: Record<string, number>;
+
+    tobi_count?: number;
     tobi_rate?: number;
+
+    total_agari_point?: number;
+    agari_count?: number;
+    average_agari_point?: number;
+
+    total_rank?: number;
     average_rank?: number;
-    average_score?: number;
     max_honba?: number;
+
+    round_count?: number;
+    agari_round_count?: number;
+    tsumo_agari_count?: number;
+    deal_in_count?: number;
+    riichi_count?: number;
+
+    open_win_count?: number;
+    riichi_win_count?: number;
+
     agari_rate?: number;
     tsumo_rate?: number;
     deal_in_rate?: number;
-    call_rate?: number;
     riichi_rate?: number;
-    average_win_score?: number;
+
+    open_win_rate?: number;
+    riichi_win_rate?: number;
 };
 
 type SpecificMahjongStats = {
+    schema_version?: number;
     mahjong?: {
-        modes?: Partial<Record<MahjongModeKey, SpecificMahjongModeStats>>;
+        modes?: Partial<Record<StoredMahjongModeKey, SpecificMahjongModeStats>>;
+        yaku_counts?: Record<string, number>;
     };
-    modes?: Partial<Record<MahjongModeKey, SpecificMahjongModeStats>>;
 };
 
 export type MahjongPlayerProfileData = {
@@ -60,25 +83,31 @@ export type MahjongPlayerProfileData = {
         avatarEmoji: string | null;
         avatarImageUrl: string | null;
     };
+
     equippedBadges: {
         id: string;
         name: string;
         display: string;
     }[];
+
     headline: string;
+
     mmr: number;
     totalScore: number;
+
     style: {
         attack: number;
         defense: number;
         speed: number;
         luck: number;
     };
+
     recentRanks: {
         matchId: number;
         rank: number;
         createdAt: string;
     }[];
+
     rankRates: {
         rank1: number;
         rank2: number;
@@ -86,12 +115,15 @@ export type MahjongPlayerProfileData = {
         rank4: number;
         tobi: number;
     };
+
     winGraph: {
         riichiRate: number;
         callRate: number;
         damatenRate: number;
     };
+
     detailByMode: Record<MahjongModeKey, MahjongModeDetailStats>;
+
     yakuCounts: {
         yakuId: string;
         label: string;
@@ -117,11 +149,18 @@ export type MahjongModeDetailStats = {
     avgWinScore: number;
 };
 
-const MODE_KEY_BY_GAME_MODE: Record<GameMode, Exclude<MahjongModeKey, "all">> = {
-    동풍전: "east",
-    반장전: "half",
-    전장전: "full",
-};
+function getProfileModeKeyByGameMode(
+    gameMode: GameMode,
+): Exclude<MahjongModeKey, "all"> {
+    switch (gameMode) {
+        case "동풍전":
+            return "east";
+        case "반장전":
+            return "half";
+        case "전장전":
+            return "full";
+    }
+}
 
 const EMPTY_MODE_STATS: MahjongModeDetailStats = {
     totalGames: 0,
@@ -143,22 +182,16 @@ const EMPTY_MODE_STATS: MahjongModeDetailStats = {
 
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
 
-const FALLBACK_BADGE_LABELS: Record<string, { name: string; display: string }> = {
-    beginner: { name: "입문 작사", display: "🀄" },
-    first_win: { name: "첫 승리", display: "1승" },
-    riichi: { name: "리치러", display: "리치" },
-    yakuman: { name: "역만", display: "역만" },
-};
-
 function toPercent(value: number | undefined | null) {
     if (!value) return 0;
 
-    // 기존 stats가 0.2399 형태면 %로 변환, 이미 23.99 형태면 그대로 사용
     return value <= 1 ? value * 100 : value;
 }
 
 function toNumber(value: unknown, fallback = 0) {
-    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    return typeof value === "number" && Number.isFinite(value)
+        ? value
+        : fallback;
 }
 
 function clampScore(value: number) {
@@ -181,14 +214,20 @@ function getSpecificStats(raw: unknown): SpecificMahjongStats {
     return raw as SpecificMahjongStats;
 }
 
+function getStoredModeKey(
+    mode: Exclude<MahjongModeKey, "all">,
+): StoredMahjongModeKey {
+    if (mode === "half") return "south";
+
+    return mode;
+}
+
 function getModeStatsFromSpecificStats(
     specificStats: SpecificMahjongStats,
-    mode: MahjongModeKey,
+    mode: Exclude<MahjongModeKey, "all">,
 ): MahjongModeDetailStats {
-    const modeStats =
-        specificStats.mahjong?.modes?.[mode] ??
-        specificStats.modes?.[mode] ??
-        undefined;
+    const storedModeKey = getStoredModeKey(mode);
+    const modeStats = specificStats.mahjong?.modes?.[storedModeKey];
 
     if (!modeStats) return { ...EMPTY_MODE_STATS };
 
@@ -201,23 +240,82 @@ function getModeStatsFromSpecificStats(
         rank3Rate: toPercent(rankRates["3"]),
         rank4Rate: toPercent(rankRates["4"]),
         tobiRate: toPercent(modeStats.tobi_rate),
-        avgScore: toNumber(modeStats.average_score),
+        avgScore: 0,
         avgRank: toNumber(modeStats.average_rank),
         maxRenchan: toNumber(modeStats.max_honba),
         agariRate: toPercent(modeStats.agari_rate),
         tsumoRate: toPercent(modeStats.tsumo_rate),
         dealInRate: toPercent(modeStats.deal_in_rate),
-        callRate: toPercent(modeStats.call_rate),
+        callRate: toPercent(modeStats.open_win_rate),
         riichiRate: toPercent(modeStats.riichi_rate),
-        avgWinScore: toNumber(modeStats.average_win_score),
+        avgWinScore: toNumber(modeStats.average_agari_point),
     };
 }
 
-function getStyleScore(stats: MahjongModeDetailStats, extra: {
-    ippatsuCount: number;
-    doraAverage: number;
-    rareYakuCount: number;
-}) {
+function getWeightedAverage(
+    modes: MahjongModeDetailStats[],
+    selector: (mode: MahjongModeDetailStats) => number,
+) {
+    const totalGames = modes.reduce((sum, mode) => sum + mode.totalGames, 0);
+
+    if (totalGames <= 0) return 0;
+
+    return (
+        modes.reduce((sum, mode) => sum + selector(mode) * mode.totalGames, 0) /
+        totalGames
+    );
+}
+
+function getAggregatedAllModeStats(
+    east: MahjongModeDetailStats,
+    half: MahjongModeDetailStats,
+    full: MahjongModeDetailStats,
+    fallback?: {
+        playCount?: number;
+        averageRank?: number | null;
+    },
+): MahjongModeDetailStats {
+    const modes = [east, half, full].filter((mode) => mode.totalGames > 0);
+    const totalGames = modes.reduce((sum, mode) => sum + mode.totalGames, 0);
+
+    if (totalGames <= 0) {
+        return {
+            ...EMPTY_MODE_STATS,
+            totalGames: fallback?.playCount ?? 0,
+            avgRank: fallback?.averageRank ?? 0,
+        };
+    }
+
+    return {
+        totalGames,
+        rank1Rate: getWeightedAverage(modes, (mode) => mode.rank1Rate),
+        rank2Rate: getWeightedAverage(modes, (mode) => mode.rank2Rate),
+        rank3Rate: getWeightedAverage(modes, (mode) => mode.rank3Rate),
+        rank4Rate: getWeightedAverage(modes, (mode) => mode.rank4Rate),
+        tobiRate: getWeightedAverage(modes, (mode) => mode.tobiRate),
+        avgScore: getWeightedAverage(modes, (mode) => mode.avgScore),
+        avgRank:
+            getWeightedAverage(modes, (mode) => mode.avgRank) ||
+            fallback?.averageRank ||
+            0,
+        maxRenchan: Math.max(...modes.map((mode) => mode.maxRenchan), 0),
+        agariRate: getWeightedAverage(modes, (mode) => mode.agariRate),
+        tsumoRate: getWeightedAverage(modes, (mode) => mode.tsumoRate),
+        dealInRate: getWeightedAverage(modes, (mode) => mode.dealInRate),
+        callRate: getWeightedAverage(modes, (mode) => mode.callRate),
+        riichiRate: getWeightedAverage(modes, (mode) => mode.riichiRate),
+        avgWinScore: getWeightedAverage(modes, (mode) => mode.avgWinScore),
+    };
+}
+
+function getStyleScore(
+    stats: MahjongModeDetailStats,
+    extra: {
+        ippatsuCount: number;
+        doraAverage: number;
+        rareYakuCount: number;
+    },
+) {
     const attack = clampScore(
         stats.agariRate * 1.8 +
         stats.avgWinScore / 150 +
@@ -286,7 +384,7 @@ function getYakuLabelMap() {
 }
 
 function isMahjongDetails(value: unknown): value is MahjongDetails {
-    return !!value && typeof value === "object";
+    return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function getWinGraphFromLogs(logs: MahjongRoundLog[], userKeySet: Set<string>) {
@@ -308,7 +406,7 @@ function getWinGraphFromLogs(logs: MahjongRoundLog[], userKeySet: Set<string>) {
                 riichiAgariCount += 1;
             }
 
-            if (win.is_open) {
+            if (win.is_mengen === false) {
                 openAgariCount += 1;
             }
         }
@@ -331,6 +429,38 @@ function getWinGraphFromLogs(logs: MahjongRoundLog[], userKeySet: Set<string>) {
         callRate,
         damatenRate,
     };
+}
+
+function getMatchPlayerRank(
+    matchPlayer: {
+        rank: number | null;
+        final_score: number | null;
+        matches: {
+            match_players: {
+                user_id: string | null;
+                final_score: number | null;
+            }[];
+        };
+    },
+    userId: string,
+) {
+    if (typeof matchPlayer.rank === "number") {
+        return matchPlayer.rank;
+    }
+
+    if (typeof matchPlayer.final_score !== "number") {
+        return null;
+    }
+
+    const sortedPlayers = [...matchPlayer.matches.match_players]
+        .filter((player) => typeof player.final_score === "number")
+        .sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0));
+
+    const rankIndex = sortedPlayers.findIndex((player) => player.user_id === userId);
+
+    if (rankIndex < 0) return null;
+
+    return rankIndex + 1;
 }
 
 export async function getMahjongPlayerProfile(
@@ -405,6 +535,7 @@ export async function getMahjongPlayerProfile(
             select: {
                 match_id: true,
                 rank: true,
+                final_score: true,
                 user_id: true,
                 guest_name: true,
                 matches: {
@@ -418,6 +549,7 @@ export async function getMahjongPlayerProfile(
                         match_players: {
                             select: {
                                 user_id: true,
+                                final_score: true,
                                 guest_name: true,
                             },
                         },
@@ -431,19 +563,21 @@ export async function getMahjongPlayerProfile(
 
     const specificStats = getSpecificStats(stat?.specific_stats);
 
+    const eastStats = getModeStatsFromSpecificStats(specificStats, "east");
+    const halfStats = getModeStatsFromSpecificStats(specificStats, "half");
+    const fullStats = getModeStatsFromSpecificStats(specificStats, "full");
+
     const detailByMode: Record<MahjongModeKey, MahjongModeDetailStats> = {
-        all: getModeStatsFromSpecificStats(specificStats, "all"),
-        east: getModeStatsFromSpecificStats(specificStats, "east"),
-        half: getModeStatsFromSpecificStats(specificStats, "half"),
-        full: getModeStatsFromSpecificStats(specificStats, "full"),
+        all: getAggregatedAllModeStats(eastStats, halfStats, fullStats, {
+            playCount: stat?.play_count,
+            averageRank: stat?.average_rank,
+        }),
+        east: eastStats,
+        half: halfStats,
+        full: fullStats,
     };
 
-    if (detailByMode.all.totalGames === 0 && stat?.play_count) {
-        detailByMode.all.totalGames = stat.play_count;
-        detailByMode.all.avgRank = stat.average_rank ?? 0;
-    }
-
-    const userKeySet = new Set<string>();
+    const userKeySet = new Set<string>([userId, `user_${userId}`]);
     const allLogs: MahjongRoundLog[] = [];
     const yakuCountMap = new Map<string, number>();
 
@@ -458,6 +592,7 @@ export async function getMahjongPlayerProfile(
         for (const player of players) {
             if (player.user_id === userId) {
                 userKeySet.add(player.user_id);
+                userKeySet.add(`user_${player.user_id}`);
             }
         }
 
@@ -499,11 +634,9 @@ export async function getMahjongPlayerProfile(
         }
 
         const modeKey = details.game_mode
-            ? MODE_KEY_BY_GAME_MODE[details.game_mode]
+            ? getProfileModeKeyByGameMode(details.game_mode)
             : null;
 
-        // mode별 상세는 현재 specific_stats 우선.
-        // specific_stats가 비어있는 경우만 최소한 총 대국 수 보정.
         if (modeKey && detailByMode[modeKey].totalGames === 0) {
             detailByMode[modeKey].totalGames += 1;
         }
@@ -511,26 +644,61 @@ export async function getMahjongPlayerProfile(
 
     const yakuLabelMap = getYakuLabelMap();
 
-    const yakuCounts = [...yakuCountMap.entries()]
-        .map(([yakuId, count]) => ({
-            yakuId,
-            label: yakuLabelMap.get(yakuId) ?? yakuId,
-            count,
-        }))
-        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    const storedYakuCountEntries = Object.entries(
+        specificStats.mahjong?.yaku_counts ?? {},
+    );
+
+    const yakuCounts =
+        storedYakuCountEntries.length > 0
+            ? storedYakuCountEntries
+                .map(([yakuId, count]) => ({
+                    yakuId,
+                    label: yakuLabelMap.get(yakuId) ?? yakuId,
+                    count: toNumber(count),
+                }))
+                .filter((item) => item.count > 0)
+                .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+            : [...yakuCountMap.entries()]
+                .map(([yakuId, count]) => ({
+                    yakuId,
+                    label: yakuLabelMap.get(yakuId) ?? yakuId,
+                    count,
+                }))
+                .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 
     const recentRanks = matchPlayers
-        .filter((matchPlayer) => typeof matchPlayer.rank === "number")
-        .slice(0, 10)
-        .reverse()
-        .map((matchPlayer) => ({
-            matchId: matchPlayer.match_id,
-            rank: matchPlayer.rank ?? 0,
-            createdAt:
-                matchPlayer.matches.play_date?.toISOString() ?? new Date().toISOString(),
-        }));
+        .map((matchPlayer) => {
+            const rank = getMatchPlayerRank(matchPlayer, userId);
 
-    const winGraph = getWinGraphFromLogs(allLogs, userKeySet);
+            if (!rank) return null;
+
+            return {
+                matchId: matchPlayer.match_id,
+                rank,
+                createdAt:
+                    matchPlayer.matches.play_date?.toISOString() ??
+                    new Date().toISOString(),
+            };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .slice(0, 10)
+        .reverse();
+
+    const winGraphFromLogs = getWinGraphFromLogs(allLogs, userKeySet);
+
+    const winGraph =
+        winGraphFromLogs.riichiRate > 0 ||
+        winGraphFromLogs.callRate > 0 ||
+        winGraphFromLogs.damatenRate > 0
+            ? winGraphFromLogs
+            : {
+                riichiRate: detailByMode.all.riichiRate,
+                callRate: detailByMode.all.callRate,
+                damatenRate: Math.max(
+                    0,
+                    100 - detailByMode.all.riichiRate - detailByMode.all.callRate,
+                ),
+            };
 
     const avgDora = agariCount > 0 ? doraTotal / agariCount : 0;
 
@@ -541,12 +709,12 @@ export async function getMahjongPlayerProfile(
     });
 
     const equippedBadgeItems = equippedBadges.map((badge) => {
-        const fallback = FALLBACK_BADGE_LABELS[badge.badge_id];
+        const badgeMeta = BADGE_MAP[badge.badge_id];
 
         return {
             id: badge.badge_id,
-            name: fallback?.name ?? badge.badge_id,
-            display: fallback?.display ?? badge.badge_id.slice(0, 2).toUpperCase(),
+            name: badgeMeta?.name ?? badge.badge_id,
+            display: badgeMeta?.display ?? badge.badge_id.slice(0, 2).toUpperCase(),
         };
     });
 
