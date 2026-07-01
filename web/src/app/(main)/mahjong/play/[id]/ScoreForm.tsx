@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
 import { getValidatedYakuList, calculateTotalHan } from "@/lib/mahjong-calc";
@@ -112,6 +112,27 @@ export default function ScoreForm({
   stateVersion: number;
 }>) {
   const router = useRouter();
+
+  useEffect(() => {
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
+    const shouldScrollTop = sessionStorage.getItem(
+        "mahjong-scroll-top-after-reload",
+    );
+
+    if (shouldScrollTop !== "true") return;
+
+    sessionStorage.removeItem("mahjong-scroll-top-after-reload");
+
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+  }, []);
 
   const firstPlayerKey = players[0]?.stateKey ?? "";
   const secondPlayerKey = players[1]?.stateKey ?? firstPlayerKey;
@@ -585,6 +606,7 @@ export default function ScoreForm({
         "이미 다른 화면에서 대국이 기록되었습니다.\n최신 상태를 확인하기 위해 새로고침합니다.",
     );
 
+    sessionStorage.setItem("mahjong-scroll-top-after-reload", "true");
     globalThis.location.reload();
   };
 
