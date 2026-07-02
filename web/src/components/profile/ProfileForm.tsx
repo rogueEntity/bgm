@@ -74,6 +74,39 @@ export default function ProfileForm({
       (!shouldCheckNickname || isAvailable === true) &&
       !isPending;
 
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
+    if (!canSubmit) {
+      e.preventDefault();
+      return;
+    }
+
+    if (mode !== "edit") {
+      return;
+    }
+
+    e.preventDefault();
+
+    const formData = new FormData(e.currentTarget);
+
+    startTransition(() => {
+      void (async () => {
+        try {
+          const result = await updateMyProfile(formData);
+
+          if (!result.success) {
+            alert(result.message);
+            return;
+          }
+
+          globalThis.location.href = "/me";
+        } catch (error) {
+          console.error("updateMyProfile error:", error);
+          alert("내 정보 저장 중 오류가 발생했습니다.");
+        }
+      })();
+    });
+  };
+
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.slice(0, NICKNAME_MAX_LENGTH);
 
@@ -160,15 +193,11 @@ export default function ProfileForm({
     });
   };
 
-  const action = mode === "edit" ? updateMyProfile : saveOnboardingProfile;
-
   return (
     <form
-      action={action}
-      onSubmit={(e) => {
-        if (!canSubmit) e.preventDefault();
-      }}
-      className="space-y-6"
+        action={mode === "onboarding" ? saveOnboardingProfile : undefined}
+        onSubmit={handleSubmit}
+        className="space-y-6"
     >
       <input type="hidden" name="avatarEmoji" value={selectedAvatar} />
 

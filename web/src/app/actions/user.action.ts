@@ -215,7 +215,10 @@ export async function updateMyProfile(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/me");
 
-  redirect("/me");
+  return {
+    success: true,
+    message: "내 정보가 저장되었습니다.",
+  };
 }
 
 export async function uploadMyAvatar(
