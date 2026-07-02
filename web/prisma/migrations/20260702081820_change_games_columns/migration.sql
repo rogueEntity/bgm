@@ -6,7 +6,7 @@
 */
 
 -- DropIndex
-DROP INDEX "games_name_key";
+ALTER TABLE "games" DROP CONSTRAINT "games_name_key";
 
 -- AlterTable
 ALTER TABLE "games"
