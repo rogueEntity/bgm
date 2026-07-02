@@ -1,9 +1,14 @@
 // web/src/app/login/page.tsx
+
 import { signIn } from "@/auth";
+import ThemeSwitch from "@/components/ThemeSwitch";
 
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
+      <div className="absolute right-4 top-4">
+        <ThemeSwitch />
+      </div>
       <div className="text-center mb-10">
         <h1 className="text-6xl font-black tracking-tighter text-foreground">
           BGM

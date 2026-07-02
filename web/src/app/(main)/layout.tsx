@@ -7,7 +7,6 @@ import { redirect } from "next/navigation";
 import { getCurrentDbUser } from "@/lib/current-user";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
-import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 import {getEnabledGameModules} from "@/features/games/shared/enabled-games";
 
 export default async function MainLayout({
@@ -37,11 +36,13 @@ export default async function MainLayout({
 
   const isAdmin = await isCurrentUserAdmin();
 
+  const menuLinkClassName = "shrink-0 px-3 py-1.5 md:px-4 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base active:scale-95 active:bg-foreground/10 active:text-foreground";
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background text-foreground">
       {/* 네비게이션 영역 */}
-      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-foreground/10 flex flex-col justify-between bg-background z-10 sticky top-0 md:h-screen p-4 md:p-6 shadow-sm md:shadow-none">
-        <div className="flex md:flex-col items-center md:items-start justify-between mb-4 md:mb-10">
+      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-foreground/10 flex flex-col justify-between bg-background z-10 sticky top-0 md:h-screen px-4 pt-3 pb-1 md:p-6 shadow-sm md:shadow-none">
+        <div className="flex md:flex-col items-center md:items-start justify-between mb-2 md:mb-10">
           <div className="px-2">
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter">
               BGM
@@ -79,28 +80,18 @@ export default async function MainLayout({
           </div>
         </div>
 
-        <nav className="flex md:flex-col gap-2 overflow-x-auto p-1 custom-scrollbar">
-          <Link
-            href="/"
-            className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base"
-          >
+        <nav className="no-scrollbar flex gap-1 overflow-x-auto overflow-y-hidden md:flex-col md:gap-2 md:overflow-visible">
+          <Link href="/" className={menuLinkClassName}>
             🏠 홈
           </Link>
           {enabledGameModules.map((gameModule) => (
-              <Link
-                  key={gameModule.key}
-                  href={gameModule.routes.dashboard}
-                  className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base"
-              >
+              <Link key={gameModule.key} href={gameModule.routes.dashboard} className={menuLinkClassName}>
                 <span className="mr-2">{gameModule.icon}</span>
                 {gameModule.name}
               </Link>
           ))}
           {isAdmin && (
-            <Link
-              href="/admin/notices"
-              className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base"
-            >
+            <Link href="/admin/notices" className={menuLinkClassName}>
               ⚙️ 공지 관리
             </Link>
           )}

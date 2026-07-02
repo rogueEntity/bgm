@@ -304,7 +304,7 @@ export default async function MahjongMatchesPage({
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="min-w-0 font-bold text-sm">
-                                <span className="inline-flex min-w-0 items-center gap-1.5 align-middle">
+                                <span className="flex min-w-0 items-start gap-1.5 align-middle sm:items-center">
                                   <UserAvatar
                                     imageUrl={avatarImageUrl}
                                     emoji={player.avatar_emoji}
@@ -314,11 +314,11 @@ export default async function MahjongMatchesPage({
                                   />
 
                                   <NicknameWithBadges
-                                    nickname={`${player.wind ? `${WIND_LABEL[player.wind]} ` : ""}${player.name}`}
-                                    badges={badges}
-                                    badgeSize="sm"
-                                    className="max-w-full"
-                                    nameClassName="max-w-[6rem] sm:max-w-[9rem]"
+                                      nickname={`${player.wind ? `${WIND_LABEL[player.wind]} ` : ""}${player.name}`}
+                                      badges={badges}
+                                      badgeSize="sm"
+                                      className="min-h-[3.25rem] max-w-full flex-col items-start justify-start gap-1 sm:min-h-0 sm:flex-row sm:items-center sm:gap-1.5"
+                                      nameClassName="max-w-[6rem] sm:max-w-[9rem]"
                                   />
                                 </span>
                               </span>
