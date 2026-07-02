@@ -2002,6 +2002,25 @@ export async function createMahjongMatch(
   });
 
   const playerNames = players.map((player) => player.trim());
+  const MAX_MAHJONG_NICKNAME_LENGTH = 6;
+
+  if (playerNames.length !== 4) {
+    throw new Error("작사는 4명이어야 합니다.");
+  }
+
+  if (playerNames.some((playerName) => playerName.length === 0)) {
+    throw new Error("작사 이름을 모두 입력해주세요.");
+  }
+
+  if (playerNames.some((playerName) => playerName.length > MAX_MAHJONG_NICKNAME_LENGTH)) {
+    throw new Error(
+        `작사 이름은 ${MAX_MAHJONG_NICKNAME_LENGTH}글자까지 입력할 수 있습니다.`,
+    );
+  }
+
+  if (new Set(playerNames).size !== 4) {
+    throw new Error("작사 이름은 모두 달라야 합니다.");
+  }
 
   const existingUsers = await db.users.findMany({
     where: {

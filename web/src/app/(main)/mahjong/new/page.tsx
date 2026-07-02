@@ -9,6 +9,7 @@ export default function NewGamePage() {
   const [startingScore, setStartingScore] = useState(25000);
   const [isSubmitting, setIsSubmitting] = useState(false); // 중복 클릭 방지용 상태
   const [gameMode, setGameMode] = useState<"동풍전" | "반장전" | "전장전">("동풍전");
+  const MAX_NICKNAME_LENGTH = 6;
   
   // 각 플레이어의 회원 여부 상태 저장 ("idle" | "member" | "guest")
   const [playerStatus, setPlayerStatus] = useState<("idle" | "member" | "guest")[]>([
@@ -35,15 +36,23 @@ export default function NewGamePage() {
   // 대국 시작 제출 핸들러
   const handleStartGame = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
+    const playerNames = players.map((p) => p.trim());
+
     // 빈칸 검사
-    if (players.some((p) => p.trim() === "")) {
+    if (playerNames.some((p) => p === "")) {
       alert("4명의 작사 이름을 모두 입력해주세요.");
       return;
     }
 
+    // 닉네임 길이 검사
+    if (playerNames.some((p) => p.length > MAX_NICKNAME_LENGTH)) {
+      alert(`작사 이름은 ${MAX_NICKNAME_LENGTH}글자까지 입력할 수 있습니다.`);
+      return;
+    }
+
     // 중복 이름 검사
-    const uniquePlayers = new Set(players.map((p) => p.trim()));
+    const uniquePlayers = new Set(playerNames);
     if (uniquePlayers.size !== 4) {
       alert("작사 이름은 모두 달라야 합니다.");
       return;
@@ -52,7 +61,7 @@ export default function NewGamePage() {
     try {
       setIsSubmitting(true);
       // 서버 액션 호출 (DB에 대국 세션 생성 및 리다이렉트)
-      await createMahjongMatch(players, startingScore, gameMode);
+      await createMahjongMatch(playerNames, startingScore, gameMode);
     } catch (error) {
       // 리다이렉트 에러인 경우 에러창을 띄우지 않고 그대로 통과(Throw)
       const isRedirect =
@@ -105,7 +114,7 @@ export default function NewGamePage() {
                   value={player}
                   onChange={(e) => {
                     const newPlayers = [...players];
-                    newPlayers[idx] = e.target.value;
+                    newPlayers[idx] = e.target.value.slice(0, MAX_NICKNAME_LENGTH);
                     setPlayers(newPlayers);
 
                     // 글자를 수정하면 다시 상태를 idle로 초기화
@@ -113,6 +122,7 @@ export default function NewGamePage() {
                     newStatus[idx] = "idle";
                     setPlayerStatus(newStatus);
                   }}
+                  maxLength={MAX_NICKNAME_LENGTH}
                   onBlur={() => handleBlur(idx, player)}
                   placeholder="닉네임 또는 이름"
                   className="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
