@@ -30,6 +30,8 @@ services:
 
       NEXT_PUBLIC_SITE_URL: ${BGM_NEXT_PUBLIC_SITE_URL}
 
+      ENABLED_GAMES: ${BGM_ENABLED_GAMES}
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
