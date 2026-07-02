@@ -4,12 +4,12 @@
 import { auth } from "@/auth";
 import {
   BADGE_MAP,
-  MahjongAchievements,
+  AchievementDefinitions,
   type AchievementCategory,
   type AchievementConditionType,
   type BadgeDisplayType,
   type BadgeRarity,
-} from "@/constants/mahjong-achievements";
+} from "@/features/games/mahjong/constants/achievement-definitions";
 import { db } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -112,7 +112,7 @@ export async function getMyMahjongAchievements(): Promise<
 
   const earnedBadgeIdSet = new Set(badgeRows.map((row) => row.badge_id));
 
-  return MahjongAchievements.map((achievement) => {
+  return AchievementDefinitions.map((achievement) => {
     const progressRow = progressMap.get(achievement.id);
     const badge = BADGE_MAP[achievement.badgeId] ?? null;
 

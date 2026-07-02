@@ -5,8 +5,10 @@ import {
     getMahjongPlayerProfile,
     MahjongModeDetailStats,
     MahjongPlayerProfileData,
-} from "@/lib/mahjong-profile";
+} from "@/features/games/mahjong/lib/profile";
 import React from "react";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -26,6 +28,7 @@ const MODE_LABELS = {
 export default async function MahjongPlayerProfilePage({
    params,
 }: Readonly<MahjongPlayerProfilePageProps>) {
+    assertGameEnabled(MAHJONG_GAME_KEY);
     const { userId } = await params;
 
     if (!UUID_REGEX.test(userId)) {

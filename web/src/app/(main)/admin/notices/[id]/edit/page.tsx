@@ -3,12 +3,15 @@ import NoticeForm from "@/components/notices/NoticeForm";
 import { requireAdminUser } from "@/lib/admin";
 import { db } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 export default async function NoticeEditPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ id: string }>;
-}) {
+}>) {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   await requireAdminUser();
 
   const resolvedParams = await params;

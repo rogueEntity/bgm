@@ -5,9 +5,11 @@ import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getMatchHrefByGameKey } from "@/features/games/shared/game-links";
+import { getEnabledGameKeys } from "@/features/games/shared/enabled-games";
 
 type HomeMatchDetails = {
-  status?: "PLAYING" | "FINISHED" | "CANCELED" | "DELETED" | string;
+  status?: string;
   current_round?: string;
   game_mode?: string;
   honba?: number;
@@ -136,18 +138,6 @@ function getNoticeCategoryClassName(category: string) {
   return "bg-foreground/10 text-foreground/70 border-foreground/10";
 }
 
-function getMatchHref(matchId: number, gameName: string, status?: string) {
-  // 현재 상세/진행 페이지가 구현된 게임만 연결합니다.
-  // 추후 다른 게임이 추가되면 이 함수에서 게임별 경로만 확장하면 됩니다.
-  if (gameName.includes("마작")) {
-    return status === "PLAYING"
-      ? `/mahjong/play/${matchId}`
-      : `/mahjong/detail/${matchId}`;
-  }
-
-  return null;
-}
-
 function getMatchResultSummary(matchPlayer?: {
   final_score: number | null;
   rank: number | null;
@@ -222,6 +212,7 @@ function withCompetitionRank<T>(
 }
 
 async function getHomeData(providerId?: string) {
+  const enabledGameKeys = getEnabledGameKeys();
   const recentFrom = new Date();
   recentFrom.setDate(recentFrom.getDate() - 30);
 
@@ -258,6 +249,11 @@ async function getHomeData(providerId?: string) {
     db.matches.findMany({
       where: {
         deleted_at: null,
+        games: {
+          key: {
+            in: enabledGameKeys,
+          },
+        },
       },
       include: {
         games: true,
@@ -286,6 +282,11 @@ async function getHomeData(providerId?: string) {
         deleted_at: null,
         play_date: {
           gte: recentFrom,
+        },
+        games: {
+          key: {
+            in: enabledGameKeys,
+          },
         },
       },
       include: {
@@ -591,9 +592,9 @@ export default async function Home() {
               {recentMatches.map((match) => {
                 const details = getDetails(match);
                 const status = details.status;
-                const matchHref = getMatchHref(
+                const matchHref = getMatchHrefByGameKey(
+                  match.games.key,
                   match.id,
-                  match.games.name,
                   status,
                 );
 

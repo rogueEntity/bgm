@@ -8,11 +8,13 @@ import UserAvatar from "@/components/common/UserAvatar";
 import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
-import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import { getUserIdFromPlayerKey } from "@/features/games/mahjong/lib/achievements";
 import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 import ScoreForm from "./ScoreForm";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type ScoreboardPlayer = {
   name: string;
@@ -28,6 +30,7 @@ export default async function MahjongPlayPage({
 }: Readonly<{
   params: Promise<{ id: string }>;
 }>) {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const resolvedParams = await params;
   const matchId = Number.parseInt(resolvedParams.id, 10);
 

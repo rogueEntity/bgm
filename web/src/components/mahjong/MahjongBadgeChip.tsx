@@ -3,7 +3,7 @@
 import type {
   BadgeDisplayType,
   BadgeRarity,
-} from "@/constants/mahjong-achievements";
+} from "@/features/games/mahjong/constants/achievement-definitions";
 
 type MahjongBadgeChipProps = {
   display: string;

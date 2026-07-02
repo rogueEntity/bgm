@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import ScoreGuideSection from "@/components/mahjong/ScoreGuideSection";
 import YakuGuideSection from "@/components/mahjong/YakuGuideSection";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type MahjongGuidePageProps = {
     searchParams: Promise<{
@@ -27,8 +29,9 @@ function getTabClass(isActive: boolean) {
 }
 
 export default async function MahjongGuidePage({
-                                                   searchParams,
-                                               }: MahjongGuidePageProps) {
+  searchParams,
+}: Readonly<MahjongGuidePageProps>) {
+    assertGameEnabled(MAHJONG_GAME_KEY);
     const resolvedSearchParams = await searchParams;
     const activeTab = normalizeGuideTab(resolvedSearchParams.tab);
 

@@ -4,6 +4,8 @@ import NoticeForm from "@/components/notices/NoticeForm";
 import { requireAdminUser } from "@/lib/admin";
 import { db } from "@/lib/prisma";
 import Link from "next/link";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 const CATEGORY_LABEL: Record<string, string> = {
   NOTICE: "공지",
@@ -45,6 +47,7 @@ function getCategoryClassName(category: string) {
 }
 
 export default async function AdminNoticesPage() {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   await requireAdminUser();
 
   const notices = await db.home_notices.findMany({

@@ -1,4 +1,4 @@
-// web/src/constants/yakuGuide.ts
+// web/src/features/games/mahjong/constants/yaku-guide.ts
 
 export type YakuGuideCategory = "NORMAL" | "SITUATIONAL";
 export type YakuGuideOpenType = "MENZEN_ONLY" | "OPEN_ALLOWED";

@@ -1,4 +1,4 @@
-// web/src/lib/mahjongGuideScore.ts
+// web/src/features/games/mahjong/lib/guide-score.ts
 
 export type MahjongWinnerType = "dealer" | "child";
 export type MahjongWinMethod = "ron" | "tsumo";

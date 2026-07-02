@@ -1,9 +1,16 @@
-// web/src/lib/mahjong-news.ts
+// web/src/features/games/mahjong/lib/news.ts
 
 import { Prisma } from "@prisma/client";
 
-import { MahjongAchievements } from "@/constants/mahjong-achievements";
 import { db } from "@/lib/prisma";
+
+import { AchievementDefinitions } from "../constants/achievement-definitions";
+
+import type {
+    MahjongRoundLog,
+    MahjongWinLog,
+} from "../types";
+import { normalizeDetails } from "./details";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 
@@ -44,57 +51,7 @@ const YAKUMAN_LABEL_MAP: Record<string, string> = {
     chiihou: "지화",
 };
 
-type MahjongPlayerState = {
-    wind?: string;
-    score?: number;
-    name?: string;
-};
-
 type ScoreMap = Record<string, number>;
-
-type MahjongWinLog = {
-    winner_key?: string;
-    loser_key?: string | null;
-    base_score?: number;
-    han?: number;
-    fu?: number | null;
-    dora_total?: number;
-    selected_yaku_ids?: string[];
-    score_deltas?: ScoreMap;
-    yakuman_count?: number;
-};
-
-type MahjongRoundLog = {
-    type?: "AGARI" | "RYUUKYOKU" | string;
-    round?: string;
-    honba?: number;
-    is_tsumo?: boolean;
-    wins?: MahjongWinLog[];
-
-    winner_key?: string;
-    loser_key?: string | null;
-    base_score?: number;
-    han?: number;
-    fu?: number | null;
-    dora_total?: number;
-    selected_yaku_ids?: string[];
-    score_deltas?: ScoreMap;
-    yakuman_count?: number;
-};
-
-type MahjongDetails = {
-    players?: Record<string, MahjongPlayerState>;
-    logs?: MahjongRoundLog[];
-    status?: "PLAYING" | "FINISHED" | "DELETED" | string;
-};
-
-function normalizeDetails(details: unknown): MahjongDetails {
-    if (!details || typeof details !== "object") {
-        return {};
-    }
-
-    return details as MahjongDetails;
-}
 
 function getUserIdFromPlayerKey(playerKey: string | null | undefined) {
     if (!playerKey?.startsWith(USER_PLAYER_KEY_PREFIX)) {
@@ -192,7 +149,7 @@ export async function createMahjongAchievementNewsEvent(params: {
     userId: string;
     achievementId: string;
 }) {
-    const achievement = MahjongAchievements.find(
+    const achievement = AchievementDefinitions.find(
         (item) => item.id === params.achievementId,
     );
 

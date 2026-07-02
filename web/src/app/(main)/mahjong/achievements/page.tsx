@@ -9,7 +9,9 @@ import MahjongBadgeEquipForm from "@/components/mahjong/MahjongBadgeEquipForm";
 import {
   ACHIEVEMENT_CATEGORY_LABELS,
   type AchievementCategory,
-} from "@/constants/mahjong-achievements";
+} from "@/features/games/mahjong/constants/achievement-definitions";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 const CATEGORY_ORDER: AchievementCategory[] = [
   "BEGINNER",
@@ -29,6 +31,7 @@ function getProgressPercent(progress: number, goal: number) {
 }
 
 export default async function MahjongAchievementsPage() {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const [achievements, badges] = await Promise.all([
     getMyMahjongAchievements(),
     getMyMahjongBadges(),

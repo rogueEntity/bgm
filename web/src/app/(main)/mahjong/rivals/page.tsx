@@ -12,6 +12,8 @@ import {
     getMahjongEquippedBadgesByUserIds,
     type MahjongEquippedBadgeItem,
 } from "@/app/actions/mahjong-achievement.action";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type MahjongRivalsPageProps = {
     searchParams: Promise<{
@@ -682,6 +684,7 @@ function ComparePanel({
 export default async function MahjongRivalsPage({
     searchParams,
 }: Readonly<MahjongRivalsPageProps>) {
+    assertGameEnabled(MAHJONG_GAME_KEY);
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -692,16 +695,7 @@ export default async function MahjongRivalsPage({
 
     const mahjongGame = await db.games.findFirst({
         where: {
-            OR: [
-                {
-                    name: "리치마작",
-                },
-                {
-                    name: {
-                        contains: "마작",
-                    },
-                },
-            ],
+            key: MAHJONG_GAME_KEY,
         },
         select: {
             id: true,

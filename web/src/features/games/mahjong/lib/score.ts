@@ -1,4 +1,4 @@
-// web/src/lib/mahjong-score.ts
+// web/src/features/games/mahjong/lib/score.ts
 
 export type MahjongLimitName =
   | "일반"
