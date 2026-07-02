@@ -6,19 +6,13 @@ import { gameModuleList, gameModules } from "./game-registry";
 
 import type { GameKey, GameModule } from "./types";
 
-const DEFAULT_ENABLED_GAME_KEYS: GameKey[] = ["mahjong"];
-
 function parseEnabledGameKeys(value?: string): GameKey[] {
-    if (!value) return DEFAULT_ENABLED_GAME_KEYS;
+    if (value === undefined) return [];
 
-    const keys = value
+    return value
         .split(",")
         .map((key) => key.trim())
-        .filter(Boolean);
-
-    const enabledKeys = keys.filter((key): key is GameKey => key in gameModules);
-
-    return enabledKeys.length > 0 ? enabledKeys : DEFAULT_ENABLED_GAME_KEYS;
+        .filter((key): key is GameKey => key in gameModules);
 }
 
 export function getEnabledGameKeys(): GameKey[] {

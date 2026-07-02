@@ -21,213 +21,26 @@ import {
   MAHJONG_MIN_PLAYERS,
 } from "@/features/games/mahjong/constants";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
-
-// --- 타입 ---
-type GameMode = "동풍전" | "반장전" | "전장전";
-type MahjongStatus = "PLAYING" | "FINISHED" | "DELETED";
-
-type MahjongPlayerState = {
-  wind: "EAST" | "SOUTH" | "WEST" | "NORTH";
-  score: number;
-};
-
-type MahjongDetails = {
-  schema_version: number;
-  current_round: string;
-  honba: number;
-  riichi_sticks: number;
-  players: Record<string, MahjongPlayerState>;
-  initial_players?: Record<string, MahjongPlayerState>;
-  logs: Record<string, any>[];
-  game_mode: GameMode;
-  status: MahjongStatus;
-  finish_reason?: "FORCE_FINISH" | "TOBI" | "NORMAL" | "MAX_ROUND_REACHED";
-  stats_applied?: boolean;
-  deleted_at?: string;
-  deleted_by?: string;
-};
-
-type MahjongWinInput = {
-  winner_key: string;
-  loser_key: string | null;
-  is_mengen?: boolean;
-  fu?: number | null;
-  dora_total: number;
-  selected_yaku_ids: string[];
-};
-
-type RecalculatedMahjongWin = MahjongWinInput & {
-  base_score: number;
-  han: number;
-  limit_name?: string;
-  score_deltas?: MahjongScoreMap;
-};
-
-type RecordMahjongResultInput = MahjongExpectedStateInput & {
-  match_id: number;
-  is_tsumo: boolean;
-  wins: MahjongWinInput[];
-  current_riichi_keys: string[];
-  is_final: boolean;
-};
-
-type RecordRyuukyokuInput = MahjongExpectedStateInput & {
-  match_id: number;
-  type:
-    | "황패유국"
-    | "구종구패"
-    | "사풍연타"
-    | "사개깡"
-    | "사가리치"
-    | "삼가화"
-    | "유국만관";
-  tenpai_keys: string[];
-  current_riichi_keys: string[];
-  is_final: boolean;
-  nagashi_mangan_winner_keys?: string[];
-};
-
-type MahjongScoreMap = Record<string, number>;
-
-type MahjongStatsModeKey = "east" | "south" | "full";
-
-type MahjongModeStats = {
-  play_count: number;
-
-  rank_counts: {
-    "1": number;
-    "2": number;
-    "3": number;
-    "4": number;
-  };
-
-  rank_rates: {
-    "1": number;
-    "2": number;
-    "3": number;
-    "4": number;
-  };
-
-  tobi_count: number;
-  tobi_rate: number;
-
-  total_agari_point: number;
-  agari_count: number;
-  average_agari_point: number;
-
-  total_rank: number;
-  average_rank: number;
-
-  max_honba: number;
-
-  round_count: number;
-  agari_round_count: number;
-  tsumo_agari_count: number;
-  deal_in_count: number;
-
-  // 전체 국 기준 리치
-  riichi_count: number;
-
-  // 화료 시 기준
-  open_win_count: number;
-  riichi_win_count: number;
-
-  agari_rate: number;
-  tsumo_rate: number;
-  deal_in_rate: number;
-
-  // 전체 국 기준 리치율
-  riichi_rate: number;
-
-  // 화료 시 기준
-  open_win_rate: number;
-  riichi_win_rate: number;
-};
-
-type MahjongSpecificStats = {
-  schema_version: number;
-  mahjong: {
-    modes: Record<MahjongStatsModeKey, MahjongModeStats>;
-
-    // 동풍/반장/전장 통합 역 완성 횟수
-    yaku_counts: Record<string, number>;
-  };
-};
-
-type RankedMahjongPlayerResult = {
-  player_key: string;
-  user_id: string | null;
-  final_score: number;
-  rank: number;
-  is_tobi: boolean;
-  uma: number;
-};
-
-type MahjongWinLogForStats = {
-  winner_key?: string;
-  loser_key?: string | null;
-  base_score?: number;
-  han?: number;
-  fu?: number | null;
-  dora_total?: number;
-  selected_yaku_ids?: string[];
-  is_mengen?: boolean;
-};
-
-type MahjongLogForStats = {
-  type?: string;
-  honba?: number;
-  is_tsumo?: boolean;
-  riichi_keys?: string[];
-  wins?: MahjongWinLogForStats[];
-};
-
-type YakuHanValue =
-  | number
-  | {
-      closed?: number;
-      open?: number;
-    };
-
-type YakuLike = {
-  id: string;
-  name: string;
-  han?: YakuHanValue;
-  isYakuman?: boolean;
-  yakumanMultiplier?: number;
-};
-
-export type MahjongMatchListFilter = {
-  status?: "ALL" | "PLAYING" | "FINISHED";
-  game_mode?: "ALL" | GameMode;
-  keyword?: string;
-  only_mine?: boolean;
-  take?: number;
-};
-
-export type MahjongMatchListItem = {
-  id: number;
-  created_by: string | null;
-  can_manage: boolean;
-  log_count: number;
-  play_date: string | null;
-  game_mode: GameMode;
-  status: Exclude<MahjongStatus, "DELETED">;
-  current_round: string;
-  honba: number;
-  riichi_sticks: number;
-  finish_reason: MahjongDetails["finish_reason"] | null;
-  players: {
-    key: string;
-    name: string;
-    wind: MahjongPlayerState["wind"] | null;
-    score: number | null;
-    rank: number | null;
-    avatar_image_key: string | null;
-    avatar_image_updated_at: Date | null;
-    avatar_emoji: string | null;
-  }[];
-};
+import type {
+  GameMode,
+  MahjongDetails,
+  MahjongExpectedStateInput,
+  MahjongLogForStats,
+  MahjongMatchListFilter,
+  MahjongMatchListItem,
+  MahjongModeStats,
+  MahjongPlayerState,
+  MahjongScoreMap,
+  MahjongSpecificStats,
+  MahjongStatsModeKey,
+  MahjongStatus,
+  MahjongWinInput,
+  RankedMahjongPlayerResult,
+  RecalculatedMahjongWin,
+  RecordMahjongResultInput,
+  RecordRyuukyokuInput,
+  YakuLike,
+} from "@/features/games/mahjong/types";
 
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU] as YakuLike[];
 
@@ -279,13 +92,6 @@ function createStaleMahjongStateResult(): MahjongActionResult {
         "이미 다른 화면에서 대국이 기록되었습니다. 최신 상태를 확인하기 위해 새로고침합니다.",
   };
 }
-
-type MahjongExpectedStateInput = {
-  expected_round: string;
-  expected_honba: number;
-  expected_log_count: number;
-  expected_version: number;
-};
 
 function assertLatestMahjongState({
   details,
