@@ -8,6 +8,9 @@ import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
 
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
+
 type RankingPageProps = {
     searchParams: Promise<{
         type?: string;
@@ -87,7 +90,7 @@ function createRankedRows(
 async function getMahjongRankingRows(type: RankingType) {
     const mahjongGame = await db.games.findFirst({
         where: {
-            name: "리치마작",
+            key: MAHJONG_GAME_KEY,
         },
         select: {
             id: true,
@@ -140,8 +143,9 @@ async function getMahjongRankingRows(type: RankingType) {
 }
 
 export default async function MahjongRankingPage({
-                                                     searchParams,
-                                                 }: RankingPageProps) {
+  searchParams,
+}: Readonly<RankingPageProps>) {
+    assertGameEnabled(MAHJONG_GAME_KEY);
     const resolvedSearchParams = await searchParams;
     const rankingType = normalizeRankingType(resolvedSearchParams.type);
 

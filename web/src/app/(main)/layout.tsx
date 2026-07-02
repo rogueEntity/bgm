@@ -7,12 +7,14 @@ import { redirect } from "next/navigation";
 import { getCurrentDbUser } from "@/lib/current-user";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import {getEnabledGameModules} from "@/features/games/shared/enabled-games";
 
 export default async function MainLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   const session = await auth();
 
   if (!session) {
@@ -25,6 +27,7 @@ export default async function MainLayout({
     redirect("/onboarding");
   }
 
+  const enabledGameModules = getEnabledGameModules();
   const nickname = currentUser.nickname;
   const avatarEmoji = currentUser.avatar_emoji;
   const avatarImageUrl = getAvatarImageUrl(
@@ -83,12 +86,16 @@ export default async function MainLayout({
           >
             🏠 홈
           </Link>
-          <Link
-            href="/mahjong"
-            className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base"
-          >
-            🀄 리치마작
-          </Link>
+          {enabledGameModules.map((gameModule) => (
+              <Link
+                  key={gameModule.key}
+                  href={gameModule.routes.dashboard}
+                  className="shrink-0 px-4 py-2 md:py-3 rounded-xl font-bold transition hover:bg-foreground/5 text-sm md:text-base"
+              >
+                <span className="mr-2">{gameModule.icon}</span>
+                {gameModule.name}
+              </Link>
+          ))}
           {isAdmin && (
             <Link
               href="/admin/notices"

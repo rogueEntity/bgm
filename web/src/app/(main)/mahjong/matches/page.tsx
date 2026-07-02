@@ -5,10 +5,12 @@ import Link from "next/link";
 import { getMahjongMatches } from "@/app/actions/mahjong.action";
 import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
-import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import { getUserIdFromPlayerKey } from "@/features/games/mahjong/lib/achievements";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type MahjongMatchesPageProps = {
   searchParams: Promise<{
@@ -87,7 +89,8 @@ function getStatusClassName(status: string) {
 
 export default async function MahjongMatchesPage({
   searchParams,
-}: MahjongMatchesPageProps) {
+}: Readonly<MahjongMatchesPageProps>) {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const resolvedSearchParams = await searchParams;
 
   const status =

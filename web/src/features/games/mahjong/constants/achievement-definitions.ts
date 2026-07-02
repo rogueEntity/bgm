@@ -1,4 +1,4 @@
-// web/src/constants/achievements.ts
+// web/src/features/games/mahjong/constants/achievement-definitions.ts
 
 export type AchievementCategory =
   | "BEGINNER"
@@ -469,7 +469,7 @@ export const BADGES: Badge[] = [
   },
 ];
 
-export const MahjongAchievements: Achievement[] = [
+export const AchievementDefinitions: Achievement[] = [
   // BEGINNER
   {
     id: "mahjong_training_complete",
@@ -972,7 +972,7 @@ export const BADGE_MAP: Record<string, Badge> = BADGES.reduce(
 );
 
 export const ACHIEVEMENT_MAP: Record<string, Achievement> =
-  MahjongAchievements.reduce(
+  AchievementDefinitions.reduce(
     (acc, achievement) => {
       acc[achievement.id] = achievement;
       return acc;
@@ -983,7 +983,7 @@ export const ACHIEVEMENT_MAP: Record<string, Achievement> =
 export const ACHIEVEMENTS_BY_CATEGORY: Record<
   AchievementCategory,
   Achievement[]
-> = MahjongAchievements.reduce(
+> = AchievementDefinitions.reduce(
   (acc, achievement) => {
     acc[achievement.category].push(achievement);
     return acc;

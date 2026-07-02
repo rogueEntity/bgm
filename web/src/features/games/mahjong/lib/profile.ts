@@ -1,14 +1,16 @@
-// web/src/lib/mahjong-profile.ts
+// web/src/features/games/mahjong/lib/profile.ts
+
 import "server-only";
 
 import { db } from "@/lib/prisma";
-import { BADGE_MAP } from "@/constants/mahjong-achievements";
-import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
+import { BADGE_MAP } from "../constants/achievement-definitions";
+import { NORMAL_YAKU, SITUATIONAL_YAKU } from "../constants/yaku";
+import { MAHJONG_GAME_KEY } from "../constants";
 
 type GameMode = "동풍전" | "반장전" | "전장전";
 
 type MahjongModeKey = "all" | "east" | "half" | "full";
-type StoredMahjongModeKey = "east" | "south" | "full";
+type StoredMahjongModeKey = Exclude<MahjongModeKey, "all">;
 
 type MahjongWinLog = {
     winner_key?: string;
@@ -217,8 +219,6 @@ function getSpecificStats(raw: unknown): SpecificMahjongStats {
 function getStoredModeKey(
     mode: Exclude<MahjongModeKey, "all">,
 ): StoredMahjongModeKey {
-    if (mode === "half") return "south";
-
     return mode;
 }
 
@@ -436,7 +436,7 @@ export async function getMahjongPlayerProfile(
 ): Promise<MahjongPlayerProfileData | null> {
     const mahjongGame = await db.games.findFirst({
         where: {
-            name: "리치마작",
+            key: MAHJONG_GAME_KEY,
         },
         select: {
             id: true,

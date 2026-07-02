@@ -8,11 +8,17 @@ datasource db {
 
 model games {
   id              Int               @id @default(autoincrement())
-  name            String            @unique @db.VarChar(100)
+  key             String            @unique @db.VarChar(50)
+  name            String            @db.VarChar(100)
+  name_en         String?           @db.VarChar(100)
   min_players     Int               @default(1)
   max_players     Int
+  is_active       Boolean           @default(true)
+
   matches         matches[]
   user_game_stats user_game_stats[]
+
+  @@index([is_active])
 }
 
 model users {

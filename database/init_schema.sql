@@ -11,13 +11,19 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE games (
                        id SERIAL PRIMARY KEY,
+                       key VARCHAR(50) NOT NULL,
                        name VARCHAR(100) NOT NULL,
+                       name_en VARCHAR(100),
                        min_players INTEGER NOT NULL DEFAULT 1,
-                       max_players INTEGER NOT NULL
+                       max_players INTEGER NOT NULL,
+                       is_active BOOLEAN NOT NULL DEFAULT true
 );
 
-CREATE UNIQUE INDEX games_name_key
-    ON games (name);
+CREATE UNIQUE INDEX games_key_key
+    ON games (key);
+
+CREATE INDEX games_is_active_idx
+    ON games (is_active);
 
 
 -- =========================================================
@@ -336,6 +342,20 @@ CREATE INDEX mahjong_news_events_achievement_id_idx
 -- 13. 기본 데이터
 -- =========================================================
 
-INSERT INTO games (name, min_players, max_players)
+INSERT INTO games (
+    key,
+    name,
+    name_en,
+    min_players,
+    max_players,
+    is_active
+)
 VALUES
-    ('리치마작', 4, 4);
+    (
+        'mahjong',
+        '리치마작',
+        'Mahjong',
+        4,
+        4,
+        true
+    );

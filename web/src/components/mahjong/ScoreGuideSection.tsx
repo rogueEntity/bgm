@@ -12,7 +12,7 @@ import {
     normalizeFuForHan,
     type MahjongWinMethod,
     type MahjongWinnerType,
-} from "@/lib/mahjong-guide-score";
+} from "@/features/games/mahjong/lib/guide-score";
 
 const WINNER_TYPE_OPTIONS: {
     value: MahjongWinnerType;
