@@ -4,6 +4,7 @@ import "server-only";
 import { db } from "@/lib/prisma";
 import { BADGE_MAP } from "@/constants/mahjong-achievements";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 
 type GameMode = "동풍전" | "반장전" | "전장전";
 
@@ -436,7 +437,7 @@ export async function getMahjongPlayerProfile(
 ): Promise<MahjongPlayerProfileData | null> {
     const mahjongGame = await db.games.findFirst({
         where: {
-            name: "리치마작",
+            key: MAHJONG_GAME_KEY,
         },
         select: {
             id: true,

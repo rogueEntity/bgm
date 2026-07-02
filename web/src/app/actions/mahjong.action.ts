@@ -13,6 +13,13 @@ import {
   syncMahjongAchievementsForUsers,
 } from "@/lib/mahjong-achievements";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import {
+  MAHJONG_GAME_KEY,
+  MAHJONG_GAME_NAME,
+  MAHJONG_GAME_NAME_EN,
+  MAHJONG_MAX_PLAYERS,
+  MAHJONG_MIN_PLAYERS,
+} from "@/features/games/mahjong/constants";
 
 // --- 타입 ---
 type GameMode = "동풍전" | "반장전" | "전장전";
@@ -1757,7 +1764,7 @@ function rebuildMahjongDetailsFromLogs({
 async function recalculateAllMahjongStatsAndAchievements() {
   const mahjongGame = await db.games.findUnique({
     where: {
-      name: "리치마작",
+      key: MAHJONG_GAME_KEY,
     },
     select: {
       id: true,
@@ -1989,15 +1996,18 @@ export async function createMahjongMatch(
 
   let game = await db.games.findFirst({
     where: {
-      name: "리치마작",
+      key: MAHJONG_GAME_KEY,
     },
   });
 
   game ??= await db.games.create({
     data: {
-      name: "리치마작",
-      min_players: 4,
-      max_players: 4,
+      key: MAHJONG_GAME_KEY,
+      name: MAHJONG_GAME_NAME,
+      name_en: MAHJONG_GAME_NAME_EN,
+      min_players: MAHJONG_MIN_PLAYERS,
+      max_players: MAHJONG_MAX_PLAYERS,
+      is_active: true,
     },
   });
 
@@ -2686,7 +2696,7 @@ export async function getMahjongMatches(
 
   const mahjongGame = await db.games.findUnique({
     where: {
-      name: "리치마작",
+      key: MAHJONG_GAME_KEY,
     },
     select: {
       id: true,

@@ -6,6 +6,7 @@ import {
   createMahjongAchievementNewsEvent,
   syncMahjongNewsEventsForMatch,
 } from "@/lib/mahjong-news";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 const GUEST_PLAYER_KEY_PREFIX = "guest_";
@@ -696,7 +697,7 @@ function collectCompletedMatchStats(params: {
 async function getMahjongGameId() {
   const game = await db.games.findUnique({
     where: {
-      name: "리치마작",
+      key: MAHJONG_GAME_KEY,
     },
     select: {
       id: true,
