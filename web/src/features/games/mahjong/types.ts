@@ -27,7 +27,7 @@ export type MahjongDetails = {
     riichi_sticks: number;
     players: Record<string, MahjongPlayerState>;
     initial_players?: Record<string, MahjongPlayerState>;
-    logs: Record<string, unknown>[];
+    logs: MahjongRoundLog[];
     game_mode: GameMode;
     status: MahjongStatus;
     finish_reason?: MahjongFinishReason;
@@ -85,7 +85,7 @@ export type RecordRyuukyokuInput = MahjongExpectedStateInput & {
     nagashi_mangan_winner_keys?: string[];
 };
 
-export type MahjongStatsModeKey = "east" | "south" | "full";
+export type MahjongStatsModeKey = "east" | "half" | "full";
 
 export type MahjongModeStats = {
     play_count: number;
@@ -217,4 +217,41 @@ export type MahjongMatchListItem = {
         avatar_image_updated_at: Date | null;
         avatar_emoji: string | null;
     }[];
+};
+
+export type MahjongWinLog = {
+    winner_key?: string;
+    loser_key?: string | null;
+    base_score?: number;
+    han?: number;
+    fu?: number | null;
+    dora_total?: number;
+    selected_yaku_ids?: string[];
+    score_deltas?: Record<string, number>;
+    yakuman_count?: number;
+    is_mengen?: boolean;
+};
+
+export type MahjongRoundLog = {
+    type?: "AGARI" | "RYUUKYOKU" | string;
+    round?: string;
+    honba?: number;
+    is_tsumo?: boolean;
+    wins?: MahjongWinLog[];
+
+    // 구형 단일 화료 로그 호환
+    winner_key?: string;
+    loser_key?: string | null;
+    base_score?: number;
+    han?: number;
+    fu?: number | null;
+    dora_total?: number;
+    selected_yaku_ids?: string[];
+    score_deltas?: Record<string, number>;
+    yakuman_count?: number;
+
+    riichi_keys?: string[];
+    riichi_declared_keys?: string[];
+    tenpai_keys?: string[];
+    nagashi_mangan_winner_keys?: string[];
 };

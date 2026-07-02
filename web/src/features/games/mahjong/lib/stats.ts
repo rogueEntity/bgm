@@ -26,7 +26,7 @@ const RIICHI_YAKU_NAMES = new Set(["리치", "더블 리치", "더블리치"]);
 
 export function getStatsModeKey(gameMode: GameMode): MahjongStatsModeKey {
     if (gameMode === "동풍전") return "east";
-    if (gameMode === "반장전") return "south";
+    if (gameMode === "반장전") return "half";
     return "full";
 }
 
@@ -87,7 +87,7 @@ export function createEmptySpecificStats(): MahjongSpecificStats {
         mahjong: {
             modes: {
                 east: createEmptyModeStats(),
-                south: createEmptyModeStats(),
+                half: createEmptyModeStats(),
                 full: createEmptyModeStats(),
             },
             yaku_counts: {},
@@ -117,9 +117,9 @@ export function normalizeSpecificStats(rawStats: unknown): MahjongSpecificStats 
                     ...createEmptyModeStats(),
                     ...mahjong.modes?.east,
                 },
-                south: {
+                half: {
                     ...createEmptyModeStats(),
-                    ...mahjong.modes?.south,
+                    ...mahjong.modes?.half,
                 },
                 full: {
                     ...createEmptyModeStats(),
