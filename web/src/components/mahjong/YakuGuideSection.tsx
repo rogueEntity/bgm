@@ -8,7 +8,7 @@ import {
     YAKU_GUIDE_ITEMS,
     type YakuGuideCategory,
     type YakuGuideItem,
-} from "@/constants/yaku-guide";
+} from "@/features/games/mahjong/constants/yaku-guide";
 
 type YakuFilterType = "all" | "menzen" | "open";
 

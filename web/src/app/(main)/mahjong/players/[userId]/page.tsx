@@ -5,7 +5,7 @@ import {
     getMahjongPlayerProfile,
     MahjongModeDetailStats,
     MahjongPlayerProfileData,
-} from "@/lib/mahjong-profile";
+} from "@/features/games/mahjong/lib/profile";
 import React from "react";
 import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";

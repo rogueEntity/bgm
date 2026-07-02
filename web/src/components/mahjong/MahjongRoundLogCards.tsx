@@ -1,6 +1,6 @@
 // web/src/components/mahjong/MahjongRoundLogCards.tsx
 
-import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
+import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/features/games/mahjong/constants/yaku";
 
 type MahjongRoundLogCardsDetails = {
   players?: Record<string, MahjongPlayerState>;

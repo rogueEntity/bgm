@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getMahjongMatches } from "@/app/actions/mahjong.action";
 import { getMahjongEquippedBadgesByUserIds } from "@/app/actions/mahjong-achievement.action";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
-import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import { getUserIdFromPlayerKey } from "@/features/games/mahjong/lib/achievements";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";

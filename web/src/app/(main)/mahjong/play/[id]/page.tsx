@@ -8,7 +8,7 @@ import UserAvatar from "@/components/common/UserAvatar";
 import MahjongRoundLogCards from "@/components/mahjong/MahjongRoundLogCards";
 import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
-import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
+import { getUserIdFromPlayerKey } from "@/features/games/mahjong/lib/achievements";
 import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 

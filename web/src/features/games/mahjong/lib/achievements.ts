@@ -1,12 +1,12 @@
-// web/src/lib/mahjong-achievements.ts
+// web/src/features/games/mahjong/lib/achievement.ts
 
-import { MahjongAchievements } from "@/constants/mahjong-achievements";
+import { AchievementDefinitions } from "../constants/achievement-definitions";
 import { db } from "@/lib/prisma";
 import {
   createMahjongAchievementNewsEvent,
   syncMahjongNewsEventsForMatch,
-} from "@/lib/mahjong-news";
-import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+} from "@/features/games/mahjong/lib/news";
+import { MAHJONG_GAME_KEY } from "../constants";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 const GUEST_PLAYER_KEY_PREFIX = "guest_";
@@ -375,7 +375,7 @@ function addYakuCounts(
 }
 
 function getAchievementProgress(
-  achievement: (typeof MahjongAchievements)[number],
+  achievement: (typeof AchievementDefinitions)[number],
   stats: MahjongUserAchievementStats
 ) {
   switch (achievement.conditionType) {
@@ -800,7 +800,7 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
     const stats = ensureStats(statsByUserId, userId);
     const earnedBadgeIds = new Set<string>();
 
-    for (const achievement of MahjongAchievements) {
+    for (const achievement of AchievementDefinitions) {
       const progress = getAchievementProgress(achievement, stats);
       const completed = progress >= achievement.goal;
 

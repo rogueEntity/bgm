@@ -4,12 +4,12 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
-import { getValidatedYakuList, calculateTotalHan } from "@/lib/mahjong-calc";
+import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/features/games/mahjong/constants/yaku";
+import { getValidatedYakuList, calculateTotalHan } from "@/features/games/mahjong/lib/yaku-calc";
 import {
   calculateMahjongScore,
   getRecommendedFuOptions,
-} from "@/lib/mahjong-score";
+} from "@/features/games/mahjong/lib/score";
 import {
   recordMahjongResult,
   recordRyuukyoku,

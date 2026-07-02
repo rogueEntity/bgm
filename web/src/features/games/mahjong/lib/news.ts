@@ -1,9 +1,10 @@
-// web/src/lib/mahjong-news.ts
+// web/src/features/games/mahjong/lib/news.ts
 
 import { Prisma } from "@prisma/client";
 
-import { MahjongAchievements } from "@/constants/mahjong-achievements";
 import { db } from "@/lib/prisma";
+
+import { AchievementDefinitions } from "../constants/achievement-definitions";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 
@@ -192,7 +193,7 @@ export async function createMahjongAchievementNewsEvent(params: {
     userId: string;
     achievementId: string;
 }) {
-    const achievement = MahjongAchievements.find(
+    const achievement = AchievementDefinitions.find(
         (item) => item.id === params.achievementId,
     );
 

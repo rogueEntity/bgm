@@ -9,7 +9,7 @@ import MahjongBadgeEquipForm from "@/components/mahjong/MahjongBadgeEquipForm";
 import {
   ACHIEVEMENT_CATEGORY_LABELS,
   type AchievementCategory,
-} from "@/constants/mahjong-achievements";
+} from "@/features/games/mahjong/constants/achievement-definitions";
 import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 

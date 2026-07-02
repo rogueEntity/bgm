@@ -1,5 +1,6 @@
-// web/src/lib/mahjong-calc.ts
-import { NORMAL_YAKU, SITUATIONAL_YAKU } from "@/constants/yaku";
+// web/src/features/games/mahjong/lib/mahjong-calc.ts
+
+import { NORMAL_YAKU, SITUATIONAL_YAKU } from "../constants/yaku";
 
 const ALL_YAKU = [...NORMAL_YAKU, ...SITUATIONAL_YAKU];
 
