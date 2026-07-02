@@ -19,6 +19,10 @@ RUN npm ci
 # 2. 빌드
 FROM base AS builder
 
+ARG ENABLED_GAMES
+
+ENV ENABLED_GAMES=$ENABLED_GAMES
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
