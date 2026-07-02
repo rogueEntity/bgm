@@ -38,6 +38,44 @@ export type MahjongDetails = {
 
 export type MahjongScoreMap = Record<string, number>;
 
+export type MahjongWinLog = {
+    winner_key: string;
+    loser_key?: string | null;
+    base_score: number;
+    han: number;
+    fu?: number | null;
+    dora_total: number;
+    selected_yaku_ids: string[];
+    score_deltas?: MahjongScoreMap;
+    yakuman_count?: number;
+    is_menzen?: boolean;
+    is_mengen?: boolean;
+};
+
+export type MahjongRoundLog = {
+    timestamp?: string;
+
+    type?: "AGARI" | "RYUUKYOKU" | string;
+    round?: string;
+    honba?: number;
+
+    is_tsumo?: boolean;
+    is_final?: boolean;
+    forced_end?: boolean;
+
+    riichi_keys?: string[];
+    riichi_declared_keys?: string[];
+
+    wins?: MahjongWinLog[];
+
+    score_deltas?: MahjongScoreMap;
+    result_scores?: MahjongScoreMap;
+
+    ryuukyoku_type?: string;
+    tenpai_keys?: string[];
+    nagashi_mangan_winner_keys?: string[];
+};
+
 export type MahjongExpectedStateInput = {
     expected_round: string;
     expected_honba: number;
@@ -217,41 +255,4 @@ export type MahjongMatchListItem = {
         avatar_image_updated_at: Date | null;
         avatar_emoji: string | null;
     }[];
-};
-
-export type MahjongWinLog = {
-    winner_key?: string;
-    loser_key?: string | null;
-    base_score?: number;
-    han?: number;
-    fu?: number | null;
-    dora_total?: number;
-    selected_yaku_ids?: string[];
-    score_deltas?: Record<string, number>;
-    yakuman_count?: number;
-    is_mengen?: boolean;
-};
-
-export type MahjongRoundLog = {
-    type?: "AGARI" | "RYUUKYOKU" | string;
-    round?: string;
-    honba?: number;
-    is_tsumo?: boolean;
-    wins?: MahjongWinLog[];
-
-    // 구형 단일 화료 로그 호환
-    winner_key?: string;
-    loser_key?: string | null;
-    base_score?: number;
-    han?: number;
-    fu?: number | null;
-    dora_total?: number;
-    selected_yaku_ids?: string[];
-    score_deltas?: Record<string, number>;
-    yakuman_count?: number;
-
-    riichi_keys?: string[];
-    riichi_declared_keys?: string[];
-    tenpai_keys?: string[];
-    nagashi_mangan_winner_keys?: string[];
 };

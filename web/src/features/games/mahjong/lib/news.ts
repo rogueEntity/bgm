@@ -5,11 +5,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/prisma";
 
 import { AchievementDefinitions } from "../constants/achievement-definitions";
-
-import type {
-    MahjongRoundLog,
-    MahjongWinLog,
-} from "../types";
+import type { MahjongRoundLog, MahjongWinLog } from "../types";
 import { normalizeDetails } from "./details";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
@@ -51,8 +47,6 @@ const YAKUMAN_LABEL_MAP: Record<string, string> = {
     chiihou: "지화",
 };
 
-type ScoreMap = Record<string, number>;
-
 function getUserIdFromPlayerKey(playerKey: string | null | undefined) {
     if (!playerKey?.startsWith(USER_PLAYER_KEY_PREFIX)) {
         return null;
@@ -63,44 +57,29 @@ function getUserIdFromPlayerKey(playerKey: string | null | undefined) {
 
 function getRoundName(round?: string) {
     if (!round) return "대국";
+
     return ROUND_NAME_MAP[round] ?? round;
 }
 
 function getWins(log: MahjongRoundLog): MahjongWinLog[] {
-    if (Array.isArray(log.wins) && log.wins.length > 0) {
-        return log.wins;
+    if (log.type !== "AGARI") {
+        return [];
     }
 
-    if (log.type === "AGARI" && log.winner_key) {
-        return [
-            {
-                winner_key: log.winner_key,
-                loser_key: log.loser_key ?? null,
-                base_score: log.base_score,
-                han: log.han,
-                fu: log.fu,
-                dora_total: log.dora_total,
-                selected_yaku_ids: log.selected_yaku_ids,
-                score_deltas: log.score_deltas,
-                yakuman_count: log.yakuman_count,
-            },
-        ];
-    }
-
-    return [];
+    return log.wins ?? [];
 }
 
 function isYakuman(win: MahjongWinLog) {
     if ((win.yakuman_count ?? 0) > 0) return true;
-    if ((win.base_score ?? 0) >= 8000) return true;
+    if (win.base_score >= 8000) return true;
 
-    return (win.selected_yaku_ids ?? []).some((yakuId) => {
+    return win.selected_yaku_ids.some((yakuId) => {
         return yakuId.includes("yakuman") || YAKUMAN_LABEL_MAP[yakuId];
     });
 }
 
-function getYakumanLabel(selectedYakuIds: string[] | undefined) {
-    const yakumanYakuIds = (selectedYakuIds ?? []).filter((yakuId) => {
+function getYakumanLabel(selectedYakuIds: string[]) {
+    const yakumanYakuIds = selectedYakuIds.filter((yakuId) => {
         return yakuId.includes("yakuman") || YAKUMAN_LABEL_MAP[yakuId];
     });
 
@@ -202,9 +181,7 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
 
     if (details.status === "DELETED") return;
 
-    const logs = Array.isArray(details.logs) ? details.logs : [];
-
-    for (const [logIndex, log] of logs.entries()) {
+    for (const [logIndex, log] of details.logs.entries()) {
         if (log.type !== "AGARI") continue;
 
         const wins = getWins(log);
@@ -213,6 +190,7 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
             if (!isYakuman(win)) continue;
 
             const winnerUserId = getUserIdFromPlayerKey(win.winner_key);
+
             if (!winnerUserId) continue;
 
             const user = await db.users.findUnique({
@@ -227,7 +205,7 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
             if (!user) continue;
 
             const yakumanLabel = getYakumanLabel(win.selected_yaku_ids);
-            const primaryYakuId = win.selected_yaku_ids?.[0] ?? null;
+            const primaryYakuId = win.selected_yaku_ids[0] ?? null;
             const roundName = getRoundName(log.round);
 
             await createMahjongNewsEvent({
@@ -242,9 +220,9 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
                     match_id: matchId,
                     round: log.round ?? null,
                     honba: log.honba ?? 0,
-                    yaku_ids: win.selected_yaku_ids ?? [],
+                    yaku_ids: win.selected_yaku_ids,
                     yakuman_label: yakumanLabel,
-                    base_score: win.base_score ?? null,
+                    base_score: win.base_score,
                     yakuman_count: win.yakuman_count ?? null,
                 },
             });

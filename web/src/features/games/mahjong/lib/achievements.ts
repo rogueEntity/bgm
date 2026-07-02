@@ -1,76 +1,25 @@
-// web/src/features/games/mahjong/lib/achievement.ts
+// web/src/features/games/mahjong/lib/achievements.ts
+
+import { db } from "@/lib/prisma";
 
 import { AchievementDefinitions } from "../constants/achievement-definitions";
-import { db } from "@/lib/prisma";
+import { MAHJONG_GAME_KEY } from "../constants";
+import type {
+  MahjongDetails,
+  MahjongRoundLog,
+  MahjongScoreMap,
+  MahjongWinLog,
+} from "../types";
+import { normalizeDetails } from "./details";
 import {
   createMahjongAchievementNewsEvent,
   syncMahjongNewsEventsForMatch,
-} from "@/features/games/mahjong/lib/news";
-import { MAHJONG_GAME_KEY } from "../constants";
+} from "./news";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
-const GUEST_PLAYER_KEY_PREFIX = "guest_";
 
 const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-type MahjongPlayerState = {
-  wind?: string;
-  score?: number;
-  name?: string;
-};
-
-type ScoreMap = Record<string, number>;
-
-type MahjongWinLog = {
-  winner_key?: string;
-  loser_key?: string | null;
-  base_score?: number;
-  han?: number;
-  fu?: number | null;
-  dora_total?: number;
-  selected_yaku_ids?: string[];
-  score_deltas?: ScoreMap;
-  yakuman_count?: number;
-};
-
-type MahjongRoundLog = {
-  type?: "AGARI" | "RYUUKYOKU" | string;
-  round?: string;
-  honba?: number;
-
-  is_tsumo?: boolean;
-  wins?: MahjongWinLog[];
-
-  winner_key?: string;
-  loser_key?: string | null;
-  base_score?: number;
-  han?: number;
-  fu?: number | null;
-  dora_total?: number;
-  selected_yaku_ids?: string[];
-  score_deltas?: ScoreMap;
-
-  tenpai_keys?: string[];
-
-  riichi_keys?: string[];
-  declared_riichi_keys?: string[];
-  current_riichi_keys?: string[];
-
-  ryuukyoku_type?: string;
-  reason?: string;
-
-  is_final?: boolean;
-  forced_end?: boolean;
-};
-
-type MahjongDetails = {
-  players?: Record<string, MahjongPlayerState>;
-  logs?: MahjongRoundLog[];
-  initial_score?: number;
-  starting_score?: number;
-  status?: "PLAYING" | "FINISHED" | "DELETED" | string;
-};
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type UserPlayerEntry = {
   playerKey: string;
@@ -114,20 +63,11 @@ type MahjongUserAchievementStats = {
 };
 
 export function isUserPlayerKey(
-  playerKey: string | null | undefined
+    playerKey: string | null | undefined,
 ): playerKey is string {
   return (
-    typeof playerKey === "string" &&
-    playerKey.startsWith(USER_PLAYER_KEY_PREFIX)
-  );
-}
-
-export function isGuestPlayerKey(
-  playerKey: string | null | undefined
-): playerKey is string {
-  return (
-    typeof playerKey === "string" &&
-    playerKey.startsWith(GUEST_PLAYER_KEY_PREFIX)
+      typeof playerKey === "string" &&
+      playerKey.startsWith(USER_PLAYER_KEY_PREFIX)
   );
 }
 
@@ -140,17 +80,17 @@ export function getUserIdFromPlayerKey(playerKey: string): string | null {
 }
 
 export function getUserPlayerEntries(
-  players: Record<string, unknown> | null | undefined
+    players: Record<string, unknown> | null | undefined,
 ): UserPlayerEntry[] {
   return Object.keys(players ?? {})
-    .map((playerKey) => ({
-      playerKey,
-      userId: getUserIdFromPlayerKey(playerKey),
-    }))
-    .filter(
-      (entry): entry is UserPlayerEntry =>
-        typeof entry.userId === "string" && entry.userId.length > 0
-    );
+      .map((playerKey) => ({
+        playerKey,
+        userId: getUserIdFromPlayerKey(playerKey),
+      }))
+      .filter(
+          (entry): entry is UserPlayerEntry =>
+              typeof entry.userId === "string" && entry.userId.length > 0,
+      );
 }
 
 function createEmptyStats(): MahjongUserAchievementStats {
@@ -192,8 +132,8 @@ function createEmptyStats(): MahjongUserAchievementStats {
 }
 
 function ensureStats(
-  statsByUserId: Map<string, MahjongUserAchievementStats>,
-  userId: string
+    statsByUserId: Map<string, MahjongUserAchievementStats>,
+    userId: string,
 ) {
   const current = statsByUserId.get(userId);
 
@@ -204,49 +144,26 @@ function ensureStats(
   return next;
 }
 
-function normalizeDetails(details: unknown): MahjongDetails {
-  if (!details || typeof details !== "object") {
-    return {};
-  }
-
-  return details as MahjongDetails;
-}
-
 function getLogs(details: MahjongDetails): MahjongRoundLog[] {
-  return Array.isArray(details.logs) ? details.logs : [];
+  return details.logs;
 }
 
 function getWins(log: MahjongRoundLog): MahjongWinLog[] {
-  if (Array.isArray(log.wins) && log.wins.length > 0) {
-    return log.wins;
+  if (log.type !== "AGARI") {
+    return [];
   }
 
-  if (log.type === "AGARI" && log.winner_key) {
-    return [
-      {
-        winner_key: log.winner_key,
-        loser_key: log.loser_key ?? null,
-        base_score: log.base_score,
-        han: log.han,
-        fu: log.fu,
-        dora_total: log.dora_total,
-        selected_yaku_ids: log.selected_yaku_ids,
-        score_deltas: log.score_deltas,
-      },
-    ];
-  }
-
-  return [];
+  return log.wins ?? [];
 }
 
-function getLogScoreDeltas(log: MahjongRoundLog): ScoreMap {
+function getLogScoreDeltas(log: MahjongRoundLog): MahjongScoreMap {
   if (log.score_deltas && typeof log.score_deltas === "object") {
     return log.score_deltas;
   }
 
   const wins = getWins(log);
 
-  return wins.reduce<ScoreMap>((acc, win) => {
+  return wins.reduce<MahjongScoreMap>((acc, win) => {
     if (!win.score_deltas) return acc;
 
     for (const [playerKey, delta] of Object.entries(win.score_deltas)) {
@@ -258,17 +175,7 @@ function getLogScoreDeltas(log: MahjongRoundLog): ScoreMap {
 }
 
 function getRiichiKeys(log: MahjongRoundLog): string[] {
-  const keys = [
-    ...(Array.isArray(log.riichi_keys) ? log.riichi_keys : []),
-    ...(Array.isArray(log.declared_riichi_keys)
-      ? log.declared_riichi_keys
-      : []),
-    ...(Array.isArray(log.current_riichi_keys)
-      ? log.current_riichi_keys
-      : []),
-  ];
-
-  return Array.from(new Set(keys));
+  return Array.from(new Set(Array.isArray(log.riichi_keys) ? log.riichi_keys : []));
 }
 
 function isNormalRyuukyoku(log: MahjongRoundLog) {
@@ -288,19 +195,13 @@ function isSpecialRyuukyoku(log: MahjongRoundLog) {
 function isForcedEndLog(log: MahjongRoundLog) {
   if (log.forced_end === true) return true;
 
-  const reason = log.reason?.toUpperCase();
   const ryuukyokuType = log.ryuukyoku_type?.toUpperCase();
 
-  return (
-    reason === "FORCED_END" ||
-    reason === "FORCE_END" ||
-    ryuukyokuType === "FORCED_END" ||
-    ryuukyokuType === "FORCE_END"
-  );
+  return ryuukyokuType === "FORCED_END" || ryuukyokuType === "FORCE_END";
 }
 
-function getInitialScore(details: MahjongDetails) {
-  return details.initial_score ?? details.starting_score ?? 25000;
+function getInitialScore(details: MahjongDetails, playerKey: string) {
+  return details.initial_players?.[playerKey]?.score ?? 25000;
 }
 
 function getRankByScores(scores: Record<string, number>) {
@@ -313,7 +214,7 @@ function getRankByScores(scores: Record<string, number>) {
 }
 
 function getBaseScore(win: MahjongWinLog) {
-  return typeof win.base_score === "number" ? win.base_score : 0;
+  return win.base_score;
 }
 
 function isYakuman(win: MahjongWinLog) {
@@ -323,9 +224,7 @@ function isYakuman(win: MahjongWinLog) {
 
   if (baseScore >= 8000) return true;
 
-  const selectedYakuIds = win.selected_yaku_ids ?? [];
-
-  return selectedYakuIds.some((yakuId) => yakuId.includes("yakuman"));
+  return win.selected_yaku_ids.some((yakuId) => yakuId.includes("yakuman"));
 }
 
 function isManganOrHigher(win: MahjongWinLog) {
@@ -335,7 +234,7 @@ function isManganOrHigher(win: MahjongWinLog) {
 
   if (baseScore >= 2000) return true;
 
-  const han = win.han ?? 0;
+  const han = win.han;
   const fu = win.fu ?? 0;
 
   return han >= 5 || (han === 4 && fu >= 40) || (han === 3 && fu >= 70);
@@ -348,9 +247,7 @@ function isHanemanOrHigher(win: MahjongWinLog) {
 
   if (baseScore >= 3000) return true;
 
-  const han = win.han ?? 0;
-
-  return han >= 6;
+  return win.han >= 6;
 }
 
 function isBaimanOrHigher(win: MahjongWinLog) {
@@ -360,14 +257,12 @@ function isBaimanOrHigher(win: MahjongWinLog) {
 
   if (baseScore >= 4000) return true;
 
-  const han = win.han ?? 0;
-
-  return han >= 8;
+  return win.han >= 8;
 }
 
 function addYakuCounts(
-  stats: MahjongUserAchievementStats,
-  selectedYakuIds: string[]
+    stats: MahjongUserAchievementStats,
+    selectedYakuIds: string[],
 ) {
   for (const yakuId of selectedYakuIds) {
     stats.yakuAgariCounts[yakuId] = (stats.yakuAgariCounts[yakuId] ?? 0) + 1;
@@ -375,8 +270,8 @@ function addYakuCounts(
 }
 
 function getAchievementProgress(
-  achievement: (typeof AchievementDefinitions)[number],
-  stats: MahjongUserAchievementStats
+    achievement: (typeof AchievementDefinitions)[number],
+    stats: MahjongUserAchievementStats,
 ) {
   switch (achievement.conditionType) {
     case "MAHJONG_COMPLETED_MATCH_COUNT":
@@ -440,8 +335,8 @@ function getAchievementProgress(
       const yakuIds = achievement.conditionValue?.yakuIds ?? [];
 
       return yakuIds.reduce(
-        (sum, yakuId) => sum + (stats.yakuAgariCounts[yakuId] ?? 0),
-        0
+          (sum, yakuId) => sum + (stats.yakuAgariCounts[yakuId] ?? 0),
+          0,
       );
     }
 
@@ -449,7 +344,7 @@ function getAchievementProgress(
       const minDora = achievement.conditionValue?.minDora ?? 0;
 
       return stats.doraAgariCounts.filter((doraTotal) => doraTotal >= minDora)
-        .length;
+          .length;
     }
 
     case "MAHJONG_RYUUKYOKU_PARTICIPATION_COUNT":
@@ -484,22 +379,22 @@ function collectLogStats(params: {
 }) {
   const { statsByUserId, details } = params;
 
-  const players = details.players ?? {};
+  const players = details.players;
   const userPlayerEntries = getUserPlayerEntries(players);
   const logs = getLogs(details);
 
   const userIdByPlayerKey = new Map(
-    userPlayerEntries.map((entry) => [entry.playerKey, entry.userId])
+      userPlayerEntries.map((entry) => [entry.playerKey, entry.userId]),
   );
 
   const dealInPlayerKeys = new Set<string>();
 
   const currentScores = Object.keys(players).reduce<Record<string, number>>(
-    (acc, playerKey) => {
-      acc[playerKey] = getInitialScore(details);
-      return acc;
-    },
-    {}
+      (acc, playerKey) => {
+        acc[playerKey] = getInitialScore(details, playerKey);
+        return acc;
+      },
+      {},
   );
 
   const minScores = { ...currentScores };
@@ -525,46 +420,44 @@ function collectLogStats(params: {
         const winnerKey = win.winner_key;
         const loserKey = win.loser_key ?? null;
 
-        if (winnerKey) {
-          const winnerUserId = userIdByPlayerKey.get(winnerKey);
+        const winnerUserId = userIdByPlayerKey.get(winnerKey);
 
-          if (winnerUserId) {
-            const winnerStats = ensureStats(statsByUserId, winnerUserId);
+        if (winnerUserId) {
+          const winnerStats = ensureStats(statsByUserId, winnerUserId);
 
-            winnerStats.agariCount += 1;
+          winnerStats.agariCount += 1;
 
-            if (isTsumo || loserKey === null) {
-              winnerStats.tsumoAgariCount += 1;
-            } else {
-              winnerStats.ronAgariCount += 1;
-            }
-
-            if (isManganOrHigher(win)) {
-              winnerStats.manganOrHigherCount += 1;
-            }
-
-            if (isHanemanOrHigher(win)) {
-              winnerStats.hanemanOrHigherCount += 1;
-            }
-
-            if (isBaimanOrHigher(win)) {
-              winnerStats.baimanOrHigherCount += 1;
-            }
-
-            if (isYakuman(win)) {
-              winnerStats.yakumanCount += 1;
-            }
-
-            const selectedYakuIds = win.selected_yaku_ids ?? [];
-
-            addYakuCounts(winnerStats, selectedYakuIds);
-
-            if (selectedYakuIds.includes("double_riichi")) {
-              winnerStats.doubleRiichiAgariCount += 1;
-            }
-
-            winnerStats.doraAgariCounts.push(win.dora_total ?? 0);
+          if (isTsumo || loserKey === null) {
+            winnerStats.tsumoAgariCount += 1;
+          } else {
+            winnerStats.ronAgariCount += 1;
           }
+
+          if (isManganOrHigher(win)) {
+            winnerStats.manganOrHigherCount += 1;
+          }
+
+          if (isHanemanOrHigher(win)) {
+            winnerStats.hanemanOrHigherCount += 1;
+          }
+
+          if (isBaimanOrHigher(win)) {
+            winnerStats.baimanOrHigherCount += 1;
+          }
+
+          if (isYakuman(win)) {
+            winnerStats.yakumanCount += 1;
+          }
+
+          const selectedYakuIds = win.selected_yaku_ids;
+
+          addYakuCounts(winnerStats, selectedYakuIds);
+
+          if (selectedYakuIds.includes("double_riichi")) {
+            winnerStats.doubleRiichiAgariCount += 1;
+          }
+
+          winnerStats.doraAgariCounts.push(win.dora_total);
         }
 
         if (!isTsumo && loserKey) {
@@ -579,7 +472,7 @@ function collectLogStats(params: {
     }
 
     if (log.type === "RYUUKYOKU") {
-      const tenpaiKeys = Array.isArray(log.tenpai_keys) ? log.tenpai_keys : [];
+      const tenpaiKeys = log.tenpai_keys ?? [];
 
       for (const playerKey of participantKeys) {
         const userId = userIdByPlayerKey.get(playerKey);
@@ -617,8 +510,8 @@ function collectLogStats(params: {
     for (const [playerKey, delta] of Object.entries(scoreDeltas)) {
       currentScores[playerKey] = (currentScores[playerKey] ?? 0) + delta;
       minScores[playerKey] = Math.min(
-        minScores[playerKey] ?? currentScores[playerKey],
-        currentScores[playerKey]
+          minScores[playerKey] ?? currentScores[playerKey],
+          currentScores[playerKey],
       );
     }
 
@@ -648,11 +541,7 @@ function collectLogStats(params: {
     const minScore = minScores[playerKey];
     const finalRank = getRankByScores(currentScores)[playerKey];
 
-    if (
-      isFinishedMatch &&
-      minScore < 10000 &&
-      finalRank !== 4
-    ) {
+    if (isFinishedMatch && minScore < 10000 && finalRank !== 4) {
       stats.comebackSurvivalCount += 1;
     }
   }
@@ -713,7 +602,7 @@ async function getMahjongGameId() {
 
 export async function syncMahjongAchievementsForUsers(userIds: string[]) {
   const uniqueUserIds = Array.from(
-    new Set(userIds.filter((userId) => UUID_REGEX.test(userId)))
+      new Set(userIds.filter((userId) => UUID_REGEX.test(userId))),
   );
 
   if (uniqueUserIds.length === 0) return;
@@ -774,26 +663,25 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
     });
   }
 
-  const existingAchievements =
-    await db.mahjong_user_achievements.findMany({
-      where: {
-        user_id: {
-          in: uniqueUserIds,
-        },
+  const existingAchievements = await db.mahjong_user_achievements.findMany({
+    where: {
+      user_id: {
+        in: uniqueUserIds,
       },
-      select: {
-        user_id: true,
-        achievement_id: true,
-        completed: true,
-        completed_at: true,
-      },
-    });
+    },
+    select: {
+      user_id: true,
+      achievement_id: true,
+      completed: true,
+      completed_at: true,
+    },
+  });
 
   const existingAchievementMap = new Map(
-    existingAchievements.map((achievement) => [
-      `${achievement.user_id}:${achievement.achievement_id}`,
-      achievement,
-    ])
+      existingAchievements.map((achievement) => [
+        `${achievement.user_id}:${achievement.achievement_id}`,
+        achievement,
+      ]),
   );
 
   for (const userId of uniqueUserIds) {
@@ -805,7 +693,7 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
       const completed = progress >= achievement.goal;
 
       const existingAchievement = existingAchievementMap.get(
-          `${userId}:${achievement.id}`
+          `${userId}:${achievement.id}`,
       );
 
       const completedAt = completed
@@ -873,15 +761,6 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
       },
     });
 
-    await db.mahjong_user_equipped_badges.deleteMany({
-      where: {
-        user_id: userId,
-        badge_id: {
-          notIn: Array.from(earnedBadgeIds),
-        },
-      },
-    });
-
     for (const badgeId of earnedBadgeIds) {
       await db.mahjong_user_badges.upsert({
         where: {
@@ -933,12 +812,12 @@ export async function syncMahjongAchievementsForMatch(matchId: number) {
   }
 
   const userIdsFromDetails = getUserPlayerEntries(details.players).map(
-      (entry) => entry.userId
+      (entry) => entry.userId,
   );
 
   const userIdsFromMatchPlayers = match.match_players
-    .map((player) => player.user_id)
-    .filter((userId): userId is string => typeof userId === "string");
+      .map((player) => player.user_id)
+      .filter((userId): userId is string => typeof userId === "string");
 
   await syncMahjongAchievementsForUsers([
     ...userIdsFromDetails,
