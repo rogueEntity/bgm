@@ -195,7 +195,7 @@ export default async function MahjongPlayPage({
         )}
 
         {/* 중단: 점수판 그리드 (기존 디자인 유지) */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           {scoreboard.map((player) => {
             const userId = getUserIdFromPlayerKey(player.stateKey);
             const badges = userId ? equippedBadgeMap[userId] ?? [] : [];
@@ -204,48 +204,50 @@ export default async function MahjongPlayPage({
             return (
               <div
                 key={player.stateKey}
-                className={`relative rounded-3xl border p-6 md:p-8 ${
+                className={`relative rounded-3xl border p-4 md:p-8 ${
                   isDealer
                     ? "border-red-500/40 bg-red-500/10"
                     : "border-foreground/10 bg-foreground/5"
                 }`}
               >
-                {isDealer && (
-                  <div className="absolute left-6 top-6 rounded-full bg-red-500 px-3 py-1.5 text-sm font-black text-white">
-                    오야
-                  </div>
-                )}
+                <div className="flex h-full min-h-[180px] flex-col items-center justify-center md:min-h-[220px]">
+                  <div className="flex h-7 items-center justify-center gap-1.5 md:h-8">
+                    <span
+                        className={`text-sm font-black md:text-lg ${
+                            isDealer ? "text-red-500" : "text-foreground/50"
+                        }`}
+                    >
+                      {windNameMap[player.wind] ?? player.wind}
+                    </span>
 
-                <div className="flex h-full min-h-[220px] flex-col items-center justify-center">
-                  <div
-                    className={`flex h-8 items-center justify-center text-center text-xl font-black ${
-                      isDealer ? "text-red-500" : "text-foreground/50"
-                    }`}
-                  >
-                    {windNameMap[player.wind] ?? player.wind}
+                    {isDealer && (
+                        <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-black leading-none text-red-500 md:px-2 md:py-1 md:text-xs">
+                          오야
+                        </span>
+                    )}
                   </div>
 
-                  <div className="mt-4 flex h-12 items-center justify-center">
+                  <div className="mt-3 flex h-11 items-center justify-center md:mt-4 md:h-12">
                     <UserAvatar
-                      imageUrl={player.avatarImageUrl}
-                      emoji={player.avatarEmoji}
-                      name={player.name}
-                      size="md"
-                      className="h-12 w-12 text-xl"
+                        imageUrl={player.avatarImageUrl}
+                        emoji={player.avatarEmoji}
+                        name={player.name}
+                        size="md"
+                        className="h-11 w-11 text-lg md:h-12 md:w-12 md:text-xl"
                     />
                   </div>
 
-                  <div className="mt-3 flex h-10 max-w-full items-center justify-center">
+                  <div className="mt-3 flex min-h-10 max-w-full items-center justify-center">
                     <NicknameWithBadges
-                      nickname={player.name}
-                      badges={badges}
-                      badgeSize="sm"
-                      className="max-w-full flex-col items-center gap-1 md:flex-row md:gap-1.5"
-                      nameClassName="max-w-[8rem] truncate text-center text-2xl font-black md:max-w-[10rem]"
+                        nickname={player.name}
+                        badges={badges}
+                        badgeSize="sm"
+                        className="max-w-full flex-col items-center gap-1 md:flex-row md:gap-1.5"
+                        nameClassName="max-w-[7rem] truncate text-center text-lg font-black md:max-w-[10rem] md:text-xl"
                     />
                   </div>
 
-                  <div className="mt-6 flex h-12 items-center justify-center text-center text-4xl font-black text-blue-500">
+                  <div className="mt-4 flex h-10 items-center justify-center text-center text-2xl font-black text-blue-500 md:mt-6 md:h-12 md:text-3xl">
                     {player.score.toLocaleString()}
                   </div>
                 </div>
