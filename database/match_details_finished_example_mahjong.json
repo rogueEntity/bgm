@@ -6,22 +6,41 @@
   "game_mode": "동풍전",
   "status": "FINISHED",
   "finish_reason": "NORMAL",
-  "players": {
+  "stats_applied": true,
+  "initial_players": {
     "user_00000000-0000-0000-0000-000000000001": {
       "wind": "EAST",
-      "score": 33100
+      "score": 25000
     },
     "user_00000000-0000-0000-0000-000000000002": {
       "wind": "SOUTH",
-      "score": 26700
+      "score": 25000
     },
     "guest_지인A": {
       "wind": "WEST",
-      "score": 21400
+      "score": 25000
     },
     "guest_지인B": {
       "wind": "NORTH",
-      "score": 18800
+      "score": 25000
+    }
+  },
+  "players": {
+    "user_00000000-0000-0000-0000-000000000001": {
+      "wind": "EAST",
+      "score": 33000
+    },
+    "user_00000000-0000-0000-0000-000000000002": {
+      "wind": "SOUTH",
+      "score": 25000
+    },
+    "guest_지인A": {
+      "wind": "WEST",
+      "score": 25000
+    },
+    "guest_지인B": {
+      "wind": "NORTH",
+      "score": 17000
     }
   },
   "logs": [
@@ -36,8 +55,11 @@
         {
           "winner_key": "user_00000000-0000-0000-0000-000000000001",
           "loser_key": "guest_지인B",
+          "is_mengen": true,
+          "fu": 30,
           "base_score": 8000,
           "han": 5,
+          "limit_name": "만관",
           "dora_total": 2,
           "selected_yaku_ids": [
             "tanyao",
@@ -59,10 +81,10 @@
         "guest_지인B": -8000
       },
       "result_scores": {
-        "user_00000000-0000-0000-0000-000000000001": 33100,
-        "user_00000000-0000-0000-0000-000000000002": 26700,
-        "guest_지인A": 21400,
-        "guest_지인B": 18800
+        "user_00000000-0000-0000-0000-000000000001": 33000,
+        "user_00000000-0000-0000-0000-000000000002": 25000,
+        "guest_지인A": 25000,
+        "guest_지인B": 17000
       }
     }
   ]

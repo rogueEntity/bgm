@@ -7,7 +7,7 @@
   "average_rank": 2.33,
   "mmr": 1510,
   "specific_stats": {
-    "schema_version": 1,
+    "schema_version": 2,
     "mahjong": {
       "modes": {
         "east": {

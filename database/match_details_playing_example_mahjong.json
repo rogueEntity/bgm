@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "current_round": "EAST_2",
-  "honba": 0,
+  "current_round": "EAST_1",
+  "honba": 1,
   "riichi_sticks": 0,
   "game_mode": "동풍전",
   "status": "PLAYING",
@@ -42,7 +42,7 @@
           "dora_total": 1,
           "selected_yaku_ids": [
             "riichi",
-            "tsumo",
+            "menzen_tsumo",
             "pinfu"
           ],
           "score_deltas": {
@@ -50,7 +50,9 @@
             "user_00000000-0000-0000-0000-000000000002": -2000,
             "guest_지인A": -2000,
             "guest_지인B": -2200
-          }
+          },
+          "is_mengen": true,
+          "fu": 30
         }
       ],
       "score_deltas": {
@@ -64,7 +66,28 @@
         "user_00000000-0000-0000-0000-000000000002": 23800,
         "guest_지인A": 25000,
         "guest_지인B": 20000
-      }
+      },
+      "is_final": false,
+      "forced_end": false
     }
-  ]
+  ],
+  "initial_players": {
+    "user_00000000-0000-0000-0000-000000000001": {
+      "wind": "EAST",
+      "score": 25000
+    },
+    "user_00000000-0000-0000-0000-000000000002": {
+      "wind": "SOUTH",
+      "score": 25000
+    },
+    "guest_지인A": {
+      "wind": "WEST",
+      "score": 25000
+    },
+    "guest_지인B": {
+      "wind": "NORTH",
+      "score": 25000
+    }
+  },
+  "stats_applied": false
 }
