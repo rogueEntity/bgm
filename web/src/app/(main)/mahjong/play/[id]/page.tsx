@@ -240,7 +240,7 @@ export default async function MahjongPlayPage({
                       nickname={player.name}
                       badges={badges}
                       badgeSize="sm"
-                      className="max-w-full justify-center"
+                      className="max-w-full flex-col items-center gap-1 md:flex-row md:gap-1.5"
                       nameClassName="max-w-[8rem] truncate text-center text-2xl font-black md:max-w-[10rem]"
                     />
                   </div>

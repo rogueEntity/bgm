@@ -309,11 +309,19 @@ function MahjongRecentRankChart({
                         ))}
                     </svg>
 
-                    <div className="mt-2 flex justify-between px-8 text-[10px] font-bold text-muted-foreground">
+                    <div
+                        className="mt-2 grid px-1 text-center text-[10px] font-bold text-muted-foreground md:mx-auto md:w-[calc(100%-6rem)] md:px-0"
+                        style={{
+                            gridTemplateColumns: `repeat(${recentRanks.length}, minmax(0, 1fr))`,
+                        }}
+                    >
                         {recentRanks.map((item, index) => (
-                            <span key={`${item.matchId}-label-${index}`}>
-                {item.rank}위
-              </span>
+                            <span
+                                key={`${item.matchId}-label-${index}`}
+                                className="min-w-0 leading-none"
+                            >
+                              {item.rank}위
+                            </span>
                         ))}
                     </div>
                 </div>

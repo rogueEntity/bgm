@@ -69,11 +69,11 @@ export default function MatchResultDetails({
 
                     <span className="min-w-0 font-extrabold text-lg">
                       <NicknameWithBadges
-                        nickname={player.name ?? "이름 없음"}
-                        badges={player.equipped_badges ?? []}
-                        badgeSize="sm"
-                        className="max-w-full"
-                        nameClassName="max-w-[7rem] md:max-w-[12rem]"
+                          nickname={player.name ?? "이름 없음"}
+                          badges={player.equipped_badges ?? []}
+                          badgeSize="sm"
+                          className="max-w-full flex-col items-start gap-1 md:flex-row md:items-center md:gap-1.5"
+                          nameClassName="max-w-[7rem] md:max-w-[12rem]"
                       />
                     </span>
                   </div>

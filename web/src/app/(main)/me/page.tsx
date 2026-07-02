@@ -5,6 +5,7 @@ import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import ThemeSwitch from "@/components/ThemeSwitch";
 
 function getProviderLabel(provider?: string | null) {
   switch (provider) {
@@ -92,6 +93,26 @@ export default async function MyPage() {
         avatarImageUrl={avatarImageUrl}
         hasAvatarImage={!!user.avatar_image_key}
       />
+
+      <section className="rounded-3xl border border-foreground/10 bg-foreground/5 p-5">
+        <div className="mb-4">
+          <h2 className="text-lg font-black">화면 설정</h2>
+          <p className="mt-1 text-sm text-foreground/50">
+            라이트/다크 모드를 변경할 수 있어요.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-2xl bg-background p-4">
+          <div>
+            <p className="text-sm font-bold">테마</p>
+            <p className="mt-1 text-xs text-foreground/50">
+              기본값은 기기 설정을 따라가요.
+            </p>
+          </div>
+
+          <ThemeSwitch />
+        </div>
+      </section>
     </main>
   );
 }
