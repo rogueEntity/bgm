@@ -1,5 +1,7 @@
 // web/src/features/games/shared/enabled-games.ts
 
+import { notFound } from "next/navigation";
+
 import { gameModuleList, gameModules } from "./game-registry";
 
 import type { GameKey, GameModule } from "./types";
@@ -35,4 +37,16 @@ export function isGameEnabled(gameKey: string): gameKey is GameKey {
     const enabledGameKeys = getEnabledGameKeys();
 
     return enabledGameKeys.includes(gameKey as GameKey);
+}
+
+export function assertGameEnabled(gameKey: string): void {
+    if (!isGameEnabled(gameKey)) {
+        notFound();
+    }
+}
+
+export function assertGameEnabledForAction(gameKey: string): void {
+    if (!isGameEnabled(gameKey)) {
+        throw new Error("비활성화된 게임입니다.");
+    }
 }

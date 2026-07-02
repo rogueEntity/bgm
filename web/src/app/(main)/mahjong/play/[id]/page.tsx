@@ -13,6 +13,8 @@ import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerAc
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 import ScoreForm from "./ScoreForm";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type ScoreboardPlayer = {
   name: string;
@@ -28,6 +30,7 @@ export default async function MahjongPlayPage({
 }: Readonly<{
   params: Promise<{ id: string }>;
 }>) {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const resolvedParams = await params;
   const matchId = Number.parseInt(resolvedParams.id, 10);
 

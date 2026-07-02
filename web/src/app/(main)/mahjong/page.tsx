@@ -10,6 +10,8 @@ import NicknameWithBadges from "@/components/mahjong/NicknameWithBadges";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 import { getRecentMahjongNewsEvents } from "@/lib/mahjong-news";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type MahjongDetailsSnapshot = {
   current_round?: string;
@@ -117,6 +119,7 @@ async function getMyMahjongDashboardData() {
 }
 
 export default async function MahjongDashboardPage() {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const currentUser = await getCurrentUserWithAdmin();
 
   if (!currentUser) {

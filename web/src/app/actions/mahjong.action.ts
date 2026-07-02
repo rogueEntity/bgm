@@ -20,6 +20,7 @@ import {
   MAHJONG_MAX_PLAYERS,
   MAHJONG_MIN_PLAYERS,
 } from "@/features/games/mahjong/constants";
+import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
 
 // --- 타입 ---
 type GameMode = "동풍전" | "반장전" | "전장전";
@@ -1973,6 +1974,7 @@ export async function createMahjongMatch(
   startingScore: number,
   gameMode: GameMode,
 ) {
+  assertGameEnabledForAction(MAHJONG_GAME_KEY);
   const session = await auth();
 
   if (!session?.user) {
@@ -2096,6 +2098,7 @@ export async function createMahjongMatch(
 export async function recordMahjongResult(
     data: RecordMahjongResultInput,
 ): Promise<MahjongActionResult> {
+  assertGameEnabledForAction(MAHJONG_GAME_KEY);
   try {
     const currentUser = await getCurrentMahjongManager();
 
@@ -2411,6 +2414,7 @@ export async function recordMahjongResult(
 export async function recordRyuukyoku(
     data: RecordRyuukyokuInput,
 ): Promise<MahjongActionResult> {
+  assertGameEnabledForAction(MAHJONG_GAME_KEY);
   try {
     const currentUser = await getCurrentMahjongManager();
 
@@ -2832,6 +2836,7 @@ export async function getMahjongMatches(
 }
 
 export async function deleteMahjongMatch(matchId: number) {
+  assertGameEnabledForAction(MAHJONG_GAME_KEY);
   const currentUser = await getCurrentMahjongManager();
 
   const match = await db.matches.findUnique({
@@ -2910,6 +2915,7 @@ export async function deleteMahjongMatch(matchId: number) {
 }
 
 export async function undoMahjongLastLog(matchId: number) {
+  assertGameEnabledForAction(MAHJONG_GAME_KEY);
   const currentUser = await getCurrentMahjongManager();
 
   const match = await db.matches.findUnique({

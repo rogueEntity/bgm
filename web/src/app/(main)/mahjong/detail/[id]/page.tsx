@@ -9,12 +9,15 @@ import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 export default async function MatchDetailPage({
   params,
 }: Readonly<{
   params: Promise<{ id: string }>;
 }>) {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const resolvedParams = await params;
   const matchId = Number(resolvedParams.id);
 

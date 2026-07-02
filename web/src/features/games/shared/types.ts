@@ -8,6 +8,7 @@ export type GameModule = {
     nameEn: string;
     shortName: string;
     description: string;
+    icon: string;
     minPlayers: number;
     maxPlayers: number;
     routes: {

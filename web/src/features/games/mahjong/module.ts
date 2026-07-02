@@ -16,6 +16,7 @@ export const mahjongModule = {
     nameEn: MAHJONG_GAME_NAME_EN,
     shortName: "마작",
     description: "리치마작 대국, 점수, 통계, 도전과제를 기록합니다.",
+    icon: "🀄",
     minPlayers: MAHJONG_MIN_PLAYERS,
     maxPlayers: MAHJONG_MAX_PLAYERS,
     routes: {

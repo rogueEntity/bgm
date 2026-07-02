@@ -3,8 +3,11 @@
 import React, { useState } from "react";
 import { createMahjongMatch } from "@/app/actions/mahjong.action";
 import { checkNicknameExists } from "@/app/actions/user.action";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 export default function NewGamePage() {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const [players, setPlayers] = useState(["", "", "", ""]);
   const [startingScore, setStartingScore] = useState(25000);
   const [isSubmitting, setIsSubmitting] = useState(false); // 중복 클릭 방지용 상태

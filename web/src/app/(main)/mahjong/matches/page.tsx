@@ -9,6 +9,8 @@ import { getUserIdFromPlayerKey } from "@/lib/mahjong-achievements";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import MahjongMatchDangerActions from "@/components/mahjong/MahjongMatchDangerActions";
+import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
+import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 type MahjongMatchesPageProps = {
   searchParams: Promise<{
@@ -87,7 +89,8 @@ function getStatusClassName(status: string) {
 
 export default async function MahjongMatchesPage({
   searchParams,
-}: MahjongMatchesPageProps) {
+}: Readonly<MahjongMatchesPageProps>) {
+  assertGameEnabled(MAHJONG_GAME_KEY);
   const resolvedSearchParams = await searchParams;
 
   const status =
