@@ -20,7 +20,7 @@ export default function UserAvatar({
   name,
   size = "md",
   className = "",
-}: UserAvatarProps) {
+}: Readonly<UserAvatarProps>) {
   return (
     <div
       className={[
