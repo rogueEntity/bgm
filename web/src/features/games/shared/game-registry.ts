@@ -1,9 +1,9 @@
 // web/src/features/games/shared/game-registry.ts
 
 import { mahjongModule } from "../mahjong/module";
+import { tichuModule } from "../tichu/module";
 
 import type { GameKey, GameModule } from "./types";
-import {tichuModule} from "@/features/games/tichu/module";
 
 export const gameModules = {
     mahjong: mahjongModule,

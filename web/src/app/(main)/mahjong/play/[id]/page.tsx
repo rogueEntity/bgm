@@ -41,8 +41,11 @@ export default async function MahjongPlayPage({
   const match = await db.matches.findUnique({
     where: { id: matchId },
     include: {
+      games: true,
       match_players: {
-        include: { users: true }, // 가입 유저인 경우 닉네임을 가져오기 위함
+        include: {
+          users: true,
+        },
       },
       match_details: true,
     },
@@ -51,6 +54,10 @@ export default async function MahjongPlayPage({
   // 방이 없거나 초기화된 JSON 데이터가 없으면 404
   if (!match?.match_details) return notFound();
   if (match.deleted_at) return notFound();
+
+  if (match.games.key !== MAHJONG_GAME_KEY) {
+    return notFound();
+  }
 
   // 2. JSON 데이터 파싱
   const details = match.match_details.details as any;

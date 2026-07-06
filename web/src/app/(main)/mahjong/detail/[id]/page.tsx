@@ -27,8 +27,11 @@ export default async function MatchDetailPage({
   const match = await db.matches.findUnique({
     where: { id: matchId },
     include: {
+      games: true,
       match_players: {
-        include: { users: true },
+        include: {
+          users: true,
+        },
       },
       match_details: true,
     },
@@ -37,6 +40,10 @@ export default async function MatchDetailPage({
   if (!match?.match_details) return notFound();
 
   if (match.deleted_at) return notFound();
+
+  if (match.games.key !== MAHJONG_GAME_KEY) {
+    return notFound();
+  }
 
   const details = match.match_details.details as any;
 

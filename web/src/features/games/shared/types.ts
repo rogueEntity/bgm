@@ -1,6 +1,6 @@
 // web/src/features/games/shared/types.ts
 
-export type GameKey = "mahjong"|"tichu";
+export type GameKey = "mahjong" | "tichu";
 
 export type GameModule = {
     key: GameKey;

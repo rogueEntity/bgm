@@ -2,10 +2,15 @@
 
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
+
 import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
+import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -72,6 +77,16 @@ export type TichuDashboardData = {
     news: TichuDashboardNewsItem[];
 };
 
+type CreateTichuMatchInput = {
+    teamAName: string;
+    teamBName: string;
+    playerNames: [string, string, string, string];
+    targetScore: 500 | 1000;
+};
+
+const MAX_TICHU_PLAYER_NAME_LENGTH = 20;
+const MAX_TICHU_TEAM_NAME_LENGTH = 20;
+
 function isRecord(value: unknown): value is JsonRecord {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -118,6 +133,36 @@ function toDashboardMe(user: {
             user.avatar_image_updated_at,
         ),
     };
+}
+
+function normalizeTichuText(value: string) {
+    return value.trim().replace(/\s+/g, " ");
+}
+
+function validateTichuPlayerNames(playerNames: string[]) {
+    const normalizedNames = playerNames.map(normalizeTichuText);
+
+    if (normalizedNames.length !== 4) {
+        throw new Error("티츄 참가자는 4명이어야 합니다.");
+    }
+
+    if (normalizedNames.some((name) => name.length === 0)) {
+        throw new Error("참가자 4명의 이름을 모두 입력해주세요.");
+    }
+
+    if (
+        normalizedNames.some((name) => name.length > MAX_TICHU_PLAYER_NAME_LENGTH)
+    ) {
+        throw new Error(
+            `참가자 이름은 ${MAX_TICHU_PLAYER_NAME_LENGTH}글자까지 입력할 수 있습니다.`,
+        );
+    }
+
+    if (new Set(normalizedNames).size !== normalizedNames.length) {
+        throw new Error("참가자 이름은 모두 달라야 합니다.");
+    }
+
+    return normalizedNames as [string, string, string, string];
 }
 
 export async function getTichuDashboardData(): Promise<TichuDashboardData> {
@@ -326,4 +371,161 @@ export async function getTichuDashboardData(): Promise<TichuDashboardData> {
         }),
         news: [],
     };
+}
+
+export async function createTichuMatch(input: CreateTichuMatchInput) {
+    assertGameEnabledForAction(TICHU_GAME_KEY);
+
+    const session = await auth();
+
+    if (!session?.user) {
+        throw new Error("Unauthorized");
+    }
+
+    const providerId = session.user.id as string;
+
+    const me = await db.users.findFirst({
+        where: {
+            provider_id: providerId,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!me) {
+        throw new Error("DB에서 로그인한 유저 정보를 찾을 수 없습니다.");
+    }
+
+    const game = await db.games.findUnique({
+        where: {
+            key: TICHU_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!game) {
+        throw new Error("티츄 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const playerNames = validateTichuPlayerNames(input.playerNames);
+
+    const teamAName = normalizeTichuText(input.teamAName) || "A팀";
+    const teamBName = normalizeTichuText(input.teamBName) || "B팀";
+
+    if (
+        teamAName.length > MAX_TICHU_TEAM_NAME_LENGTH ||
+        teamBName.length > MAX_TICHU_TEAM_NAME_LENGTH
+    ) {
+        throw new Error(
+            `팀 이름은 ${MAX_TICHU_TEAM_NAME_LENGTH}글자까지 입력할 수 있습니다.`,
+        );
+    }
+
+    if (![500, 1000].includes(input.targetScore)) {
+        throw new Error("목표 점수는 500점 또는 1000점만 선택할 수 있습니다.");
+    }
+
+    const existingUsers = await db.users.findMany({
+        where: {
+            nickname: {
+                in: playerNames,
+            },
+        },
+        select: {
+            id: true,
+            nickname: true,
+        },
+    });
+
+    const userMap = new Map(existingUsers.map((user) => [user.nickname, user.id]));
+
+    const playerKeys = playerNames.map((playerName) => {
+        const foundUserId = userMap.get(playerName);
+
+        return foundUserId ? `user_${foundUserId}` : `guest_${playerName}`;
+    }) as [string, string, string, string];
+
+    const details = {
+        schema_version: 1,
+        game_key: TICHU_GAME_KEY,
+        status: "PLAYING",
+        current_round: 1,
+        target_score: input.targetScore,
+        teams: {
+            TEAM_A: {
+                name: teamAName,
+                score: 0,
+                player_keys: [playerKeys[0], playerKeys[2]],
+            },
+            TEAM_B: {
+                name: teamBName,
+                score: 0,
+                player_keys: [playerKeys[1], playerKeys[3]],
+            },
+        },
+        players: {
+            [playerKeys[0]]: {
+                name: playerNames[0],
+                team_key: "TEAM_A",
+                seat_order: 1,
+            },
+            [playerKeys[1]]: {
+                name: playerNames[1],
+                team_key: "TEAM_B",
+                seat_order: 2,
+            },
+            [playerKeys[2]]: {
+                name: playerNames[2],
+                team_key: "TEAM_A",
+                seat_order: 3,
+            },
+            [playerKeys[3]]: {
+                name: playerNames[3],
+                team_key: "TEAM_B",
+                seat_order: 4,
+            },
+        },
+        logs: [],
+        stats_applied: false,
+    };
+
+    const newMatch = await db.$transaction(async (tx) => {
+        const match = await tx.matches.create({
+            data: {
+                game_id: game.id,
+                created_by: me.id,
+                play_date: new Date(),
+                match_details: {
+                    create: {
+                        details: details as Prisma.InputJsonValue,
+                    },
+                },
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        await tx.match_players.createMany({
+            data: playerNames.map((playerName) => {
+                const foundUserId = userMap.get(playerName);
+
+                return {
+                    match_id: match.id,
+                    user_id: foundUserId ?? null,
+                    guest_name: foundUserId ? null : playerName,
+                };
+            }),
+        });
+
+        return match;
+    });
+
+    revalidatePath("/tichu");
+    revalidatePath("/tichu/matches");
+
+    redirect(`/tichu/play/${newMatch.id}`);
 }
