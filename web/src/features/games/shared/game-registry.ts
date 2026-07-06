@@ -3,9 +3,11 @@
 import { mahjongModule } from "../mahjong/module";
 
 import type { GameKey, GameModule } from "./types";
+import {tichuModule} from "@/features/games/tichu/module";
 
 export const gameModules = {
     mahjong: mahjongModule,
+    tichu: tichuModule,
 } satisfies Record<GameKey, GameModule>;
 
 export const gameModuleList = Object.values(gameModules);
