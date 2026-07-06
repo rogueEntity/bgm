@@ -780,9 +780,12 @@ export async function syncMahjongAchievementsForUsers(userIds: string[]) {
 }
 
 export async function syncMahjongAchievementsForMatch(matchId: number) {
-  const match = await db.matches.findUnique({
+  const mahjongGameId = await getMahjongGameId();
+
+  const match = await db.matches.findFirst({
     where: {
       id: matchId,
+      game_id: mahjongGameId,
     },
     include: {
       match_players: {

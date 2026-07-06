@@ -1,7 +1,7 @@
 // web/src/app/(main)/tichu/play/[id]/page.tsx
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { db } from "@/lib/prisma";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
@@ -13,24 +13,29 @@ type TichuPlayPageProps = {
     }>;
 };
 
+type TichuTeamKey = "TEAM_A" | "TEAM_B";
+
 type TichuDetails = {
+    status?: "PLAYING" | "FINISHED" | "DELETED" | string;
     current_round?: number;
     target_score?: number;
     teams?: {
         TEAM_A?: {
             name?: string;
             score?: number;
+            player_keys?: string[];
         };
         TEAM_B?: {
             name?: string;
             score?: number;
+            player_keys?: string[];
         };
     };
     players?: Record<
         string,
         {
             name?: string;
-            team_key?: "TEAM_A" | "TEAM_B";
+            team_key?: TichuTeamKey;
             seat_order?: number;
         }
     >;
@@ -40,10 +45,10 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     assertGameEnabled(TICHU_GAME_KEY);
 
     const resolvedParams = await params;
-    const matchId = Number(resolvedParams.id);
+    const matchId = Number.parseInt(resolvedParams.id, 10);
 
-    if (!Number.isInteger(matchId)) {
-        notFound();
+    if (Number.isNaN(matchId)) {
+        return notFound();
     }
 
     const match = await db.matches.findUnique({
@@ -56,11 +61,33 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
         },
     });
 
-    if (!match || match.games.key !== TICHU_GAME_KEY || !match.match_details) {
-        notFound();
+    if (!match?.match_details) {
+        return notFound();
+    }
+
+    if (match.deleted_at) {
+        return notFound();
+    }
+
+    if (match.games.key !== TICHU_GAME_KEY) {
+        return notFound();
     }
 
     const details = match.match_details.details as TichuDetails;
+
+    if (details.status === "DELETED") {
+        return notFound();
+    }
+
+    if (details.status === "FINISHED") {
+        redirect(`/tichu/detail/${matchId}`);
+    }
+
+    const teamAName = details.teams?.TEAM_A?.name ?? "A팀";
+    const teamBName = details.teams?.TEAM_B?.name ?? "B팀";
+    const teamAScore = details.teams?.TEAM_A?.score ?? 0;
+    const teamBScore = details.teams?.TEAM_B?.score ?? 0;
+
     const players = Object.entries(details.players ?? {}).sort(([, a], [, b]) => {
         return (a.seat_order ?? 0) - (b.seat_order ?? 0);
     });
@@ -89,20 +116,16 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
 
             <section className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-sm font-bold text-foreground/50">
-                        {details.teams?.TEAM_A?.name ?? "A팀"}
-                    </p>
+                    <p className="text-sm font-bold text-foreground/50">{teamAName}</p>
                     <p className="mt-2 text-4xl font-black">
-                        {details.teams?.TEAM_A?.score ?? 0}
+                        {teamAScore.toLocaleString()}
                     </p>
                 </div>
 
                 <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-sm font-bold text-foreground/50">
-                        {details.teams?.TEAM_B?.name ?? "B팀"}
-                    </p>
+                    <p className="text-sm font-bold text-foreground/50">{teamBName}</p>
                     <p className="mt-2 text-4xl font-black">
-                        {details.teams?.TEAM_B?.score ?? 0}
+                        {teamBScore.toLocaleString()}
                     </p>
                 </div>
             </section>
@@ -111,21 +134,24 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 <h3 className="text-lg font-black">참가자</h3>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {players.map(([playerKey, player]) => (
-                        <div
-                            key={playerKey}
-                            className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4"
-                        >
-                            <p className="text-xs font-bold text-foreground/40">
-                                {player.team_key === "TEAM_A"
-                                    ? details.teams?.TEAM_A?.name ?? "A팀"
-                                    : details.teams?.TEAM_B?.name ?? "B팀"}
-                            </p>
-                            <p className="mt-1 text-lg font-black">
-                                {player.name ?? "이름 없음"}
-                            </p>
-                        </div>
-                    ))}
+                    {players.map(([playerKey, player]) => {
+                        const teamName =
+                            player.team_key === "TEAM_A" ? teamAName : teamBName;
+
+                        return (
+                            <div
+                                key={playerKey}
+                                className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4"
+                            >
+                                <p className="text-xs font-bold text-foreground/40">
+                                    {teamName}
+                                </p>
+                                <p className="mt-1 text-lg font-black">
+                                    {player.name ?? "이름 없음"}
+                                </p>
+                            </div>
+                        );
+                    })}
                 </div>
             </section>
 

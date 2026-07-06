@@ -12,13 +12,18 @@ export function getMatchHrefByGameKey(
     status?: string,
 ): string | null {
     const gameModule = getGameModule(gameKey);
-
     if (!gameModule) return null;
 
     if (gameKey === "mahjong") {
         return status === "PLAYING"
             ? `/mahjong/play/${matchId}`
             : `/mahjong/detail/${matchId}`;
+    }
+
+    if (gameKey === "tichu") {
+        return status === "PLAYING"
+            ? `/tichu/play/${matchId}`
+            : `/tichu/detail/${matchId}`;
     }
 
     return null;

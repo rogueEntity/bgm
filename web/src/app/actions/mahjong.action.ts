@@ -95,9 +95,23 @@ export async function recordMahjongResult(
   return runMahjongAction(async () => {
     const currentUser = await getCurrentMahjongManager();
 
-    const match = await db.matches.findUnique({
+    const mahjongGame = await db.games.findUnique({
+      where: {
+        key: MAHJONG_GAME_KEY,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!mahjongGame) {
+      throw new Error("리치마작 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const match = await db.matches.findFirst({
       where: {
         id: data.match_id,
+        game_id: mahjongGame.id,
       },
       include: {
         match_details: true,
@@ -168,9 +182,23 @@ export async function recordRyuukyoku(
   return runMahjongAction(async () => {
     const currentUser = await getCurrentMahjongManager();
 
-    const match = await db.matches.findUnique({
+    const mahjongGame = await db.games.findUnique({
+      where: {
+        key: MAHJONG_GAME_KEY,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!mahjongGame) {
+      throw new Error("리치마작 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const match = await db.matches.findFirst({
       where: {
         id: data.match_id,
+        game_id: mahjongGame.id,
       },
       include: {
         match_details: true,
