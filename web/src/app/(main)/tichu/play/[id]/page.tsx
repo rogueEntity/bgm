@@ -7,6 +7,8 @@ import { db } from "@/lib/prisma";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
+import TichuRoundForm from "./TichuRoundForm";
+
 type TichuPlayPageProps = {
     params: Promise<{
         id: string;
@@ -16,9 +18,10 @@ type TichuPlayPageProps = {
 type TichuTeamKey = "TEAM_A" | "TEAM_B";
 
 type TichuDetails = {
-    status?: "PLAYING" | "FINISHED" | "DELETED" | string;
+    status?: string;
     current_round?: number;
     target_score?: number;
+    logs?: unknown[];
     teams?: {
         TEAM_A?: {
             name?: string;
@@ -41,7 +44,7 @@ type TichuDetails = {
     >;
 };
 
-export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
+export default async function TichuPlayPage({ params }: Readonly<TichuPlayPageProps>) {
     assertGameEnabled(TICHU_GAME_KEY);
 
     const resolvedParams = await params;
@@ -155,13 +158,11 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 </div>
             </section>
 
-            <section className="rounded-3xl border border-dashed border-foreground/15 bg-foreground/[0.02] p-6 text-center">
-                <p className="font-black">라운드 기록 입력 UI는 다음 단계에서 추가</p>
-                <p className="mt-2 text-sm text-foreground/50">
-                    지금은 생성된 티츄 게임의 기본 정보가 정상 저장되는지만 확인하는
-                    임시 화면입니다.
-                </p>
-            </section>
+            <TichuRoundForm
+                matchId={matchId}
+                expectedVersion={match.match_details.version}
+                details={details}
+            />
         </div>
     );
 }

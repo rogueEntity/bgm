@@ -424,6 +424,7 @@ export async function undoMahjongLastLogRecord(matchId: number) {
         },
         include: {
             match_details: true,
+            match_players: true,
         },
     });
 

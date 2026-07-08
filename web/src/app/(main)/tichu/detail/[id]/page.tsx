@@ -1,4 +1,4 @@
-export default function TichuPlayersPage() {
+export default function TichuDetailPage() {
     return (
         <div className="space-y-4">
             <h2 className="text-3xl font-black">티츄 게임 기록 상세</h2>
