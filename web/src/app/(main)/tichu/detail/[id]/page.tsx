@@ -247,10 +247,10 @@ export default async function TichuDetailPage({
         <div className="mx-auto max-w-4xl space-y-6">
             <div>
                 <Link
-                    href="/tichu"
+                    href="/tichu/matches"
                     className="mb-4 inline-flex text-sm font-semibold text-foreground/60 transition hover:text-foreground"
                 >
-                    ← 티츄 대시보드로
+                    ← 게임 기록으로
                 </Link>
 
                 <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-6 shadow-sm">

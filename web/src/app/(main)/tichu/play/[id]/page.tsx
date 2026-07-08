@@ -1,6 +1,5 @@
 // web/src/app/(main)/tichu/play/[id]/page.tsx
 
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { db } from "@/lib/prisma";
@@ -99,13 +98,6 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     return (
         <div className="mx-auto max-w-4xl space-y-6">
             <div>
-                <Link
-                    href="/tichu"
-                    className="mb-4 inline-flex text-sm font-semibold text-foreground/60 transition hover:text-foreground"
-                >
-                    ← 티츄 대시보드로
-                </Link>
-
                 <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-6 shadow-sm">
                     <p className="text-sm font-black text-blue-500">Tichu</p>
                     <h2 className="mt-1 text-3xl font-black tracking-tight">
