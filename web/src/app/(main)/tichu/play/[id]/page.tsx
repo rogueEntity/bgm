@@ -8,6 +8,7 @@ import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 import TichuRoundForm from "./TichuRoundForm";
+import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
 
 type TichuPlayPageProps = {
     params: Promise<{
@@ -44,7 +45,7 @@ type TichuDetails = {
     >;
 };
 
-export default async function TichuPlayPage({ params }: Readonly<TichuPlayPageProps>) {
+export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     assertGameEnabled(TICHU_GAME_KEY);
 
     const resolvedParams = await params;
@@ -163,6 +164,8 @@ export default async function TichuPlayPage({ params }: Readonly<TichuPlayPagePr
                 expectedVersion={match.match_details.version}
                 details={details}
             />
+
+            <TichuRoundLogCards details={details} />
         </div>
     );
 }

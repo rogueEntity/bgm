@@ -4,6 +4,8 @@
   "status": "PLAYING",
   "current_round": 2,
   "target_score": 1000,
+  "winner_team_key": null,
+  "finished_at": null,
   "teams": {
     "TEAM_A": {
       "name": "A팀",
@@ -47,17 +49,18 @@
   "logs": [
     {
       "round": 1,
+      "first_out_player_key": "user_example_1",
       "team_a_card_score": 70,
       "team_b_card_score": 30,
-      "called_tichu_player_key": "user_example_1",
-      "called_grand_tichu_player_key": null,
-      "successful_tichu_player_keys": [
-        "user_example_1"
-      ],
-      "failed_tichu_player_keys": [],
-      "successful_grand_tichu_player_keys": [],
-      "failed_grand_tichu_player_keys": [],
       "one_two_team_key": null,
+      "small_tichu_calls": [
+        {
+          "player_key": "user_example_1",
+          "result": "SUCCESS",
+          "score_delta": 100
+        }
+      ],
+      "large_tichu_calls": [],
       "score_deltas": {
         "TEAM_A": 170,
         "TEAM_B": 30
