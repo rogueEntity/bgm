@@ -311,9 +311,12 @@ export async function getMahjongMatchList({
 }
 
 export async function getMahjongMatchManageTarget(matchId: number) {
-    const match = await db.matches.findUnique({
+    const mahjongGameId = await getMahjongGameId();
+
+    const match = await db.matches.findFirst({
         where: {
             id: matchId,
+            game_id: mahjongGameId,
         },
         select: {
             id: true,
@@ -346,9 +349,12 @@ export async function deleteMahjongMatchRecord({
     matchId: number;
     deletedBy: string;
 }) {
-    const match = await db.matches.findUnique({
+    const mahjongGameId = await getMahjongGameId();
+
+    const match = await db.matches.findFirst({
         where: {
             id: matchId,
+            game_id: mahjongGameId,
         },
         include: {
             match_details: true,
@@ -409,9 +415,12 @@ export async function deleteMahjongMatchRecord({
 }
 
 export async function undoMahjongLastLogRecord(matchId: number) {
-    const match = await db.matches.findUnique({
+    const mahjongGameId = await getMahjongGameId();
+
+    const match = await db.matches.findFirst({
         where: {
             id: matchId,
+            game_id: mahjongGameId,
         },
         include: {
             match_details: true,
@@ -469,4 +478,21 @@ export async function undoMahjongLastLogRecord(matchId: number) {
     return {
         changed: true,
     };
+}
+
+async function getMahjongGameId() {
+    const game = await db.games.findUnique({
+        where: {
+            key: MAHJONG_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!game) {
+        throw new Error("리치마작 게임 정보를 찾을 수 없습니다.");
+    }
+
+    return game.id;
 }

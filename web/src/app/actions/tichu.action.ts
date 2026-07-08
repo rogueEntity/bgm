@@ -2,15 +2,24 @@
 
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
+
 import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
+import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
 
 type JsonRecord = Record<string, unknown>;
 
+type TichuTeamKey = "TEAM_A" | "TEAM_B";
+type TichuStatus = "PLAYING" | "FINISHED" | "DELETED";
+type TichuCallResult = "SUCCESS" | "FAIL";
+
 type TichuDetailsSnapshot = {
-    status?: "PLAYING" | "FINISHED" | "DELETED" | string;
+    status?: TichuStatus | string;
     current_round?: number;
     target_score?: number;
     teams?: {
@@ -72,6 +81,98 @@ export type TichuDashboardData = {
     news: TichuDashboardNewsItem[];
 };
 
+type CreateTichuMatchInput = {
+    teamAName: string;
+    teamBName: string;
+    playerNames: [string, string, string, string];
+    targetScore: 500 | 1000;
+};
+
+type RecordTichuRoundInput = {
+    matchId: number;
+    expectedVersion: number;
+    firstOutPlayerKey: string;
+    teamACardScore: number | null;
+    teamBCardScore: number | null;
+    oneTwoTeamKey: TichuTeamKey | null;
+    smallTichuPlayerKeys: string[];
+    largeTichuPlayerKeys: string[];
+};
+
+type TichuPlayerState = {
+    name: string;
+    team_key: TichuTeamKey;
+    seat_order: number;
+};
+
+type TichuTeamState = {
+    name: string;
+    score: number;
+    player_keys: string[];
+};
+
+type TichuCallLog = {
+    player_key: string;
+    result: TichuCallResult;
+    score_delta: number;
+};
+
+type TichuRoundLog = {
+    round: number;
+    first_out_player_key: string;
+    team_a_card_score: number | null;
+    team_b_card_score: number | null;
+    one_two_team_key: TichuTeamKey | null;
+    small_tichu_calls: TichuCallLog[];
+    large_tichu_calls: TichuCallLog[];
+    score_deltas: Record<TichuTeamKey, number>;
+    total_scores: Record<TichuTeamKey, number>;
+    created_at: string;
+};
+
+type RawTichuPlayerState = {
+    name?: string;
+    team_key?: TichuTeamKey;
+    seat_order?: number;
+};
+
+type RawTichuTeamState = {
+    name?: string;
+    score?: number;
+    player_keys?: string[];
+};
+
+type RawTichuRecordDetails = {
+    schema_version?: number;
+    game_key?: string;
+    status?: TichuStatus | string;
+    current_round?: number;
+    target_score?: number;
+    winner_team_key?: TichuTeamKey | null;
+    finished_at?: string | null;
+    teams?: Partial<Record<TichuTeamKey, RawTichuTeamState>>;
+    players?: Record<string, RawTichuPlayerState>;
+    logs?: unknown[];
+    stats_applied?: boolean;
+};
+
+type NormalizedTichuRecordDetails = {
+    schema_version: number;
+    game_key: string;
+    status: TichuStatus;
+    current_round: number;
+    target_score: number;
+    winner_team_key: TichuTeamKey | null;
+    finished_at: string | null;
+    teams: Record<TichuTeamKey, TichuTeamState>;
+    players: Record<string, TichuPlayerState>;
+    logs: unknown[];
+    stats_applied: boolean;
+};
+
+const MAX_TICHU_PLAYER_NAME_LENGTH = 20;
+const MAX_TICHU_TEAM_NAME_LENGTH = 20;
+
 function isRecord(value: unknown): value is JsonRecord {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -118,6 +219,218 @@ function toDashboardMe(user: {
             user.avatar_image_updated_at,
         ),
     };
+}
+
+function normalizeTichuText(value: string) {
+    return value.trim().replace(/\s+/g, " ");
+}
+
+function validateTichuPlayerNames(playerNames: string[]) {
+    const normalizedNames = playerNames.map(normalizeTichuText);
+
+    if (normalizedNames.length !== 4) {
+        throw new Error("티츄 참가자는 4명이어야 합니다.");
+    }
+
+    if (normalizedNames.some((name) => name.length === 0)) {
+        throw new Error("참가자 4명의 이름을 모두 입력해주세요.");
+    }
+
+    if (
+        normalizedNames.some((name) => name.length > MAX_TICHU_PLAYER_NAME_LENGTH)
+    ) {
+        throw new Error(
+            `참가자 이름은 ${MAX_TICHU_PLAYER_NAME_LENGTH}글자까지 입력할 수 있습니다.`,
+        );
+    }
+
+    if (new Set(normalizedNames).size !== normalizedNames.length) {
+        throw new Error("참가자 이름은 모두 달라야 합니다.");
+    }
+
+    return normalizedNames as [string, string, string, string];
+}
+
+function assertTichuTeamKey(value: unknown): asserts value is TichuTeamKey {
+    if (value !== "TEAM_A" && value !== "TEAM_B") {
+        throw new Error("잘못된 팀 정보입니다.");
+    }
+}
+
+function getOppositeTichuTeamKey(teamKey: TichuTeamKey): TichuTeamKey {
+    return teamKey === "TEAM_A" ? "TEAM_B" : "TEAM_A";
+}
+
+function normalizeTichuPlayers(
+    players: Record<string, RawTichuPlayerState> | undefined,
+): Record<string, TichuPlayerState> {
+    if (!players || Object.keys(players).length !== 4) {
+        throw new Error("티츄 참가자 정보를 찾을 수 없습니다.");
+    }
+
+    return Object.fromEntries(
+        Object.entries(players).map(([playerKey, player]) => {
+            assertTichuTeamKey(player.team_key);
+
+            return [
+                playerKey,
+                {
+                    name: player.name ?? "이름 없음",
+                    team_key: player.team_key,
+                    seat_order: player.seat_order ?? 0,
+                },
+            ];
+        }),
+    );
+}
+
+function normalizeTichuStatus(status: string | undefined): TichuStatus {
+    if (status === "FINISHED" || status === "DELETED") {
+        return status;
+    }
+
+    return "PLAYING";
+}
+
+function normalizeTichuRecordDetails(
+    details: unknown,
+): NormalizedTichuRecordDetails {
+    if (!isRecord(details)) {
+        throw new Error("티츄 기록 정보를 읽을 수 없습니다.");
+    }
+
+    const parsedDetails = details as RawTichuRecordDetails;
+
+    if (!parsedDetails.teams?.TEAM_A || !parsedDetails.teams?.TEAM_B) {
+        throw new Error("티츄 팀 정보를 찾을 수 없습니다.");
+    }
+
+    const teamAPlayerKeys = parsedDetails.teams.TEAM_A.player_keys ?? [];
+    const teamBPlayerKeys = parsedDetails.teams.TEAM_B.player_keys ?? [];
+
+    return {
+        schema_version: parsedDetails.schema_version ?? 1,
+        game_key: parsedDetails.game_key ?? TICHU_GAME_KEY,
+        status: normalizeTichuStatus(parsedDetails.status),
+        current_round: parsedDetails.current_round ?? 1,
+        target_score: parsedDetails.target_score ?? 1000,
+        winner_team_key: parsedDetails.winner_team_key ?? null,
+        finished_at: parsedDetails.finished_at ?? null,
+        teams: {
+            TEAM_A: {
+                name: parsedDetails.teams.TEAM_A.name ?? "A팀",
+                score: parsedDetails.teams.TEAM_A.score ?? 0,
+                player_keys: teamAPlayerKeys,
+            },
+            TEAM_B: {
+                name: parsedDetails.teams.TEAM_B.name ?? "B팀",
+                score: parsedDetails.teams.TEAM_B.score ?? 0,
+                player_keys: teamBPlayerKeys,
+            },
+        },
+        players: normalizeTichuPlayers(parsedDetails.players),
+        logs: Array.isArray(parsedDetails.logs) ? parsedDetails.logs : [],
+        stats_applied: parsedDetails.stats_applied ?? false,
+    };
+}
+
+function validateTichuCardScore(value: number | null, label: string) {
+    if (value === null) {
+        throw new Error(`${label} 카드 점수를 입력해주세요.`);
+    }
+
+    if (!Number.isInteger(value)) {
+        throw new Error(`${label} 카드 점수는 정수로 입력해주세요.`);
+    }
+
+    if (value % 5 !== 0) {
+        throw new Error(`${label} 카드 점수는 5점 단위로 입력해주세요.`);
+    }
+
+    if (value < -25 || value > 125) {
+        throw new Error(`${label} 카드 점수는 -25점부터 125점 사이로 입력해주세요.`);
+    }
+}
+
+function uniquePlayerKeys(playerKeys: string[]) {
+    return Array.from(new Set(playerKeys.filter((playerKey) => playerKey)));
+}
+
+function validateTichuPlayerKeyExists(
+    details: NormalizedTichuRecordDetails,
+    playerKey: string,
+) {
+    if (!details.players[playerKey]) {
+        throw new Error("존재하지 않는 플레이어가 선택되었습니다.");
+    }
+}
+
+function validateTichuCallPlayerKeys(params: {
+    details: NormalizedTichuRecordDetails;
+    firstOutPlayerKey: string;
+    smallTichuPlayerKeys: string[];
+    largeTichuPlayerKeys: string[];
+}) {
+    const {
+        details,
+        firstOutPlayerKey,
+        smallTichuPlayerKeys,
+        largeTichuPlayerKeys,
+    } = params;
+
+    validateTichuPlayerKeyExists(details, firstOutPlayerKey);
+
+    if (smallTichuPlayerKeys.length !== new Set(smallTichuPlayerKeys).size) {
+        throw new Error("스몰 티츄 선언자가 중복되었습니다.");
+    }
+
+    if (largeTichuPlayerKeys.length !== new Set(largeTichuPlayerKeys).size) {
+        throw new Error("라지 티츄 선언자가 중복되었습니다.");
+    }
+
+    const smallSet = new Set(smallTichuPlayerKeys);
+
+    if (largeTichuPlayerKeys.some((playerKey) => smallSet.has(playerKey))) {
+        throw new Error(
+            "같은 플레이어가 스몰 티츄와 라지 티츄를 동시에 선언할 수 없습니다.",
+        );
+    }
+
+    [...smallTichuPlayerKeys, ...largeTichuPlayerKeys].forEach((playerKey) => {
+        validateTichuPlayerKeyExists(details, playerKey);
+    });
+}
+
+function createTichuCallLogs(params: {
+    details: NormalizedTichuRecordDetails;
+    playerKeys: string[];
+    firstOutPlayerKey: string;
+    successBonus: number;
+    failPenalty: number;
+    scoreDeltas: Record<TichuTeamKey, number>;
+}): TichuCallLog[] {
+    const {
+        details,
+        playerKeys,
+        firstOutPlayerKey,
+        successBonus,
+        failPenalty,
+        scoreDeltas,
+    } = params;
+
+    return playerKeys.map((playerKey) => {
+        const player = details.players[playerKey];
+        const isSuccess = playerKey === firstOutPlayerKey;
+        const scoreDelta = isSuccess ? successBonus : -failPenalty;
+
+        scoreDeltas[player.team_key] += scoreDelta;
+
+        return {
+            player_key: playerKey,
+            result: isSuccess ? "SUCCESS" : "FAIL",
+            score_delta: scoreDelta,
+        };
+    });
 }
 
 export async function getTichuDashboardData(): Promise<TichuDashboardData> {
@@ -326,4 +639,368 @@ export async function getTichuDashboardData(): Promise<TichuDashboardData> {
         }),
         news: [],
     };
+}
+
+export async function createTichuMatch(input: CreateTichuMatchInput) {
+    assertGameEnabledForAction(TICHU_GAME_KEY);
+
+    const session = await auth();
+
+    if (!session?.user) {
+        throw new Error("Unauthorized");
+    }
+
+    const providerId = session.user.id as string;
+
+    const me = await db.users.findFirst({
+        where: {
+            provider_id: providerId,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!me) {
+        throw new Error("DB에서 로그인한 유저 정보를 찾을 수 없습니다.");
+    }
+
+    const game = await db.games.findUnique({
+        where: {
+            key: TICHU_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!game) {
+        throw new Error("티츄 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const playerNames = validateTichuPlayerNames(input.playerNames);
+
+    const teamAName = normalizeTichuText(input.teamAName) || "A팀";
+    const teamBName = normalizeTichuText(input.teamBName) || "B팀";
+
+    if (
+        teamAName.length > MAX_TICHU_TEAM_NAME_LENGTH ||
+        teamBName.length > MAX_TICHU_TEAM_NAME_LENGTH
+    ) {
+        throw new Error(
+            `팀 이름은 ${MAX_TICHU_TEAM_NAME_LENGTH}글자까지 입력할 수 있습니다.`,
+        );
+    }
+
+    if (![500, 1000].includes(input.targetScore)) {
+        throw new Error("목표 점수는 500점 또는 1000점만 선택할 수 있습니다.");
+    }
+
+    const existingUsers = await db.users.findMany({
+        where: {
+            nickname: {
+                in: playerNames,
+            },
+        },
+        select: {
+            id: true,
+            nickname: true,
+        },
+    });
+
+    const userMap = new Map(existingUsers.map((user) => [user.nickname, user.id]));
+
+    const playerKeys = playerNames.map((playerName) => {
+        const foundUserId = userMap.get(playerName);
+
+        return foundUserId ? `user_${foundUserId}` : `guest_${playerName}`;
+    }) as [string, string, string, string];
+
+    const details = {
+        schema_version: 1,
+        game_key: TICHU_GAME_KEY,
+        status: "PLAYING",
+        current_round: 1,
+        target_score: input.targetScore,
+        teams: {
+            TEAM_A: {
+                name: teamAName,
+                score: 0,
+                player_keys: [playerKeys[0], playerKeys[2]],
+            },
+            TEAM_B: {
+                name: teamBName,
+                score: 0,
+                player_keys: [playerKeys[1], playerKeys[3]],
+            },
+        },
+        players: {
+            [playerKeys[0]]: {
+                name: playerNames[0],
+                team_key: "TEAM_A",
+                seat_order: 1,
+            },
+            [playerKeys[1]]: {
+                name: playerNames[1],
+                team_key: "TEAM_B",
+                seat_order: 2,
+            },
+            [playerKeys[2]]: {
+                name: playerNames[2],
+                team_key: "TEAM_A",
+                seat_order: 3,
+            },
+            [playerKeys[3]]: {
+                name: playerNames[3],
+                team_key: "TEAM_B",
+                seat_order: 4,
+            },
+        },
+        logs: [],
+        stats_applied: false,
+    };
+
+    const newMatch = await db.$transaction(async (tx) => {
+        const match = await tx.matches.create({
+            data: {
+                game_id: game.id,
+                created_by: me.id,
+                play_date: new Date(),
+                match_details: {
+                    create: {
+                        details: details as Prisma.InputJsonValue,
+                    },
+                },
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        await tx.match_players.createMany({
+            data: playerNames.map((playerName) => {
+                const foundUserId = userMap.get(playerName);
+
+                return {
+                    match_id: match.id,
+                    user_id: foundUserId ?? null,
+                    guest_name: foundUserId ? null : playerName,
+                };
+            }),
+        });
+
+        return match;
+    });
+
+    revalidatePath("/tichu");
+    revalidatePath("/tichu/matches");
+
+    redirect(`/tichu/play/${newMatch.id}`);
+}
+
+export async function recordTichuRound(
+    input: RecordTichuRoundInput,
+): Promise<void> {
+    assertGameEnabledForAction(TICHU_GAME_KEY);
+
+    const session = await auth();
+
+    if (!session?.user) {
+        throw new Error("Unauthorized");
+    }
+
+    const providerId = session.user.id as string;
+
+    const me = await db.users.findFirst({
+        where: {
+            provider_id: providerId,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!me) {
+        throw new Error("DB에서 로그인한 유저 정보를 찾을 수 없습니다.");
+    }
+
+    const game = await db.games.findUnique({
+        where: {
+            key: TICHU_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!game) {
+        throw new Error("티츄 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const match = await db.matches.findFirst({
+        where: {
+            id: input.matchId,
+            game_id: game.id,
+        },
+        include: {
+            match_details: true,
+        },
+    });
+
+    if (!match?.match_details) {
+        throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
+    }
+
+    if (match.deleted_at) {
+        throw new Error("삭제된 게임에는 기록을 추가할 수 없습니다.");
+    }
+
+    if (match.created_by !== me.id) {
+        throw new Error("게임 생성자만 라운드를 기록할 수 있습니다.");
+    }
+
+    const details = normalizeTichuRecordDetails(match.match_details.details);
+
+    if (details.game_key !== TICHU_GAME_KEY) {
+        throw new Error("티츄 게임 기록이 아닙니다.");
+    }
+
+    if (details.status !== "PLAYING") {
+        throw new Error("진행 중인 티츄 게임에만 기록을 추가할 수 있습니다.");
+    }
+
+    const firstOutPlayerKey = input.firstOutPlayerKey.trim();
+    const smallTichuPlayerKeys = uniquePlayerKeys(input.smallTichuPlayerKeys);
+    const largeTichuPlayerKeys = uniquePlayerKeys(input.largeTichuPlayerKeys);
+
+    validateTichuCallPlayerKeys({
+        details,
+        firstOutPlayerKey,
+        smallTichuPlayerKeys,
+        largeTichuPlayerKeys,
+    });
+
+    const scoreDeltas: Record<TichuTeamKey, number> = {
+        TEAM_A: 0,
+        TEAM_B: 0,
+    };
+
+    let teamACardScore: number | null = input.teamACardScore;
+    let teamBCardScore: number | null = input.teamBCardScore;
+
+    if (input.oneTwoTeamKey) {
+        assertTichuTeamKey(input.oneTwoTeamKey);
+
+        const oppositeTeamKey = getOppositeTichuTeamKey(input.oneTwoTeamKey);
+
+        scoreDeltas[input.oneTwoTeamKey] = 200;
+        scoreDeltas[oppositeTeamKey] = 0;
+
+        teamACardScore = null;
+        teamBCardScore = null;
+    } else {
+        validateTichuCardScore(teamACardScore, "A팀");
+        validateTichuCardScore(teamBCardScore, "B팀");
+
+        if ((teamACardScore ?? 0) + (teamBCardScore ?? 0) !== 100) {
+            throw new Error("A팀과 B팀의 카드 점수 합계는 100점이어야 합니다.");
+        }
+
+        scoreDeltas.TEAM_A = teamACardScore ?? 0;
+        scoreDeltas.TEAM_B = teamBCardScore ?? 0;
+    }
+
+    const smallTichuCalls = createTichuCallLogs({
+        details,
+        playerKeys: smallTichuPlayerKeys,
+        firstOutPlayerKey,
+        successBonus: 100,
+        failPenalty: 100,
+        scoreDeltas,
+    });
+
+    const largeTichuCalls = createTichuCallLogs({
+        details,
+        playerKeys: largeTichuPlayerKeys,
+        firstOutPlayerKey,
+        successBonus: 200,
+        failPenalty: 200,
+        scoreDeltas,
+    });
+
+    const totalScores: Record<TichuTeamKey, number> = {
+        TEAM_A: details.teams.TEAM_A.score + scoreDeltas.TEAM_A,
+        TEAM_B: details.teams.TEAM_B.score + scoreDeltas.TEAM_B,
+    };
+
+    const reachedTarget =
+        totalScores.TEAM_A >= details.target_score ||
+        totalScores.TEAM_B >= details.target_score;
+
+    const hasWinner = reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
+
+    const winnerTeamKey: TichuTeamKey | null = hasWinner
+        ? totalScores.TEAM_A > totalScores.TEAM_B
+            ? "TEAM_A"
+            : "TEAM_B"
+        : null;
+
+    const round = details.current_round;
+    const now = new Date().toISOString();
+
+    const newLog: TichuRoundLog = {
+        round,
+        first_out_player_key: firstOutPlayerKey,
+        team_a_card_score: teamACardScore,
+        team_b_card_score: teamBCardScore,
+        one_two_team_key: input.oneTwoTeamKey,
+        small_tichu_calls: smallTichuCalls,
+        large_tichu_calls: largeTichuCalls,
+        score_deltas: scoreDeltas,
+        total_scores: totalScores,
+        created_at: now,
+    };
+
+    const nextDetails: NormalizedTichuRecordDetails = {
+        ...details,
+        status: winnerTeamKey ? "FINISHED" : "PLAYING",
+        current_round: winnerTeamKey ? round : round + 1,
+        winner_team_key: winnerTeamKey,
+        finished_at: winnerTeamKey ? now : null,
+        teams: {
+            TEAM_A: {
+                ...details.teams.TEAM_A,
+                score: totalScores.TEAM_A,
+            },
+            TEAM_B: {
+                ...details.teams.TEAM_B,
+                score: totalScores.TEAM_B,
+            },
+        },
+        logs: [...details.logs, newLog],
+    };
+
+    const updateResult = await db.match_details.updateMany({
+        where: {
+            match_id: match.match_details.match_id,
+            version: input.expectedVersion,
+        },
+        data: {
+            details: nextDetails as Prisma.InputJsonValue,
+            version: {
+                increment: 1,
+            },
+        },
+    });
+
+    if (updateResult.count !== 1) {
+        throw new Error(
+            "다른 사용자가 먼저 기록을 수정했습니다. 새로고침 후 다시 시도해주세요.",
+        );
+    }
+
+    revalidatePath(`/tichu/play/${input.matchId}`);
+    revalidatePath(`/tichu/detail/${input.matchId}`);
+    revalidatePath("/tichu");
+    revalidatePath("/tichu/matches");
 }

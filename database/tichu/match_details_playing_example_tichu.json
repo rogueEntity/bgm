@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "game_key": "tichu",
+  "status": "PLAYING",
+  "current_round": 2,
+  "target_score": 1000,
+  "winner_team_key": null,
+  "finished_at": null,
+  "teams": {
+    "TEAM_A": {
+      "name": "A팀",
+      "score": 170,
+      "player_keys": [
+        "user_example_1",
+        "guest_민수"
+      ]
+    },
+    "TEAM_B": {
+      "name": "B팀",
+      "score": 30,
+      "player_keys": [
+        "user_example_2",
+        "guest_지훈"
+      ]
+    }
+  },
+  "players": {
+    "user_example_1": {
+      "name": "로그",
+      "team_key": "TEAM_A",
+      "seat_order": 1
+    },
+    "user_example_2": {
+      "name": "예림",
+      "team_key": "TEAM_B",
+      "seat_order": 2
+    },
+    "guest_민수": {
+      "name": "민수",
+      "team_key": "TEAM_A",
+      "seat_order": 3
+    },
+    "guest_지훈": {
+      "name": "지훈",
+      "team_key": "TEAM_B",
+      "seat_order": 4
+    }
+  },
+  "logs": [
+    {
+      "round": 1,
+      "first_out_player_key": "user_example_1",
+      "team_a_card_score": 70,
+      "team_b_card_score": 30,
+      "one_two_team_key": null,
+      "small_tichu_calls": [
+        {
+          "player_key": "user_example_1",
+          "result": "SUCCESS",
+          "score_delta": 100
+        }
+      ],
+      "large_tichu_calls": [],
+      "score_deltas": {
+        "TEAM_A": 170,
+        "TEAM_B": 30
+      },
+      "total_scores": {
+        "TEAM_A": 170,
+        "TEAM_B": 30
+      },
+      "created_at": "2026-07-06T10:00:00.000Z"
+    }
+  ],
+  "stats_applied": false
+}

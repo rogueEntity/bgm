@@ -7,6 +7,7 @@ import { db } from "@/lib/prisma";
 import { AchievementDefinitions } from "../constants/achievement-definitions";
 import type { MahjongRoundLog, MahjongWinLog } from "../types";
 import { normalizeDetails } from "./details";
+import { MAHJONG_GAME_KEY } from "../constants";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 
@@ -162,9 +163,21 @@ export async function createMahjongAchievementNewsEvent(params: {
 }
 
 export async function syncMahjongNewsEventsForMatch(matchId: number) {
-    const match = await db.matches.findUnique({
+    const mahjongGame = await db.games.findUnique({
+        where: {
+            key: MAHJONG_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!mahjongGame) return;
+
+    const match = await db.matches.findFirst({
         where: {
             id: matchId,
+            game_id: mahjongGame.id,
         },
         include: {
             match_details: {

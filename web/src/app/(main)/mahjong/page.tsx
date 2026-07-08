@@ -72,43 +72,62 @@ async function getMyMahjongDashboardData() {
     };
   }
 
-  const [matches, equippedBadgeMap, recentNews] = await Promise.all([
-    db.matches.findMany({
+  const [mahjongGame, equippedBadgeMap, recentNews] = await Promise.all([
+    db.games.findUnique({
       where: {
-        deleted_at: null,
-        OR: [
-          {
-            created_by: me.id,
-          },
-          {
-            match_players: {
-              some: {
-                user_id: me.id,
-              },
-            },
-          },
-        ],
+        key: MAHJONG_GAME_KEY,
       },
-      include: {
-        match_details: true,
+      select: {
+        id: true,
       },
-      orderBy: {
-        play_date: "desc",
-      },
-      take: 20,
     }),
     getMahjongEquippedBadgesByUserIds([me.id]),
     getRecentMahjongNewsEvents(10),
   ]);
 
-  const activeMatch =
-    matches.find((match) => {
-      const details = match.match_details?.details as
-        | MahjongDetailsSnapshot
-        | undefined;
+  if (!mahjongGame) {
+    return {
+      me,
+      activeMatch: null,
+      equippedBadges: equippedBadgeMap[me.id] ?? [],
+      recentNews,
+    };
+  }
 
-      return details?.status === "PLAYING";
-    }) ?? null;
+  const matches = await db.matches.findMany({
+    where: {
+      game_id: mahjongGame.id,
+      deleted_at: null,
+      OR: [
+        {
+          created_by: me.id,
+        },
+        {
+          match_players: {
+            some: {
+              user_id: me.id,
+            },
+          },
+        },
+      ],
+    },
+    include: {
+      match_details: true,
+    },
+    orderBy: {
+      play_date: "desc",
+    },
+    take: 20,
+  });
+
+  const activeMatch =
+      matches.find((match) => {
+        const details = match.match_details?.details as
+            | MahjongDetailsSnapshot
+            | undefined;
+
+        return details?.status === "PLAYING";
+      }) ?? null;
 
   return {
     me,
