@@ -98,6 +98,7 @@ type RecordTichuRoundInput = {
     oneTwoTeamKey: TichuTeamKey | null;
     smallTichuPlayerKeys: string[];
     largeTichuPlayerKeys: string[];
+    isForceFinish?: boolean;
 };
 
 type TichuPlayerState = {
@@ -852,6 +853,8 @@ export async function recordTichuRound(
         throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
     }
 
+    const matchDetail = match.match_details;
+
     if (match.deleted_at) {
         throw new Error("삭제된 게임에는 기록을 추가할 수 없습니다.");
     }
@@ -860,7 +863,7 @@ export async function recordTichuRound(
         throw new Error("게임 생성자만 라운드를 기록할 수 있습니다.");
     }
 
-    const details = normalizeTichuRecordDetails(match.match_details.details);
+    const details = normalizeTichuRecordDetails(matchDetail.details);
 
     if (details.game_key !== TICHU_GAME_KEY) {
         throw new Error("티츄 게임 기록이 아닙니다.");
@@ -938,12 +941,13 @@ export async function recordTichuRound(
         totalScores.TEAM_A >= details.target_score ||
         totalScores.TEAM_B >= details.target_score;
 
-    const hasWinner = reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
+    const hasWinnerByTarget =
+        reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
 
-    const winnerTeamKey: TichuTeamKey | null = hasWinner
-        ? totalScores.TEAM_A > totalScores.TEAM_B
-            ? "TEAM_A"
-            : "TEAM_B"
+    const shouldFinish = input.isForceFinish === true || hasWinnerByTarget;
+
+    const winnerTeamKey = shouldFinish
+        ? getWinnerTeamKeyFromScores(totalScores.TEAM_A, totalScores.TEAM_B)
         : null;
 
     const round = details.current_round;
@@ -964,10 +968,11 @@ export async function recordTichuRound(
 
     const nextDetails: NormalizedTichuRecordDetails = {
         ...details,
-        status: winnerTeamKey ? "FINISHED" : "PLAYING",
-        current_round: winnerTeamKey ? round : round + 1,
+        status: shouldFinish ? "FINISHED" : "PLAYING",
+        current_round: shouldFinish ? round : round + 1,
         winner_team_key: winnerTeamKey,
-        finished_at: winnerTeamKey ? now : null,
+        finished_at: shouldFinish ? now : null,
+        stats_applied: false,
         teams: {
             TEAM_A: {
                 ...details.teams.TEAM_A,
@@ -981,17 +986,33 @@ export async function recordTichuRound(
         logs: [...details.logs, newLog],
     };
 
-    const updateResult = await db.match_details.updateMany({
-        where: {
-            match_id: match.match_details.match_id,
-            version: input.expectedVersion,
-        },
-        data: {
-            details: nextDetails as Prisma.InputJsonValue,
-            version: {
-                increment: 1,
+    const updateResult = await db.$transaction(async (tx) => {
+        const result = await tx.match_details.updateMany({
+            where: {
+                match_id: matchDetail.match_id,
+                version: input.expectedVersion,
             },
-        },
+            data: {
+                details: nextDetails as Prisma.InputJsonValue,
+                version: {
+                    increment: 1,
+                },
+            },
+        });
+
+        if (result.count !== 1) {
+            return result;
+        }
+
+        if (shouldFinish) {
+            await applyTichuFinalScores({
+                matchId: input.matchId,
+                details: nextDetails,
+                tx,
+            });
+        }
+
+        return result;
     });
 
     if (updateResult.count !== 1) {

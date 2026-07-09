@@ -1,6 +1,8 @@
+// web/src/app/(main)/tichu/play/[id]/TichuRoundForm.tsx
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { recordTichuRound } from "@/app/actions/tichu.action";
 
@@ -60,11 +62,29 @@ function togglePlayerKey(playerKeys: string[], playerKey: string) {
   return [...playerKeys, playerKey];
 }
 
+function getPlayerTeamName(
+    player: TichuPlayerState,
+    teamAName: string,
+    teamBName: string,
+) {
+  if (player.team_key === "TEAM_A") {
+    return teamAName;
+  }
+
+  if (player.team_key === "TEAM_B") {
+    return teamBName;
+  }
+
+  return "소속 팀 없음";
+}
+
 export default function TichuRoundForm({
                                          matchId,
                                          expectedVersion,
                                          details,
                                        }: Readonly<TichuRoundFormProps>) {
+  const router = useRouter();
+
   const [oneTwoTeamKey, setOneTwoTeamKey] = useState<"NONE" | TichuTeamKey>(
       "NONE",
   );
@@ -77,6 +97,7 @@ export default function TichuRoundForm({
   const [largeTichuPlayerKeys, setLargeTichuPlayerKeys] = useState<string[]>(
       [],
   );
+  const [isForceFinish, setIsForceFinish] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -90,8 +111,14 @@ export default function TichuRoundForm({
   const teamBName = details.teams?.TEAM_B?.name ?? "B팀";
   const isOneTwo = oneTwoTeamKey !== "NONE";
 
-  const getPlayerTeamName = (player: TichuPlayerState) => {
-    return player.team_key === "TEAM_A" ? teamAName : teamBName;
+  const resetForm = () => {
+    setOneTwoTeamKey("NONE");
+    setTeamACardScore("50");
+    setTeamBCardScore("50");
+    setFirstOutPlayerKey("NONE");
+    setSmallTichuPlayerKeys([]);
+    setLargeTichuPlayerKeys([]);
+    setIsForceFinish(false);
   };
 
   const handleToggleSmallTichu = (playerKey: string) => {
@@ -118,6 +145,16 @@ export default function TichuRoundForm({
       return;
     }
 
+    if (isForceFinish) {
+      const ok = globalThis.confirm(
+          "이번 라운드를 기록한 뒤 티츄 게임을 강제 종료할까요?",
+      );
+
+      if (!ok) {
+        return;
+      }
+    }
+
     const parsedTeamACardScore = isOneTwo
         ? null
         : parseNullableNumber(teamACardScore);
@@ -136,14 +173,20 @@ export default function TichuRoundForm({
           oneTwoTeamKey: oneTwoTeamKey === "NONE" ? null : oneTwoTeamKey,
           smallTichuPlayerKeys,
           largeTichuPlayerKeys,
+          isForceFinish,
         });
 
-        setOneTwoTeamKey("NONE");
-        setTeamACardScore("50");
-        setTeamBCardScore("50");
-        setFirstOutPlayerKey("NONE");
-        setSmallTichuPlayerKeys([]);
-        setLargeTichuPlayerKeys([]);
+        const shouldMoveToDetail = isForceFinish;
+
+        resetForm();
+
+        if (shouldMoveToDetail) {
+          globalThis.location.href = `/tichu/detail/${matchId}`;
+          return;
+        }
+
+        router.refresh();
+        globalThis.scrollTo({ top: 0, behavior: "smooth" });
       } catch (error) {
         console.error("티츄 라운드 기록 실패:", error);
 
@@ -169,9 +212,7 @@ export default function TichuRoundForm({
 
         <div className="space-y-5">
           <div>
-            <p className="mb-2 text-sm font-bold text-foreground/70">
-              원투 여부
-            </p>
+            <p className="mb-2 text-sm font-bold text-foreground/70">원투 여부</p>
 
             <div className="grid gap-3 sm:grid-cols-3">
               {[
@@ -203,7 +244,7 @@ export default function TichuRoundForm({
           </div>
 
           <div
-              className={`grid gap-4 sm:grid-cols-2 transition ${
+              className={`grid gap-4 transition sm:grid-cols-2 ${
                   isOneTwo ? "opacity-50" : "opacity-100"
               }`}
           >
@@ -237,8 +278,8 @@ export default function TichuRoundForm({
 
             {isOneTwo ? (
                 <p className="text-xs font-bold text-foreground/45 sm:col-span-2">
-                  원투를 선택하면 카드 점수는 저장하지 않고, 원투 팀 +200점 /
-                  상대 팀 0점으로 자동 처리됩니다.
+                  원투를 선택하면 카드 점수는 저장하지 않고, 원투 팀 +200점 / 상대 팀
+                  0점으로 자동 처리됩니다.
                 </p>
             ) : null}
           </div>
@@ -258,7 +299,8 @@ export default function TichuRoundForm({
               <option value="NONE">1등 플레이어 선택</option>
               {players.map(([playerKey, player]) => (
                   <option key={playerKey} value={playerKey}>
-                    {player.name ?? "이름 없음"} · {getPlayerTeamName(player)}
+                    {player.name ?? "이름 없음"} ·{" "}
+                    {getPlayerTeamName(player, teamAName, teamBName)}
                   </option>
               ))}
             </select>
@@ -274,7 +316,8 @@ export default function TichuRoundForm({
               <div className="mt-3 space-y-2">
                 {players.map(([playerKey, player]) => {
                   const checked = smallTichuPlayerKeys.includes(playerKey);
-                  const disabled = isPending || largeTichuPlayerKeys.includes(playerKey);
+                  const disabled =
+                      isPending || largeTichuPlayerKeys.includes(playerKey);
 
                   return (
                       <label
@@ -283,14 +326,19 @@ export default function TichuRoundForm({
                               checked
                                   ? "border-blue-500 bg-blue-500/10 text-blue-500"
                                   : "border-foreground/10 bg-background text-foreground/70"
-                          } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                          } ${
+                              disabled
+                                  ? "cursor-not-allowed opacity-50"
+                                  : "cursor-pointer"
+                          }`}
                       >
                     <span>
                       {player.name ?? "이름 없음"}
                       <span className="ml-2 text-xs text-foreground/40">
-                        {getPlayerTeamName(player)}
+                        {getPlayerTeamName(player, teamAName, teamBName)}
                       </span>
                     </span>
+
                         <input
                             type="checkbox"
                             checked={checked}
@@ -313,7 +361,8 @@ export default function TichuRoundForm({
               <div className="mt-3 space-y-2">
                 {players.map(([playerKey, player]) => {
                   const checked = largeTichuPlayerKeys.includes(playerKey);
-                  const disabled = isPending || smallTichuPlayerKeys.includes(playerKey);
+                  const disabled =
+                      isPending || smallTichuPlayerKeys.includes(playerKey);
 
                   return (
                       <label
@@ -322,14 +371,19 @@ export default function TichuRoundForm({
                               checked
                                   ? "border-blue-500 bg-blue-500/10 text-blue-500"
                                   : "border-foreground/10 bg-background text-foreground/70"
-                          } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                          } ${
+                              disabled
+                                  ? "cursor-not-allowed opacity-50"
+                                  : "cursor-pointer"
+                          }`}
                       >
                     <span>
                       {player.name ?? "이름 없음"}
                       <span className="ml-2 text-xs text-foreground/40">
-                        {getPlayerTeamName(player)}
+                        {getPlayerTeamName(player, teamAName, teamBName)}
                       </span>
                     </span>
+
                         <input
                             type="checkbox"
                             checked={checked}
@@ -350,14 +404,29 @@ export default function TichuRoundForm({
               </div>
           ) : null}
 
-          <div className="flex justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-red-500">
+              <input
+                  type="checkbox"
+                  checked={isForceFinish}
+                  disabled={isPending}
+                  onChange={(event) => setIsForceFinish(event.target.checked)}
+                  className="h-4 w-4 accent-red-500"
+              />
+              기록 후 게임 강제 종료하기
+            </label>
+
             <button
                 type="button"
                 disabled={isPending}
                 onClick={handleSubmit}
                 className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? "기록 중..." : "라운드 기록하기"}
+              {isPending
+                  ? "기록 중..."
+                  : isForceFinish
+                      ? "기록하고 종료하기"
+                      : "라운드 기록하기"}
             </button>
           </div>
         </div>

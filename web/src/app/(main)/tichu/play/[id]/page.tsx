@@ -2,14 +2,14 @@
 
 import { notFound, redirect } from "next/navigation";
 
-import { db } from "@/lib/prisma";
+import TichuRoundForm from "./TichuRoundForm";
+
+import TichuMatchDangerActions from "@/components/tichu/TichuMatchDangerActions";
+import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
-
-import TichuRoundForm from "./TichuRoundForm";
-import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
-import TichuMatchDangerActions from "@/components/tichu/TichuMatchDangerActions";
+import { db } from "@/lib/prisma";
 
 type TichuPlayPageProps = {
     params: Promise<{
@@ -45,6 +45,22 @@ type TichuDetails = {
         }
     >;
 };
+
+function getPlayerTeamName(
+    teamKey: TichuTeamKey | undefined,
+    teamAName: string,
+    teamBName: string,
+) {
+    if (teamKey === "TEAM_A") {
+        return teamAName;
+    }
+
+    if (teamKey === "TEAM_B") {
+        return teamBName;
+    }
+
+    return "소속 팀 없음";
+}
 
 export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     assertGameEnabled(TICHU_GAME_KEY);
@@ -139,8 +155,11 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {players.map(([playerKey, player]) => {
-                        const teamName =
-                            player.team_key === "TEAM_A" ? teamAName : teamBName;
+                        const teamName = getPlayerTeamName(
+                            player.team_key,
+                            teamAName,
+                            teamBName,
+                        );
 
                         return (
                             <div
@@ -163,7 +182,6 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 matchId={matchId}
                 canManage={canManage}
                 canUndo={canUndo}
-                canForceFinish={details.status === "PLAYING"}
                 redirectAfterDelete="/tichu/matches"
             />
 

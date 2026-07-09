@@ -66,44 +66,8 @@ type TichuDetails = {
     >;
 };
 
-type TichuPlayerEntry = [
-    string,
-    {
-        name?: string;
-        team_key?: TichuTeamKey;
-        seat_order?: number;
-    },
-];
-
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toTichuDetails(value: unknown): TichuDetails {
-    if (!isRecord(value)) {
-        return {};
-    }
-
-    return {
-        status: typeof value.status === "string" ? value.status : undefined,
-        current_round:
-            typeof value.current_round === "number" ? value.current_round : undefined,
-        target_score:
-            typeof value.target_score === "number" ? value.target_score : undefined,
-        winner_team_key:
-            value.winner_team_key === "TEAM_A" || value.winner_team_key === "TEAM_B"
-                ? value.winner_team_key
-                : null,
-        finished_at:
-            typeof value.finished_at === "string" || value.finished_at === null
-                ? value.finished_at
-                : null,
-        logs: Array.isArray(value.logs) ? value.logs : [],
-        teams: isRecord(value.teams) ? (value.teams as TichuDetails["teams"]) : {},
-        players: isRecord(value.players)
-            ? (value.players as TichuDetails["players"])
-            : {},
-    };
 }
 
 function getRoundLog(value: unknown): TichuRoundLog | null {
@@ -111,41 +75,7 @@ function getRoundLog(value: unknown): TichuRoundLog | null {
         return null;
     }
 
-    return {
-        round: typeof value.round === "number" ? value.round : undefined,
-        first_out_player_key:
-            typeof value.first_out_player_key === "string"
-                ? value.first_out_player_key
-                : undefined,
-        team_a_card_score:
-            typeof value.team_a_card_score === "number" ||
-            value.team_a_card_score === null
-                ? value.team_a_card_score
-                : undefined,
-        team_b_card_score:
-            typeof value.team_b_card_score === "number" ||
-            value.team_b_card_score === null
-                ? value.team_b_card_score
-                : undefined,
-        one_two_team_key:
-            value.one_two_team_key === "TEAM_A" || value.one_two_team_key === "TEAM_B"
-                ? value.one_two_team_key
-                : null,
-        small_tichu_calls: Array.isArray(value.small_tichu_calls)
-            ? (value.small_tichu_calls as TichuCallLog[])
-            : [],
-        large_tichu_calls: Array.isArray(value.large_tichu_calls)
-            ? (value.large_tichu_calls as TichuCallLog[])
-            : [],
-        score_deltas: isRecord(value.score_deltas)
-            ? (value.score_deltas as Partial<Record<TichuTeamKey, number>>)
-            : {},
-        total_scores: isRecord(value.total_scores)
-            ? (value.total_scores as Partial<Record<TichuTeamKey, number>>)
-            : {},
-        created_at:
-            typeof value.created_at === "string" ? value.created_at : undefined,
-    };
+    return value;
 }
 
 function getTeamName(details: TichuDetails, teamKey: TichuTeamKey) {
@@ -164,7 +94,7 @@ function getPlayerName(details: TichuDetails, playerKey: string | undefined) {
     return details.players?.[playerKey]?.name ?? playerKey;
 }
 
-function getPlayerTeamNameByKey(
+function getPlayerTeamName(
     playerTeamKey: TichuTeamKey | undefined,
     teamAName: string,
     teamBName: string,
@@ -244,7 +174,7 @@ function getCallStats(logs: TichuRoundLog[]) {
     );
 }
 
-function getPlayers(details: TichuDetails): TichuPlayerEntry[] {
+function getPlayers(details: TichuDetails) {
     return Object.entries(details.players ?? {}).sort(([, a], [, b]) => {
         return (a.seat_order ?? 0) - (b.seat_order ?? 0);
     });
@@ -274,7 +204,10 @@ function getWinnerTeamKey(
     return "TEAM_B";
 }
 
-function getTeamCardClassName(teamKey: TichuTeamKey, winnerTeamKey: TichuTeamKey | null) {
+function getTeamCardClassName(
+    teamKey: TichuTeamKey,
+    winnerTeamKey: TichuTeamKey | null,
+) {
     const baseClassName = "rounded-3xl border p-5 shadow-sm";
 
     if (teamKey === winnerTeamKey) {
@@ -318,7 +251,7 @@ export default async function TichuDetailPage({
         return notFound();
     }
 
-    const details = toTichuDetails(match.match_details.details);
+    const details = match.match_details.details as TichuDetails;
 
     if (details.status === "DELETED") {
         return notFound();
@@ -333,6 +266,7 @@ export default async function TichuDetailPage({
     const teamAScore = getTeamScore(details, "TEAM_A");
     const teamBScore = getTeamScore(details, "TEAM_B");
     const winnerTeamKey = getWinnerTeamKey(details, teamAScore, teamBScore);
+
     const winnerTeamName = winnerTeamKey
         ? getTeamName(details, winnerTeamKey)
         : "승리 팀 없음";
@@ -358,7 +292,7 @@ export default async function TichuDetailPage({
                     ← 게임 기록으로
                 </Link>
 
-                <div className="rounded-3xl border border-foreground/10 bg-foreground/3 p-6 shadow-sm">
+                <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-6 shadow-sm">
                     <p className="text-sm font-black text-blue-500">Tichu</p>
 
                     <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -452,7 +386,7 @@ export default async function TichuDetailPage({
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {players.map(([playerKey, player]) => {
-                        const teamName = getPlayerTeamNameByKey(
+                        const teamName = getPlayerTeamName(
                             player.team_key,
                             teamAName,
                             teamBName,
@@ -461,7 +395,7 @@ export default async function TichuDetailPage({
                         return (
                             <div
                                 key={playerKey}
-                                className="rounded-2xl border border-foreground/10 bg-foreground/2 p-4"
+                                className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4"
                             >
                                 <p className="text-xs font-bold text-foreground/40">
                                     {teamName}
@@ -479,8 +413,6 @@ export default async function TichuDetailPage({
                 matchId={matchId}
                 canManage={canManage}
                 canUndo={canUndo}
-                canForceFinish={false}
-                showForceFinish={false}
                 redirectAfterDelete="/tichu/matches"
             />
 
