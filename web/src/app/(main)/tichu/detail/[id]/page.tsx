@@ -218,8 +218,8 @@ function getTeamCardClassName(
 }
 
 export default async function TichuDetailPage({
-                                                  params,
-                                              }: TichuDetailPageProps) {
+    params,
+}: Readonly<TichuDetailPageProps>) {
     assertGameEnabled(TICHU_GAME_KEY);
 
     const resolvedParams = await params;
