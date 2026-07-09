@@ -315,8 +315,7 @@ export default async function TichuDetailPage({
                 </div>
             </div>
 
-            <TichuMatchDangerActions
-                matchId={matchId}
+            <TichuMatchDangerActions matchId={matchId}
                 canManage={canManage}
                 canUndo={canUndo}
                 redirectAfterDelete="/tichu/matches"
@@ -329,8 +328,8 @@ export default async function TichuDetailPage({
 
                         {winnerTeamKey === "TEAM_A" ? (
                             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-500">
-                WIN
-              </span>
+                                WIN
+                            </span>
                         ) : null}
                     </div>
 
@@ -345,8 +344,8 @@ export default async function TichuDetailPage({
 
                         {winnerTeamKey === "TEAM_B" ? (
                             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-500">
-                WIN
-              </span>
+                                WIN
+                            </span>
                         ) : null}
                     </div>
 
@@ -400,10 +399,7 @@ export default async function TichuDetailPage({
                         );
 
                         return (
-                            <div
-                                key={playerKey}
-                                className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4"
-                            >
+                            <div key={playerKey} className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4">
                                 <p className="text-xs font-bold text-foreground/40">
                                     {teamName}
                                 </p>
