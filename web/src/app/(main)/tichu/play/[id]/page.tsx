@@ -2,12 +2,14 @@
 
 import { notFound, redirect } from "next/navigation";
 
-import { db } from "@/lib/prisma";
+import TichuRoundForm from "./TichuRoundForm";
+
+import TichuMatchDangerActions from "@/components/tichu/TichuMatchDangerActions";
+import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
-
-import TichuRoundForm from "./TichuRoundForm";
-import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { db } from "@/lib/prisma";
 
 type TichuPlayPageProps = {
     params: Promise<{
@@ -43,6 +45,22 @@ type TichuDetails = {
         }
     >;
 };
+
+function getPlayerTeamName(
+    teamKey: TichuTeamKey | undefined,
+    teamAName: string,
+    teamBName: string,
+) {
+    if (teamKey === "TEAM_A") {
+        return teamAName;
+    }
+
+    if (teamKey === "TEAM_B") {
+        return teamBName;
+    }
+
+    return "소속 팀 없음";
+}
 
 export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     assertGameEnabled(TICHU_GAME_KEY);
@@ -95,6 +113,12 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
         return (a.seat_order ?? 0) - (b.seat_order ?? 0);
     });
 
+    const currentUser = await getCurrentUserWithAdmin();
+    const canManage = Boolean(
+        currentUser?.isAdmin || currentUser?.id === match.created_by,
+    );
+    const canUndo = (details.logs?.length ?? 0) > 0;
+
     return (
         <div className="mx-auto max-w-4xl space-y-6">
             <div>
@@ -109,6 +133,13 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                     </p>
                 </div>
             </div>
+
+            <TichuMatchDangerActions
+                matchId={matchId}
+                canManage={canManage}
+                canUndo={canUndo}
+                redirectAfterDelete="/tichu/matches"
+            />
 
             <section className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
@@ -131,8 +162,11 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {players.map(([playerKey, player]) => {
-                        const teamName =
-                            player.team_key === "TEAM_A" ? teamAName : teamBName;
+                        const teamName = getPlayerTeamName(
+                            player.team_key,
+                            teamAName,
+                            teamBName,
+                        );
 
                         return (
                             <div
@@ -151,11 +185,13 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 </div>
             </section>
 
-            <TichuRoundForm
-                matchId={matchId}
-                expectedVersion={match.match_details.version}
-                details={details}
-            />
+            {canManage ? (
+                <TichuRoundForm
+                    matchId={matchId}
+                    expectedVersion={match.match_details.version}
+                    details={details}
+                />
+            ) : null}
 
             <TichuRoundLogCards details={details} />
         </div>

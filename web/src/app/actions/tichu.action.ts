@@ -11,6 +11,7 @@ import { db } from "@/lib/prisma";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -97,6 +98,7 @@ type RecordTichuRoundInput = {
     oneTwoTeamKey: TichuTeamKey | null;
     smallTichuPlayerKeys: string[];
     largeTichuPlayerKeys: string[];
+    isForceFinish?: boolean;
 };
 
 type TichuPlayerState = {
@@ -332,6 +334,57 @@ function normalizeTichuRecordDetails(
         logs: Array.isArray(parsedDetails.logs) ? parsedDetails.logs : [],
         stats_applied: parsedDetails.stats_applied ?? false,
     };
+}
+
+async function assertTichuCreatorHasNoOtherPlayingMatch({
+                                                            matchId,
+                                                            createdBy,
+                                                        }: {
+    matchId: number;
+    createdBy: string | null;
+}) {
+    if (!createdBy) {
+        return;
+    }
+
+    const tichuGame = await db.games.findUnique({
+        where: {
+            key: TICHU_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!tichuGame) {
+        throw new Error("티츄 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const otherPlayingMatch = await db.matches.findFirst({
+        where: {
+            id: {
+                not: matchId,
+            },
+            game_id: tichuGame.id,
+            created_by: createdBy,
+            deleted_at: null,
+            match_details: {
+                details: {
+                    path: ["status"],
+                    equals: "PLAYING",
+                },
+            },
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (otherPlayingMatch) {
+        throw new Error(
+            "게임 생성자에게 이미 진행 중인 티츄 게임이 있어 종료된 게임을 진행 중으로 되돌릴 수 없습니다.",
+        );
+    }
 }
 
 function validateTichuCardScore(value: number | null, label: string) {
@@ -803,26 +856,7 @@ export async function recordTichuRound(
 ): Promise<void> {
     assertGameEnabledForAction(TICHU_GAME_KEY);
 
-    const session = await auth();
-
-    if (!session?.user) {
-        throw new Error("Unauthorized");
-    }
-
-    const providerId = session.user.id as string;
-
-    const me = await db.users.findFirst({
-        where: {
-            provider_id: providerId,
-        },
-        select: {
-            id: true,
-        },
-    });
-
-    if (!me) {
-        throw new Error("DB에서 로그인한 유저 정보를 찾을 수 없습니다.");
-    }
+    const currentUser = await getCurrentTichuManager();
 
     const game = await db.games.findUnique({
         where: {
@@ -851,15 +885,18 @@ export async function recordTichuRound(
         throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
     }
 
+    const matchDetail = match.match_details;
+
     if (match.deleted_at) {
         throw new Error("삭제된 게임에는 기록을 추가할 수 없습니다.");
     }
 
-    if (match.created_by !== me.id) {
-        throw new Error("게임 생성자만 라운드를 기록할 수 있습니다.");
-    }
+    assertCanManageTichuMatch({
+        currentUser,
+        createdBy: match.created_by,
+    });
 
-    const details = normalizeTichuRecordDetails(match.match_details.details);
+    const details = normalizeTichuRecordDetails(matchDetail.details);
 
     if (details.game_key !== TICHU_GAME_KEY) {
         throw new Error("티츄 게임 기록이 아닙니다.");
@@ -937,12 +974,13 @@ export async function recordTichuRound(
         totalScores.TEAM_A >= details.target_score ||
         totalScores.TEAM_B >= details.target_score;
 
-    const hasWinner = reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
+    const hasWinnerByTarget =
+        reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
 
-    const winnerTeamKey: TichuTeamKey | null = hasWinner
-        ? totalScores.TEAM_A > totalScores.TEAM_B
-            ? "TEAM_A"
-            : "TEAM_B"
+    const shouldFinish = input.isForceFinish === true || hasWinnerByTarget;
+
+    const winnerTeamKey = shouldFinish
+        ? getWinnerTeamKeyFromScores(totalScores.TEAM_A, totalScores.TEAM_B)
         : null;
 
     const round = details.current_round;
@@ -963,10 +1001,11 @@ export async function recordTichuRound(
 
     const nextDetails: NormalizedTichuRecordDetails = {
         ...details,
-        status: winnerTeamKey ? "FINISHED" : "PLAYING",
-        current_round: winnerTeamKey ? round : round + 1,
+        status: shouldFinish ? "FINISHED" : "PLAYING",
+        current_round: shouldFinish ? round : round + 1,
         winner_team_key: winnerTeamKey,
-        finished_at: winnerTeamKey ? now : null,
+        finished_at: shouldFinish ? now : null,
+        stats_applied: false,
         teams: {
             TEAM_A: {
                 ...details.teams.TEAM_A,
@@ -980,17 +1019,33 @@ export async function recordTichuRound(
         logs: [...details.logs, newLog],
     };
 
-    const updateResult = await db.match_details.updateMany({
-        where: {
-            match_id: match.match_details.match_id,
-            version: input.expectedVersion,
-        },
-        data: {
-            details: nextDetails as Prisma.InputJsonValue,
-            version: {
-                increment: 1,
+    const updateResult = await db.$transaction(async (tx) => {
+        const result = await tx.match_details.updateMany({
+            where: {
+                match_id: matchDetail.match_id,
+                version: input.expectedVersion,
             },
-        },
+            data: {
+                details: nextDetails as Prisma.InputJsonValue,
+                version: {
+                    increment: 1,
+                },
+            },
+        });
+
+        if (result.count !== 1) {
+            return result;
+        }
+
+        if (shouldFinish) {
+            await applyTichuFinalScores({
+                matchId: input.matchId,
+                details: nextDetails,
+                tx,
+            });
+        }
+
+        return result;
     });
 
     if (updateResult.count !== 1) {
@@ -999,8 +1054,322 @@ export async function recordTichuRound(
         );
     }
 
-    revalidatePath(`/tichu/play/${input.matchId}`);
-    revalidatePath(`/tichu/detail/${input.matchId}`);
+    revalidateTichuMatchPaths(input.matchId);
+}
+
+async function getCurrentTichuManager() {
+    const currentUser = await getCurrentUserWithAdmin();
+
+    if (!currentUser) {
+        throw new Error("로그인이 필요합니다.");
+    }
+
+    return currentUser;
+}
+
+function assertCanManageTichuMatch({
+                                       currentUser,
+                                       createdBy,
+                                   }: {
+    currentUser: Awaited<ReturnType<typeof getCurrentTichuManager>>;
+    createdBy: string | null;
+}) {
+    if (currentUser.isAdmin) return;
+    if (createdBy && currentUser.id === createdBy) return;
+
+    throw new Error("게임 생성자 또는 관리자만 처리할 수 있습니다.");
+}
+
+function getWinnerTeamKeyFromScores(
+    teamAScore: number,
+    teamBScore: number,
+): TichuTeamKey | null {
+    if (teamAScore === teamBScore) return null;
+
+    return teamAScore > teamBScore ? "TEAM_A" : "TEAM_B";
+}
+
+function getTichuPlayerTeamKey(
+    details: NormalizedTichuRecordDetails,
+    playerKey: string,
+) {
+    return details.players[playerKey]?.team_key ?? null;
+}
+
+function getTichuTeamRank(
+    teamKey: TichuTeamKey,
+    winnerTeamKey: TichuTeamKey | null,
+) {
+    if (!winnerTeamKey) return 1;
+
+    return teamKey === winnerTeamKey ? 1 : 2;
+}
+
+async function applyTichuFinalScores({
+                                         matchId,
+                                         details,
+                                         tx,
+                                     }: {
+    matchId: number;
+    details: NormalizedTichuRecordDetails;
+    tx: Prisma.TransactionClient;
+}) {
+    const teamAScore = details.teams.TEAM_A.score;
+    const teamBScore = details.teams.TEAM_B.score;
+    const winnerTeamKey =
+        details.winner_team_key ?? getWinnerTeamKeyFromScores(teamAScore, teamBScore);
+
+    const matchPlayers = await tx.match_players.findMany({
+        where: {
+            match_id: matchId,
+        },
+    });
+
+    for (const matchPlayer of matchPlayers) {
+        const playerKey = matchPlayer.user_id
+            ? `user_${matchPlayer.user_id}`
+            : `guest_${matchPlayer.guest_name}`;
+
+        const teamKey = getTichuPlayerTeamKey(details, playerKey);
+
+        if (!teamKey) {
+            continue;
+        }
+
+        const finalScore =
+            teamKey === "TEAM_A"
+                ? details.teams.TEAM_A.score
+                : details.teams.TEAM_B.score;
+
+        await tx.match_players.update({
+            where: {
+                id: matchPlayer.id,
+            },
+            data: {
+                final_score: finalScore,
+                rank: getTichuTeamRank(teamKey, winnerTeamKey),
+            },
+        });
+    }
+}
+
+async function clearTichuFinalScores({
+                                         matchId,
+                                         tx,
+                                     }: {
+    matchId: number;
+    tx: Prisma.TransactionClient;
+}) {
+    await tx.match_players.updateMany({
+        where: {
+            match_id: matchId,
+        },
+        data: {
+            final_score: null,
+            rank: null,
+        },
+    });
+}
+
+function rebuildTichuDetailsAfterUndo(
+    details: NormalizedTichuRecordDetails,
+    logs: unknown[],
+): NormalizedTichuRecordDetails {
+    const nextTeamScores: Record<TichuTeamKey, number> = {
+        TEAM_A: 0,
+        TEAM_B: 0,
+    };
+
+    logs.forEach((log) => {
+        if (!isRecord(log)) return;
+
+        const scoreDeltas = log.score_deltas;
+
+        if (!isRecord(scoreDeltas)) return;
+
+        const teamADelta =
+            typeof scoreDeltas.TEAM_A === "number" ? scoreDeltas.TEAM_A : 0;
+        const teamBDelta =
+            typeof scoreDeltas.TEAM_B === "number" ? scoreDeltas.TEAM_B : 0;
+
+        nextTeamScores.TEAM_A += teamADelta;
+        nextTeamScores.TEAM_B += teamBDelta;
+    });
+
+    return {
+        ...details,
+        status: "PLAYING",
+        current_round: logs.length + 1,
+        winner_team_key: null,
+        finished_at: null,
+        stats_applied: false,
+        teams: {
+            TEAM_A: {
+                ...details.teams.TEAM_A,
+                score: nextTeamScores.TEAM_A,
+            },
+            TEAM_B: {
+                ...details.teams.TEAM_B,
+                score: nextTeamScores.TEAM_B,
+            },
+        },
+        logs,
+    };
+}
+
+function revalidateTichuMatchPaths(matchId: number) {
     revalidatePath("/tichu");
     revalidatePath("/tichu/matches");
+    revalidatePath(`/tichu/play/${matchId}`);
+    revalidatePath(`/tichu/detail/${matchId}`);
+}
+
+export async function deleteTichuMatch(matchId: number) {
+    assertGameEnabledForAction(TICHU_GAME_KEY);
+
+    const currentUser = await getCurrentTichuManager();
+
+    const match = await db.matches.findUnique({
+        where: {
+            id: matchId,
+        },
+        include: {
+            games: true,
+            match_details: true,
+        },
+    });
+
+    if (!match?.match_details) {
+        throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
+    }
+
+    if (match.games.key !== TICHU_GAME_KEY) {
+        throw new Error("티츄 게임 기록이 아닙니다.");
+    }
+
+    assertCanManageTichuMatch({
+        currentUser,
+        createdBy: match.created_by,
+    });
+
+    const details = normalizeTichuRecordDetails(match.match_details.details);
+
+    if (match.deleted_at || details.status === "DELETED") {
+        return;
+    }
+
+    const deletedAt = new Date();
+
+    const nextDetails: NormalizedTichuRecordDetails = {
+        ...details,
+        status: "DELETED",
+        stats_applied: false,
+    };
+
+    await db.$transaction(async (tx) => {
+        await tx.match_details.update({
+            where: {
+                match_id: matchId,
+            },
+            data: {
+                details: nextDetails as Prisma.InputJsonValue,
+                version: {
+                    increment: 1,
+                },
+            },
+        });
+
+        await tx.matches.update({
+            where: {
+                id: matchId,
+            },
+            data: {
+                deleted_at: deletedAt,
+                deleted_by: currentUser.id,
+            },
+        });
+
+        await clearTichuFinalScores({
+            matchId,
+            tx,
+        });
+    });
+
+    revalidateTichuMatchPaths(matchId);
+}
+
+export async function undoTichuLastLog(matchId: number) {
+    assertGameEnabledForAction(TICHU_GAME_KEY);
+
+    const currentUser = await getCurrentTichuManager();
+
+    const match = await db.matches.findUnique({
+        where: {
+            id: matchId,
+        },
+        include: {
+            games: true,
+            match_details: true,
+        },
+    });
+
+    if (!match?.match_details) {
+        throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
+    }
+
+    if (match.games.key !== TICHU_GAME_KEY) {
+        throw new Error("티츄 게임 기록이 아닙니다.");
+    }
+
+    assertCanManageTichuMatch({
+        currentUser,
+        createdBy: match.created_by,
+    });
+
+    if (match.deleted_at) {
+        throw new Error("삭제된 게임은 실행취소할 수 없습니다.");
+    }
+
+    const details = normalizeTichuRecordDetails(match.match_details.details);
+
+    if (details.status === "DELETED") {
+        throw new Error("삭제된 게임은 실행취소할 수 없습니다.");
+    }
+
+    if (details.logs.length === 0) {
+        throw new Error("되돌릴 라운드 기록이 없습니다.");
+    }
+
+    const willRestoreFinishedMatch = details.status === "FINISHED";
+
+    if (willRestoreFinishedMatch) {
+        await assertTichuCreatorHasNoOtherPlayingMatch({
+            matchId,
+            createdBy: match.created_by,
+        });
+    }
+
+    const nextLogs = details.logs.slice(0, -1);
+    const nextDetails = rebuildTichuDetailsAfterUndo(details, nextLogs);
+
+    await db.$transaction(async (tx) => {
+        await tx.match_details.update({
+            where: {
+                match_id: matchId,
+            },
+            data: {
+                details: nextDetails as Prisma.InputJsonValue,
+                version: {
+                    increment: 1,
+                },
+            },
+        });
+
+        await clearTichuFinalScores({
+            matchId,
+            tx,
+        });
+    });
+
+    revalidateTichuMatchPaths(matchId);
 }

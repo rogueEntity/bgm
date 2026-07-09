@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import TichuMatchDangerActions from "@/components/tichu/TichuMatchDangerActions";
 import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
-import { db } from "@/lib/prisma";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { db } from "@/lib/prisma";
 
 type TichuDetailPageProps = {
     params: Promise<{
@@ -73,7 +75,7 @@ function getRoundLog(value: unknown): TichuRoundLog | null {
         return null;
     }
 
-    return value as TichuRoundLog;
+    return value;
 }
 
 function getTeamName(details: TichuDetails, teamKey: TichuTeamKey) {
@@ -92,18 +94,20 @@ function getPlayerName(details: TichuDetails, playerKey: string | undefined) {
     return details.players?.[playerKey]?.name ?? playerKey;
 }
 
-function getPlayerTeamName(details: TichuDetails, playerKey: string | undefined) {
-    if (!playerKey) {
-        return null;
+function getPlayerTeamName(
+    playerTeamKey: TichuTeamKey | undefined,
+    teamAName: string,
+    teamBName: string,
+) {
+    if (playerTeamKey === "TEAM_A") {
+        return teamAName;
     }
 
-    const teamKey = details.players?.[playerKey]?.team_key;
-
-    if (!teamKey) {
-        return null;
+    if (playerTeamKey === "TEAM_B") {
+        return teamBName;
     }
 
-    return getTeamName(details, teamKey);
+    return "소속 팀 없음";
 }
 
 function formatFinishedAt(value: string | null | undefined) {
@@ -176,9 +180,46 @@ function getPlayers(details: TichuDetails) {
     });
 }
 
+function getWinnerTeamKey(
+    details: TichuDetails,
+    teamAScore: number,
+    teamBScore: number,
+): TichuTeamKey | null {
+    if (details.winner_team_key === "TEAM_A") {
+        return "TEAM_A";
+    }
+
+    if (details.winner_team_key === "TEAM_B") {
+        return "TEAM_B";
+    }
+
+    if (teamAScore === teamBScore) {
+        return null;
+    }
+
+    if (teamAScore > teamBScore) {
+        return "TEAM_A";
+    }
+
+    return "TEAM_B";
+}
+
+function getTeamCardClassName(
+    teamKey: TichuTeamKey,
+    winnerTeamKey: TichuTeamKey | null,
+) {
+    const baseClassName = "rounded-3xl border p-5 shadow-sm";
+
+    if (teamKey === winnerTeamKey) {
+        return `${baseClassName} border-blue-500/30 bg-blue-500/10`;
+    }
+
+    return `${baseClassName} border-foreground/10 bg-background`;
+}
+
 export default async function TichuDetailPage({
-                                                  params,
-                                              }: TichuDetailPageProps) {
+    params,
+}: Readonly<TichuDetailPageProps>) {
     assertGameEnabled(TICHU_GAME_KEY);
 
     const resolvedParams = await params;
@@ -224,15 +265,7 @@ export default async function TichuDetailPage({
     const teamBName = getTeamName(details, "TEAM_B");
     const teamAScore = getTeamScore(details, "TEAM_A");
     const teamBScore = getTeamScore(details, "TEAM_B");
-
-    const winnerTeamKey =
-        details.winner_team_key === "TEAM_A" || details.winner_team_key === "TEAM_B"
-            ? details.winner_team_key
-            : teamAScore === teamBScore
-                ? null
-                : teamAScore > teamBScore
-                    ? "TEAM_A"
-                    : "TEAM_B";
+    const winnerTeamKey = getWinnerTeamKey(details, teamAScore, teamBScore);
 
     const winnerTeamName = winnerTeamKey
         ? getTeamName(details, winnerTeamKey)
@@ -242,6 +275,12 @@ export default async function TichuDetailPage({
     const callStats = getCallStats(logs);
     const players = getPlayers(details);
     const finishedAt = formatFinishedAt(details.finished_at);
+
+    const currentUser = await getCurrentUserWithAdmin();
+    const canManage = Boolean(
+        currentUser?.isAdmin || currentUser?.id === match.created_by,
+    );
+    const canUndo = logs.length > 0;
 
     return (
         <div className="mx-auto max-w-4xl space-y-6">
@@ -276,21 +315,21 @@ export default async function TichuDetailPage({
                 </div>
             </div>
 
+            <TichuMatchDangerActions matchId={matchId}
+                canManage={canManage}
+                canUndo={canUndo}
+                redirectAfterDelete="/tichu/matches"
+            />
+
             <section className="grid gap-4 sm:grid-cols-2">
-                <div
-                    className={`rounded-3xl border p-5 shadow-sm ${
-                        winnerTeamKey === "TEAM_A"
-                            ? "border-blue-500/30 bg-blue-500/10"
-                            : "border-foreground/10 bg-background"
-                    }`}
-                >
+                <div className={getTeamCardClassName("TEAM_A", winnerTeamKey)}>
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-bold text-foreground/50">{teamAName}</p>
 
                         {winnerTeamKey === "TEAM_A" ? (
                             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-500">
-                WIN
-              </span>
+                                WIN
+                            </span>
                         ) : null}
                     </div>
 
@@ -299,20 +338,14 @@ export default async function TichuDetailPage({
                     </p>
                 </div>
 
-                <div
-                    className={`rounded-3xl border p-5 shadow-sm ${
-                        winnerTeamKey === "TEAM_B"
-                            ? "border-blue-500/30 bg-blue-500/10"
-                            : "border-foreground/10 bg-background"
-                    }`}
-                >
+                <div className={getTeamCardClassName("TEAM_B", winnerTeamKey)}>
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-bold text-foreground/50">{teamBName}</p>
 
                         {winnerTeamKey === "TEAM_B" ? (
                             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-500">
-                WIN
-              </span>
+                                WIN
+                            </span>
                         ) : null}
                     </div>
 
@@ -359,14 +392,14 @@ export default async function TichuDetailPage({
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {players.map(([playerKey, player]) => {
-                        const teamName =
-                            player.team_key === "TEAM_A" ? teamAName : teamBName;
+                        const teamName = getPlayerTeamName(
+                            player.team_key,
+                            teamAName,
+                            teamBName,
+                        );
 
                         return (
-                            <div
-                                key={playerKey}
-                                className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4"
-                            >
+                            <div key={playerKey} className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4">
                                 <p className="text-xs font-bold text-foreground/40">
                                     {teamName}
                                 </p>
