@@ -134,6 +134,13 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 </div>
             </div>
 
+            <TichuMatchDangerActions
+                matchId={matchId}
+                canManage={canManage}
+                canUndo={canUndo}
+                redirectAfterDelete="/tichu/matches"
+            />
+
             <section className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
                     <p className="text-sm font-bold text-foreground/50">{teamAName}</p>
@@ -177,13 +184,6 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                     })}
                 </div>
             </section>
-
-            <TichuMatchDangerActions
-                matchId={matchId}
-                canManage={canManage}
-                canUndo={canUndo}
-                redirectAfterDelete="/tichu/matches"
-            />
 
             <TichuRoundForm
                 matchId={matchId}

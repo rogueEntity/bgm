@@ -315,6 +315,13 @@ export default async function TichuDetailPage({
                 </div>
             </div>
 
+            <TichuMatchDangerActions
+                matchId={matchId}
+                canManage={canManage}
+                canUndo={canUndo}
+                redirectAfterDelete="/tichu/matches"
+            />
+
             <section className="grid gap-4 sm:grid-cols-2">
                 <div className={getTeamCardClassName("TEAM_A", winnerTeamKey)}>
                     <div className="flex items-center justify-between gap-3">
@@ -408,13 +415,6 @@ export default async function TichuDetailPage({
                     })}
                 </div>
             </section>
-
-            <TichuMatchDangerActions
-                matchId={matchId}
-                canManage={canManage}
-                canUndo={canUndo}
-                redirectAfterDelete="/tichu/matches"
-            />
 
             <TichuRoundLogCards details={details} />
         </div>
