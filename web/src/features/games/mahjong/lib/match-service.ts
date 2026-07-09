@@ -414,6 +414,46 @@ export async function deleteMahjongMatchRecord({
     };
 }
 
+async function assertMahjongCreatorHasNoOtherPlayingMatch({
+                                                              matchId,
+                                                              createdBy,
+                                                          }: {
+    matchId: number;
+    createdBy: string | null;
+}) {
+    if (!createdBy) {
+        return;
+    }
+
+    const mahjongGameId = await getMahjongGameId();
+
+    const otherPlayingMatch = await db.matches.findFirst({
+        where: {
+            id: {
+                not: matchId,
+            },
+            game_id: mahjongGameId,
+            created_by: createdBy,
+            deleted_at: null,
+            match_details: {
+                details: {
+                    path: ["status"],
+                    equals: "PLAYING",
+                },
+            },
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (otherPlayingMatch) {
+        throw new Error(
+            "게임 생성자에게 이미 진행 중인 리치마작 대국이 있어 종료된 대국을 진행 중으로 되돌릴 수 없습니다.",
+        );
+    }
+}
+
 export async function undoMahjongLastLogRecord(matchId: number) {
     const mahjongGameId = await getMahjongGameId();
 
@@ -442,6 +482,15 @@ export async function undoMahjongLastLogRecord(matchId: number) {
 
     if (logs.length === 0) {
         throw new Error("되돌릴 기록이 없습니다.");
+    }
+
+    const willRestoreFinishedMatch = details.status === "FINISHED";
+
+    if (willRestoreFinishedMatch) {
+        await assertMahjongCreatorHasNoOtherPlayingMatch({
+            matchId,
+            createdBy: match.created_by,
+        });
     }
 
     const nextLogs = logs.slice(0, -1);

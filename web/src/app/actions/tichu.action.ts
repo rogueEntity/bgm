@@ -336,6 +336,57 @@ function normalizeTichuRecordDetails(
     };
 }
 
+async function assertTichuCreatorHasNoOtherPlayingMatch({
+                                                            matchId,
+                                                            createdBy,
+                                                        }: {
+    matchId: number;
+    createdBy: string | null;
+}) {
+    if (!createdBy) {
+        return;
+    }
+
+    const tichuGame = await db.games.findUnique({
+        where: {
+            key: TICHU_GAME_KEY,
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!tichuGame) {
+        throw new Error("티츄 게임 정보를 찾을 수 없습니다.");
+    }
+
+    const otherPlayingMatch = await db.matches.findFirst({
+        where: {
+            id: {
+                not: matchId,
+            },
+            game_id: tichuGame.id,
+            created_by: createdBy,
+            deleted_at: null,
+            match_details: {
+                details: {
+                    path: ["status"],
+                    equals: "PLAYING",
+                },
+            },
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (otherPlayingMatch) {
+        throw new Error(
+            "게임 생성자에게 이미 진행 중인 티츄 게임이 있어 종료된 게임을 진행 중으로 되돌릴 수 없습니다.",
+        );
+    }
+}
+
 function validateTichuCardScore(value: number | null, label: string) {
     if (value === null) {
         throw new Error(`${label} 카드 점수를 입력해주세요.`);
@@ -805,26 +856,7 @@ export async function recordTichuRound(
 ): Promise<void> {
     assertGameEnabledForAction(TICHU_GAME_KEY);
 
-    const session = await auth();
-
-    if (!session?.user) {
-        throw new Error("Unauthorized");
-    }
-
-    const providerId = session.user.id as string;
-
-    const me = await db.users.findFirst({
-        where: {
-            provider_id: providerId,
-        },
-        select: {
-            id: true,
-        },
-    });
-
-    if (!me) {
-        throw new Error("DB에서 로그인한 유저 정보를 찾을 수 없습니다.");
-    }
+    const currentUser = await getCurrentTichuManager();
 
     const game = await db.games.findUnique({
         where: {
@@ -859,9 +891,10 @@ export async function recordTichuRound(
         throw new Error("삭제된 게임에는 기록을 추가할 수 없습니다.");
     }
 
-    if (match.created_by !== me.id) {
-        throw new Error("게임 생성자만 라운드를 기록할 수 있습니다.");
-    }
+    assertCanManageTichuMatch({
+        currentUser,
+        createdBy: match.created_by,
+    });
 
     const details = normalizeTichuRecordDetails(matchDetail.details);
 
@@ -1021,10 +1054,7 @@ export async function recordTichuRound(
         );
     }
 
-    revalidatePath(`/tichu/play/${input.matchId}`);
-    revalidatePath(`/tichu/detail/${input.matchId}`);
-    revalidatePath("/tichu");
-    revalidatePath("/tichu/matches");
+    revalidateTichuMatchPaths(input.matchId);
 }
 
 async function getCurrentTichuManager() {
@@ -1234,7 +1264,6 @@ export async function deleteTichuMatch(matchId: number) {
         ...details,
         status: "DELETED",
         stats_applied: false,
-        finished_at: details.finished_at ?? null,
     };
 
     await db.$transaction(async (tx) => {
@@ -1311,6 +1340,15 @@ export async function undoTichuLastLog(matchId: number) {
         throw new Error("되돌릴 라운드 기록이 없습니다.");
     }
 
+    const willRestoreFinishedMatch = details.status === "FINISHED";
+
+    if (willRestoreFinishedMatch) {
+        await assertTichuCreatorHasNoOtherPlayingMatch({
+            matchId,
+            createdBy: match.created_by,
+        });
+    }
+
     const nextLogs = details.logs.slice(0, -1);
     const nextDetails = rebuildTichuDetailsAfterUndo(details, nextLogs);
 
@@ -1329,85 +1367,6 @@ export async function undoTichuLastLog(matchId: number) {
 
         await clearTichuFinalScores({
             matchId,
-            tx,
-        });
-    });
-
-    revalidateTichuMatchPaths(matchId);
-}
-
-export async function forceFinishTichuMatch(matchId: number) {
-    assertGameEnabledForAction(TICHU_GAME_KEY);
-
-    const currentUser = await getCurrentTichuManager();
-
-    const match = await db.matches.findUnique({
-        where: {
-            id: matchId,
-        },
-        include: {
-            games: true,
-            match_details: true,
-        },
-    });
-
-    if (!match?.match_details) {
-        throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
-    }
-
-    if (match.games.key !== TICHU_GAME_KEY) {
-        throw new Error("티츄 게임 기록이 아닙니다.");
-    }
-
-    assertCanManageTichuMatch({
-        currentUser,
-        createdBy: match.created_by,
-    });
-
-    if (match.deleted_at) {
-        throw new Error("삭제된 게임은 강제 종료할 수 없습니다.");
-    }
-
-    const details = normalizeTichuRecordDetails(match.match_details.details);
-
-    if (details.status === "DELETED") {
-        throw new Error("삭제된 게임은 강제 종료할 수 없습니다.");
-    }
-
-    if (details.status === "FINISHED") {
-        return;
-    }
-
-    const now = new Date().toISOString();
-    const winnerTeamKey = getWinnerTeamKeyFromScores(
-        details.teams.TEAM_A.score,
-        details.teams.TEAM_B.score,
-    );
-
-    const nextDetails: NormalizedTichuRecordDetails = {
-        ...details,
-        status: "FINISHED",
-        winner_team_key: winnerTeamKey,
-        finished_at: now,
-        stats_applied: false,
-    };
-
-    await db.$transaction(async (tx) => {
-        await tx.match_details.update({
-            where: {
-                match_id: matchId,
-            },
-            data: {
-                details: nextDetails as Prisma.InputJsonValue,
-                version: {
-                    increment: 1,
-                },
-            },
-        });
-
-        await applyTichuFinalScores({
-            matchId,
-            details: nextDetails,
             tx,
         });
     });
