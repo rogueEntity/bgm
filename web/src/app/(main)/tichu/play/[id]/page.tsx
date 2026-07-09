@@ -8,6 +8,8 @@ import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 
 import TichuRoundForm from "./TichuRoundForm";
 import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
+import { getCurrentUserWithAdmin } from "@/lib/admin";
+import TichuMatchDangerActions from "@/components/tichu/TichuMatchDangerActions";
 
 type TichuPlayPageProps = {
     params: Promise<{
@@ -95,6 +97,12 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
         return (a.seat_order ?? 0) - (b.seat_order ?? 0);
     });
 
+    const currentUser = await getCurrentUserWithAdmin();
+    const canManage = Boolean(
+        currentUser?.isAdmin || currentUser?.id === match.created_by,
+    );
+    const canUndo = (details.logs?.length ?? 0) > 0;
+
     return (
         <div className="mx-auto max-w-4xl space-y-6">
             <div>
@@ -150,6 +158,14 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                     })}
                 </div>
             </section>
+
+            <TichuMatchDangerActions
+                matchId={matchId}
+                canManage={canManage}
+                canUndo={canUndo}
+                canForceFinish={details.status === "PLAYING"}
+                redirectAfterDelete="/tichu/matches"
+            />
 
             <TichuRoundForm
                 matchId={matchId}
