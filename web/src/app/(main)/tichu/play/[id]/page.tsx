@@ -185,11 +185,13 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 </div>
             </section>
 
-            <TichuRoundForm
-                matchId={matchId}
-                expectedVersion={match.match_details.version}
-                details={details}
-            />
+            {canManage ? (
+                <TichuRoundForm
+                    matchId={matchId}
+                    expectedVersion={match.match_details.version}
+                    details={details}
+                />
+            ) : null}
 
             <TichuRoundLogCards details={details} />
         </div>
