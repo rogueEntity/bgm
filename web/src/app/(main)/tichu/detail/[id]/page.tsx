@@ -8,6 +8,8 @@ import TichuRoundLogCards from "@/components/tichu/TichuRoundLogCards";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import TichuNicknameWithBadges from "@/components/tichu/TichuNicknameWithBadges";
+import { getTichuEquippedBadgesByUserIds } from "@/app/actions/tichu-achievement.action";
 import { db } from "@/lib/prisma";
 
 type TichuDetailPageProps = {
@@ -20,7 +22,7 @@ type TichuTeamKey = "TEAM_A" | "TEAM_B";
 
 type TichuCallLog = {
     player_key?: string;
-    result?: "SUCCESS" | "FAIL" | string;
+    result?: string;
     score_delta?: number;
 };
 
@@ -38,7 +40,7 @@ type TichuRoundLog = {
 };
 
 type TichuDetails = {
-    status?: "PLAYING" | "FINISHED" | "DELETED" | string;
+    status?: string;
     current_round?: number;
     target_score?: number;
     winner_team_key?: TichuTeamKey | null;
@@ -68,6 +70,14 @@ type TichuDetails = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getUserIdFromTichuPlayerKey(playerKey: string) {
+    if (!playerKey.startsWith("user_")) {
+        return null;
+    }
+
+    return playerKey.slice("user_".length);
 }
 
 function getRoundLog(value: unknown): TichuRoundLog | null {
@@ -274,6 +284,12 @@ export default async function TichuDetailPage({
     const logs = getLogs(details);
     const callStats = getCallStats(logs);
     const players = getPlayers(details);
+    const badgeUserIds = players
+        .map(([playerKey]) => getUserIdFromTichuPlayerKey(playerKey))
+        .filter((userId): userId is string => Boolean(userId));
+    const equippedBadgesByUserId = await getTichuEquippedBadgesByUserIds(
+        badgeUserIds,
+    );
     const finishedAt = formatFinishedAt(details.finished_at);
 
     const currentUser = await getCurrentUserWithAdmin();
@@ -392,6 +408,7 @@ export default async function TichuDetailPage({
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {players.map(([playerKey, player]) => {
+                        const userId = getUserIdFromTichuPlayerKey(playerKey);
                         const teamName = getPlayerTeamName(
                             player.team_key,
                             teamAName,
@@ -403,9 +420,16 @@ export default async function TichuDetailPage({
                                 <p className="text-xs font-bold text-foreground/40">
                                     {teamName}
                                 </p>
-                                <p className="mt-1 text-lg font-black">
-                                    {getPlayerName(details, playerKey)}
-                                </p>
+                                <div className="mt-1 text-lg font-black">
+                                    {userId ? (
+                                        <TichuNicknameWithBadges
+                                            nickname={getPlayerName(details, playerKey)}
+                                            badges={equippedBadgesByUserId[userId] ?? []}
+                                        />
+                                    ) : (
+                                        <span>{getPlayerName(details, playerKey)}</span>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}

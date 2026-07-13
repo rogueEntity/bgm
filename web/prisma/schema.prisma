@@ -39,7 +39,10 @@ model users {
   mahjong_user_achievements    mahjong_user_achievements[]
   mahjong_user_badges          mahjong_user_badges[]
   mahjong_user_equipped_badges mahjong_user_equipped_badges[]
-  mahjong_news_events mahjong_news_events[]
+  mahjong_news_events          mahjong_news_events[]
+  tichu_user_achievements      tichu_user_achievements[]
+  tichu_user_badges            tichu_user_badges[]
+  tichu_user_equipped_badges   tichu_user_equipped_badges[]
 
   @@unique([provider, provider_id])
 }
@@ -199,4 +202,54 @@ model mahjong_news_events {
   @@index([user_id, occurred_at])
   @@index([match_id])
   @@index([achievement_id])
+}
+
+model tichu_user_achievements {
+  id             Int    @id @default(autoincrement())
+  user_id        String @db.Uuid
+  achievement_id String @db.VarChar(100)
+
+  progress    Int       @default(0)
+  completed   Boolean   @default(false)
+  completed_at DateTime? @db.Timestamptz(6)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, achievement_id])
+  @@index([user_id])
+  @@index([achievement_id])
+}
+
+model tichu_user_badges {
+  id       Int    @id @default(autoincrement())
+  user_id  String @db.Uuid
+  badge_id String @db.VarChar(100)
+
+  earned_at DateTime @default(now()) @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, badge_id])
+  @@index([user_id])
+  @@index([badge_id])
+}
+
+model tichu_user_equipped_badges {
+  id       Int    @id @default(autoincrement())
+  user_id  String @db.Uuid
+  badge_id String @db.VarChar(100)
+  slot     Int
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, slot])
+  @@unique([user_id, badge_id])
+  @@index([user_id])
+  @@index([badge_id])
 }

@@ -9,6 +9,8 @@ import { getAvatarImageUrl } from "@/lib/avatar";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
+import TichuNicknameWithBadges from "@/components/tichu/TichuNicknameWithBadges";
+import { getTichuEquippedBadgesByUserIds } from "@/app/actions/tichu-achievement.action";
 
 type TichuDetailsSnapshot = {
     current_round?: number;
@@ -164,6 +166,9 @@ export default async function TichuDashboardPage() {
         me?.avatar_image_key,
         me?.avatar_image_updated_at,
     );
+    const equippedBadgesByUserId = await getTichuEquippedBadgesByUserIds(
+        currentUser ? [currentUser.id] : [],
+    );
 
     return (
         <main className="space-y-6">
@@ -190,9 +195,11 @@ export default async function TichuDashboardPage() {
                         <div className="min-w-0">
                             <p className="text-sm text-foreground/60">내 티츄 프로필</p>
 
-                            <h3 className="mt-1 max-w-[12rem] truncate text-xl font-black">
-                                {me.nickname}
-                            </h3>
+                            <TichuNicknameWithBadges
+                                nickname={me.nickname}
+                                badges={equippedBadgesByUserId[currentUser.id] ?? []}
+                                className="font-black"
+                            />
                         </div>
                     </div>
                 </section>
@@ -257,11 +264,11 @@ export default async function TichuDashboardPage() {
 
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
-                        {news.event_type === "ACHIEVEMENT"
-                            ? "도전과제"
-                            : "게임"}
-                      </span>
+                                            <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
+                                                {news.event_type === "ACHIEVEMENT"
+                                                    ? "도전과제"
+                                                    : "게임"}
+                                            </span>
                                             <p className="text-sm font-black">{news.title}</p>
                                         </div>
 
@@ -289,8 +296,8 @@ export default async function TichuDashboardPage() {
                     <span className="text-3xl">🏆</span>
                     <span className="text-sm font-bold">랭킹</span>
                     <span className="text-center text-xs font-semibold text-foreground/45">
-            플레이어들의 순위를 확인합니다.
-          </span>
+                        플레이어들의 순위를 확인합니다.
+                    </span>
                 </Link>
 
                 <Link
@@ -300,8 +307,8 @@ export default async function TichuDashboardPage() {
                     <span className="text-3xl">📜</span>
                     <span className="text-sm font-bold">게임 기록</span>
                     <span className="text-center text-xs font-semibold text-foreground/45">
-            완료된 게임과 진행 중인 게임을 확인합니다.
-          </span>
+                        완료된 게임과 진행 중인 게임을 확인합니다.
+                    </span>
                 </Link>
 
                 <Link
@@ -311,8 +318,8 @@ export default async function TichuDashboardPage() {
                     <span className="text-3xl">🧑‍💼</span>
                     <span className="text-sm font-bold">플레이어 정보</span>
                     <span className="text-center text-xs font-semibold text-foreground/45">
-            내 티츄 통계를 확인합니다.
-          </span>
+                        내 티츄 통계를 확인합니다.
+                    </span>
                 </Link>
 
                 <Link
@@ -322,8 +329,8 @@ export default async function TichuDashboardPage() {
                     <span className="text-3xl">🎖️</span>
                     <span className="text-sm font-bold">도전과제</span>
                     <span className="text-center text-xs font-semibold text-foreground/45">
-            달성한 기록을 확인합니다.
-          </span>
+                        달성한 기록을 확인합니다.
+                    </span>
                 </Link>
 
                 <Link
@@ -333,8 +340,8 @@ export default async function TichuDashboardPage() {
                     <span className="text-3xl">⚔️</span>
                     <span className="text-sm font-bold">라이벌</span>
                     <span className="text-center text-xs font-semibold text-foreground/45">
-            라이벌과의 상대 전적을 확인합니다.
-          </span>
+                        라이벌과의 상대 전적을 확인합니다.
+                    </span>
                 </Link>
             </div>
         </main>

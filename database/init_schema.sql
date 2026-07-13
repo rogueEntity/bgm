@@ -292,7 +292,97 @@ CREATE INDEX mahjong_user_equipped_badges_badge_id_idx
 
 
 -- =========================================================
--- 12. mahjong_news_events
+-- 12. tichu_user_achievements
+-- =========================================================
+
+CREATE TABLE tichu_user_achievements (
+                                         id SERIAL PRIMARY KEY,
+                                         user_id UUID NOT NULL,
+                                         achievement_id VARCHAR(100) NOT NULL,
+                                         progress INTEGER NOT NULL DEFAULT 0,
+                                         completed BOOLEAN NOT NULL DEFAULT false,
+                                         completed_at TIMESTAMPTZ(6),
+                                         created_at TIMESTAMPTZ(6) NOT NULL DEFAULT now(),
+                                         updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT now(),
+
+                                         CONSTRAINT tichu_user_achievements_user_id_fkey
+                                             FOREIGN KEY (user_id)
+                                                 REFERENCES users(id)
+                                                 ON DELETE CASCADE
+                                                 ON UPDATE NO ACTION
+);
+
+CREATE UNIQUE INDEX tichu_user_achievements_user_id_achievement_id_key
+    ON tichu_user_achievements (user_id, achievement_id);
+
+CREATE INDEX tichu_user_achievements_user_id_idx
+    ON tichu_user_achievements (user_id);
+
+CREATE INDEX tichu_user_achievements_achievement_id_idx
+    ON tichu_user_achievements (achievement_id);
+
+
+-- =========================================================
+-- 13. tichu_user_badges
+-- =========================================================
+
+CREATE TABLE tichu_user_badges (
+                                   id SERIAL PRIMARY KEY,
+                                   user_id UUID NOT NULL,
+                                   badge_id VARCHAR(100) NOT NULL,
+                                   earned_at TIMESTAMPTZ(6) NOT NULL DEFAULT now(),
+
+                                   CONSTRAINT tichu_user_badges_user_id_fkey
+                                       FOREIGN KEY (user_id)
+                                           REFERENCES users(id)
+                                           ON DELETE CASCADE
+                                           ON UPDATE NO ACTION
+);
+
+CREATE UNIQUE INDEX tichu_user_badges_user_id_badge_id_key
+    ON tichu_user_badges (user_id, badge_id);
+
+CREATE INDEX tichu_user_badges_user_id_idx
+    ON tichu_user_badges (user_id);
+
+CREATE INDEX tichu_user_badges_badge_id_idx
+    ON tichu_user_badges (badge_id);
+
+
+-- =========================================================
+-- 14. tichu_user_equipped_badges
+-- =========================================================
+
+CREATE TABLE tichu_user_equipped_badges (
+                                            id SERIAL PRIMARY KEY,
+                                            user_id UUID NOT NULL,
+                                            badge_id VARCHAR(100) NOT NULL,
+                                            slot INTEGER NOT NULL,
+                                            created_at TIMESTAMPTZ(6) NOT NULL DEFAULT now(),
+                                            updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT now(),
+
+                                            CONSTRAINT tichu_user_equipped_badges_user_id_fkey
+                                                FOREIGN KEY (user_id)
+                                                    REFERENCES users(id)
+                                                    ON DELETE CASCADE
+                                                    ON UPDATE NO ACTION
+);
+
+CREATE UNIQUE INDEX tichu_user_equipped_badges_user_id_slot_key
+    ON tichu_user_equipped_badges (user_id, slot);
+
+CREATE UNIQUE INDEX tichu_user_equipped_badges_user_id_badge_id_key
+    ON tichu_user_equipped_badges (user_id, badge_id);
+
+CREATE INDEX tichu_user_equipped_badges_user_id_idx
+    ON tichu_user_equipped_badges (user_id);
+
+CREATE INDEX tichu_user_equipped_badges_badge_id_idx
+    ON tichu_user_equipped_badges (badge_id);
+
+
+-- =========================================================
+-- 15. mahjong_news_events
 -- =========================================================
 
 CREATE TABLE mahjong_news_events (
@@ -339,7 +429,7 @@ CREATE INDEX mahjong_news_events_achievement_id_idx
 
 
 -- =========================================================
--- 13. 기본 데이터
+-- 16. 기본 데이터
 -- =========================================================
 
 INSERT INTO games (
@@ -355,6 +445,14 @@ VALUES
         'mahjong',
         '리치마작',
         'Mahjong',
+        4,
+        4,
+        true
+    ),
+    (
+        'tichu',
+        '티츄',
+        'Tichu',
         4,
         4,
         true

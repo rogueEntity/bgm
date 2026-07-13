@@ -1,5 +1,4 @@
 // web/src/app/actions/tichu.action.ts
-
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -8,79 +7,16 @@ import { Prisma } from "@prisma/client";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/prisma";
-import { getAvatarImageUrl } from "@/lib/avatar";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { syncTichuAchievementsForMatch } from "@/app/actions/tichu-achievement.action";
 
 type JsonRecord = Record<string, unknown>;
 
 type TichuTeamKey = "TEAM_A" | "TEAM_B";
 type TichuStatus = "PLAYING" | "FINISHED" | "DELETED";
 type TichuCallResult = "SUCCESS" | "FAIL";
-
-type TichuDetailsSnapshot = {
-    status?: TichuStatus | string;
-    current_round?: number;
-    target_score?: number;
-    teams?: {
-        TEAM_A?: {
-            name?: string;
-            score?: number;
-        };
-        TEAM_B?: {
-            name?: string;
-            score?: number;
-        };
-    };
-};
-
-type TichuDashboardMe = {
-    id: string;
-    nickname: string;
-    avatarEmoji: string | null;
-    avatarImageUrl: string | null;
-};
-
-type TichuDashboardMatchPlayer = {
-    id: string | null;
-    nickname: string;
-    avatarEmoji: string | null;
-    avatarImageUrl: string | null;
-};
-
-type TichuDashboardMatch = {
-    id: number;
-    status: string;
-    playDate: string | null;
-    currentRound: number | null;
-    teamAScore: number | null;
-    teamBScore: number | null;
-    players: TichuDashboardMatchPlayer[];
-};
-
-type TichuDashboardRankingItem = {
-    rank: number;
-    userId: string;
-    nickname: string;
-    avatarEmoji: string | null;
-    avatarImageUrl: string | null;
-    playCount: number;
-};
-
-export type TichuDashboardNewsItem = {
-    id: number | string;
-    title: string;
-    createdAt: string | null;
-};
-
-export type TichuDashboardData = {
-    me: TichuDashboardMe | null;
-    activeMatch: TichuDashboardMatch | null;
-    recentMatches: TichuDashboardMatch[];
-    rankings: TichuDashboardRankingItem[];
-    news: TichuDashboardNewsItem[];
-};
 
 type CreateTichuMatchInput = {
     teamAName: string;
@@ -172,55 +108,48 @@ type NormalizedTichuRecordDetails = {
     stats_applied: boolean;
 };
 
+type TichuSpecificStats = {
+    play_count: number;
+    win_count: number;
+    loss_count: number;
+    round_count: number;
+
+    tichu_calls: number;
+    tichu_successes: number;
+    tichu_failures: number;
+
+    grand_tichu_calls: number;
+    grand_tichu_successes: number;
+    grand_tichu_failures: number;
+
+    first_place_count: number;
+    last_place_count: number;
+
+    one_two_success_count: number;
+    one_two_suffered_count: number;
+
+    total_score_diff: number;
+    best_score_diff: number;
+    worst_score_diff: number;
+
+    big_win_count: number;
+    close_win_count: number;
+};
+
+type TichuUserGameSpecificStats = {
+    schema_version: number;
+    tichu: TichuSpecificStats;
+};
+
+type CurrentTichuManager = NonNullable<
+    Awaited<ReturnType<typeof getCurrentUserWithAdmin>>
+>;
+
 const MAX_TICHU_PLAYER_NAME_LENGTH = 20;
 const MAX_TICHU_TEAM_NAME_LENGTH = 20;
 
 function isRecord(value: unknown): value is JsonRecord {
     return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getTichuDetails(details: unknown): TichuDetailsSnapshot {
-    if (!isRecord(details)) return {};
-
-    return details as TichuDetailsSnapshot;
-}
-
-function getTichuStatus(details: unknown) {
-    const parsedDetails = getTichuDetails(details);
-
-    if (typeof parsedDetails.status === "string") {
-        return parsedDetails.status;
-    }
-
-    return "UNKNOWN";
-}
-
-function toDateString(value: Date | string | null | undefined) {
-    if (!value) return null;
-
-    if (value instanceof Date) {
-        return value.toISOString();
-    }
-
-    return value;
-}
-
-function toDashboardMe(user: {
-    id: string;
-    nickname: string;
-    avatar_emoji: string | null;
-    avatar_image_key: string | null;
-    avatar_image_updated_at: Date | null;
-}): TichuDashboardMe {
-    return {
-        id: user.id,
-        nickname: user.nickname,
-        avatarEmoji: user.avatar_emoji,
-        avatarImageUrl: getAvatarImageUrl(
-            user.avatar_image_key,
-            user.avatar_image_updated_at,
-        ),
-    };
 }
 
 function normalizeTichuText(value: string) {
@@ -238,9 +167,7 @@ function validateTichuPlayerNames(playerNames: string[]) {
         throw new Error("참가자 4명의 이름을 모두 입력해주세요.");
     }
 
-    if (
-        normalizedNames.some((name) => name.length > MAX_TICHU_PLAYER_NAME_LENGTH)
-    ) {
+    if (normalizedNames.some((name) => name.length > MAX_TICHU_PLAYER_NAME_LENGTH)) {
         throw new Error(
             `참가자 이름은 ${MAX_TICHU_PLAYER_NAME_LENGTH}글자까지 입력할 수 있습니다.`,
         );
@@ -260,7 +187,11 @@ function assertTichuTeamKey(value: unknown): asserts value is TichuTeamKey {
 }
 
 function getOppositeTichuTeamKey(teamKey: TichuTeamKey): TichuTeamKey {
-    return teamKey === "TEAM_A" ? "TEAM_B" : "TEAM_A";
+    if (teamKey === "TEAM_A") {
+        return "TEAM_B";
+    }
+
+    return "TEAM_A";
 }
 
 function normalizeTichuPlayers(
@@ -486,212 +417,378 @@ function createTichuCallLogs(params: {
     });
 }
 
-export async function getTichuDashboardData(): Promise<TichuDashboardData> {
-    const session = await auth();
-    const providerId = session?.user?.id as string | undefined;
-
-    if (!providerId) {
-        return {
-            me: null,
-            activeMatch: null,
-            recentMatches: [],
-            rankings: [],
-            news: [],
-        };
+function getUserIdFromTichuPlayerKey(playerKey: string) {
+    if (!playerKey.startsWith("user_")) {
+        return null;
     }
 
-    const me = await db.users.findFirst({
-        where: {
-            provider_id: providerId,
-        },
-        select: {
-            id: true,
-            nickname: true,
-            avatar_emoji: true,
-            avatar_image_key: true,
-            avatar_image_updated_at: true,
-        },
-    });
+    return playerKey.slice("user_".length);
+}
 
-    if (!me) {
-        return {
-            me: null,
-            activeMatch: null,
-            recentMatches: [],
-            rankings: [],
-            news: [],
-        };
-    }
+function getTichuUserIdsFromDetails(details: NormalizedTichuRecordDetails) {
+    return Object.keys(details.players)
+        .map(getUserIdFromTichuPlayerKey)
+        .filter((userId): userId is string => Boolean(userId));
+}
 
-    const game = await db.games.findUnique({
-        where: {
-            key: TICHU_GAME_KEY,
-        },
-        select: {
-            id: true,
-            name: true,
-            key: true,
-        },
-    });
-
-    if (!game) {
-        return {
-            me: toDashboardMe(me),
-            activeMatch: null,
-            recentMatches: [],
-            rankings: [],
-            news: [],
-        };
-    }
-
-    const matches = await db.matches.findMany({
-        where: {
-            game_id: game.id,
-            deleted_at: null,
-            OR: [
-                {
-                    created_by: me.id,
-                },
-                {
-                    match_players: {
-                        some: {
-                            user_id: me.id,
-                        },
-                    },
-                },
-            ],
-        },
-        include: {
-            match_details: true,
-            match_players: {
-                include: {
-                    users: {
-                        select: {
-                            id: true,
-                            nickname: true,
-                            avatar_emoji: true,
-                            avatar_image_key: true,
-                            avatar_image_updated_at: true,
-                        },
-                    },
-                },
-            },
-        },
-        orderBy: {
-            play_date: "desc",
-        },
-        take: 20,
-    });
-
-    const recentRawMatches = await db.matches.findMany({
-        where: {
-            game_id: game.id,
-            deleted_at: null,
-        },
-        include: {
-            match_details: true,
-            match_players: {
-                include: {
-                    users: {
-                        select: {
-                            id: true,
-                            nickname: true,
-                            avatar_emoji: true,
-                            avatar_image_key: true,
-                            avatar_image_updated_at: true,
-                        },
-                    },
-                },
-            },
-        },
-        orderBy: {
-            play_date: "desc",
-        },
-        take: 5,
-    });
-
-    const toDashboardMatch = (
-        match: (typeof recentRawMatches)[number],
-    ): TichuDashboardMatch => {
-        const details = getTichuDetails(match.match_details?.details);
-        const teamAScore =
-            typeof details.teams?.TEAM_A?.score === "number"
-                ? details.teams.TEAM_A.score
-                : null;
-        const teamBScore =
-            typeof details.teams?.TEAM_B?.score === "number"
-                ? details.teams.TEAM_B.score
-                : null;
-
-        return {
-            id: match.id,
-            status: getTichuStatus(match.match_details?.details),
-            playDate: toDateString(match.play_date),
-            currentRound:
-                typeof details.current_round === "number" ? details.current_round : null,
-            teamAScore,
-            teamBScore,
-            players: match.match_players.map((player) => {
-                return {
-                    id: player.users?.id ?? null,
-                    nickname: player.users?.nickname ?? player.guest_name ?? "게스트",
-                    avatarEmoji: player.users?.avatar_emoji ?? null,
-                    avatarImageUrl: getAvatarImageUrl(
-                        player.users?.avatar_image_key ?? null,
-                        player.users?.avatar_image_updated_at ?? null,
-                    ),
-                };
-            }),
-        };
-    };
-
-    const activeRawMatch =
-        matches.find((match) => {
-            return getTichuStatus(match.match_details?.details) === "PLAYING";
-        }) ?? null;
-
-    const rankings = await db.user_game_stats.findMany({
-        where: {
-            game_id: game.id,
-        },
-        include: {
-            users: {
-                select: {
-                    id: true,
-                    nickname: true,
-                    avatar_emoji: true,
-                    avatar_image_key: true,
-                    avatar_image_updated_at: true,
-                },
-            },
-        },
-        orderBy: [
-            {
-                play_count: "desc",
-            },
-        ],
-        take: 5,
-    });
-
+function createEmptyTichuStats(): TichuSpecificStats {
     return {
-        me: toDashboardMe(me),
-        activeMatch: activeRawMatch ? toDashboardMatch(activeRawMatch) : null,
-        recentMatches: recentRawMatches.map(toDashboardMatch),
-        rankings: rankings.map((row, index) => {
-            return {
-                rank: index + 1,
-                userId: row.user_id,
-                nickname: row.users.nickname,
-                avatarEmoji: row.users.avatar_emoji,
-                avatarImageUrl: getAvatarImageUrl(
-                    row.users.avatar_image_key,
-                    row.users.avatar_image_updated_at,
-                ),
-                playCount: row.play_count,
-            };
-        }),
-        news: [],
+        play_count: 0,
+        win_count: 0,
+        loss_count: 0,
+        round_count: 0,
+
+        tichu_calls: 0,
+        tichu_successes: 0,
+        tichu_failures: 0,
+
+        grand_tichu_calls: 0,
+        grand_tichu_successes: 0,
+        grand_tichu_failures: 0,
+
+        first_place_count: 0,
+        last_place_count: 0,
+
+        one_two_success_count: 0,
+        one_two_suffered_count: 0,
+
+        total_score_diff: 0,
+        best_score_diff: 0,
+        worst_score_diff: 0,
+
+        big_win_count: 0,
+        close_win_count: 0,
     };
+}
+
+function addTichuStats(base: TichuSpecificStats, add: TichuSpecificStats) {
+    return {
+        play_count: base.play_count + add.play_count,
+        win_count: base.win_count + add.win_count,
+        loss_count: base.loss_count + add.loss_count,
+        round_count: base.round_count + add.round_count,
+
+        tichu_calls: base.tichu_calls + add.tichu_calls,
+        tichu_successes: base.tichu_successes + add.tichu_successes,
+        tichu_failures: base.tichu_failures + add.tichu_failures,
+
+        grand_tichu_calls: base.grand_tichu_calls + add.grand_tichu_calls,
+        grand_tichu_successes:
+            base.grand_tichu_successes + add.grand_tichu_successes,
+        grand_tichu_failures:
+            base.grand_tichu_failures + add.grand_tichu_failures,
+
+        first_place_count: base.first_place_count + add.first_place_count,
+        last_place_count: base.last_place_count + add.last_place_count,
+
+        one_two_success_count:
+            base.one_two_success_count + add.one_two_success_count,
+        one_two_suffered_count:
+            base.one_two_suffered_count + add.one_two_suffered_count,
+
+        total_score_diff: base.total_score_diff + add.total_score_diff,
+        best_score_diff: Math.max(base.best_score_diff, add.best_score_diff),
+        worst_score_diff: Math.min(base.worst_score_diff, add.worst_score_diff),
+
+        big_win_count: base.big_win_count + add.big_win_count,
+        close_win_count: base.close_win_count + add.close_win_count,
+    };
+}
+
+function getWinnerTeamKeyFromScores(
+    teamAScore: number,
+    teamBScore: number,
+): TichuTeamKey | null {
+    if (teamAScore === teamBScore) {
+        return null;
+    }
+
+    return teamAScore > teamBScore ? "TEAM_A" : "TEAM_B";
+}
+
+function getTichuPlayerTeamKey(
+    details: NormalizedTichuRecordDetails,
+    playerKey: string,
+) {
+    return details.players[playerKey]?.team_key ?? null;
+}
+
+function getTichuTeamRank(
+    teamKey: TichuTeamKey,
+    winnerTeamKey: TichuTeamKey | null,
+) {
+    if (!winnerTeamKey) {
+        return 1;
+    }
+
+    return teamKey === winnerTeamKey ? 1 : 2;
+}
+
+function getTichuMatchStatsByUser(details: NormalizedTichuRecordDetails) {
+    const result: Record<string, TichuSpecificStats> = {};
+    const teamAScore = details.teams.TEAM_A.score;
+    const teamBScore = details.teams.TEAM_B.score;
+    const winnerTeamKey =
+        details.winner_team_key ?? getWinnerTeamKeyFromScores(teamAScore, teamBScore);
+
+    function ensureStats(playerKey: string) {
+        const userId = getUserIdFromTichuPlayerKey(playerKey);
+
+        if (!userId) {
+            return null;
+        }
+
+        if (!result[userId]) {
+            result[userId] = createEmptyTichuStats();
+        }
+
+        return result[userId];
+    }
+
+    for (const [playerKey, player] of Object.entries(details.players)) {
+        const stats = ensureStats(playerKey);
+
+        if (!stats) {
+            continue;
+        }
+
+        const myScore = player.team_key === "TEAM_A" ? teamAScore : teamBScore;
+        const opponentScore = player.team_key === "TEAM_A" ? teamBScore : teamAScore;
+        const scoreDiff = myScore - opponentScore;
+
+        stats.play_count += 1;
+        stats.round_count += details.logs.length;
+        stats.total_score_diff += scoreDiff;
+        stats.best_score_diff = scoreDiff;
+        stats.worst_score_diff = scoreDiff;
+
+        if (winnerTeamKey === player.team_key) {
+            stats.win_count += 1;
+
+            if (scoreDiff >= 500) {
+                stats.big_win_count += 1;
+            }
+
+            if (scoreDiff > 0 && scoreDiff <= 100) {
+                stats.close_win_count += 1;
+            }
+        } else if (winnerTeamKey) {
+            stats.loss_count += 1;
+        }
+    }
+
+    for (const log of details.logs) {
+        if (!isRecord(log)) {
+            continue;
+        }
+
+        const firstOutPlayerKey =
+            typeof log.first_out_player_key === "string"
+                ? log.first_out_player_key
+                : null;
+
+        if (firstOutPlayerKey) {
+            const firstOutStats = ensureStats(firstOutPlayerKey);
+
+            if (firstOutStats) {
+                firstOutStats.first_place_count += 1;
+            }
+        }
+
+        const lastOutPlayerKey =
+            typeof log.last_out_player_key === "string" ? log.last_out_player_key : null;
+
+        if (lastOutPlayerKey) {
+            const lastOutStats = ensureStats(lastOutPlayerKey);
+
+            if (lastOutStats) {
+                lastOutStats.last_place_count += 1;
+            }
+        }
+
+        const oneTwoTeamKey =
+            log.one_two_team_key === "TEAM_A" || log.one_two_team_key === "TEAM_B"
+                ? log.one_two_team_key
+                : null;
+
+        if (oneTwoTeamKey) {
+            const sufferedTeamKey = getOppositeTichuTeamKey(oneTwoTeamKey);
+
+            for (const playerKey of details.teams[oneTwoTeamKey].player_keys) {
+                const stats = ensureStats(playerKey);
+
+                if (stats) {
+                    stats.one_two_success_count += 1;
+                }
+            }
+
+            for (const playerKey of details.teams[sufferedTeamKey].player_keys) {
+                const stats = ensureStats(playerKey);
+
+                if (stats) {
+                    stats.one_two_suffered_count += 1;
+                }
+            }
+        }
+
+        const smallTichuCalls = Array.isArray(log.small_tichu_calls)
+            ? log.small_tichu_calls
+            : [];
+
+        for (const call of smallTichuCalls) {
+            if (!isRecord(call) || typeof call.player_key !== "string") {
+                continue;
+            }
+
+            const stats = ensureStats(call.player_key);
+
+            if (!stats) {
+                continue;
+            }
+
+            stats.tichu_calls += 1;
+
+            if (call.result === "SUCCESS") {
+                stats.tichu_successes += 1;
+            }
+
+            if (call.result === "FAIL") {
+                stats.tichu_failures += 1;
+            }
+        }
+
+        const largeTichuCalls = Array.isArray(log.large_tichu_calls)
+            ? log.large_tichu_calls
+            : [];
+
+        for (const call of largeTichuCalls) {
+            if (!isRecord(call) || typeof call.player_key !== "string") {
+                continue;
+            }
+
+            const stats = ensureStats(call.player_key);
+
+            if (!stats) {
+                continue;
+            }
+
+            stats.grand_tichu_calls += 1;
+
+            if (call.result === "SUCCESS") {
+                stats.grand_tichu_successes += 1;
+            }
+
+            if (call.result === "FAIL") {
+                stats.grand_tichu_failures += 1;
+            }
+        }
+    }
+
+    return result;
+}
+
+async function syncTichuUserStatsForUsers({
+                                              gameId,
+                                              userIds,
+                                              tx,
+                                          }: {
+    gameId: number;
+    userIds: string[];
+    tx: Prisma.TransactionClient;
+}) {
+    const uniqueUserIds = [...new Set(userIds)];
+
+    if (uniqueUserIds.length === 0) {
+        return;
+    }
+
+    const accumulatedStatsByUserId = new Map<string, TichuSpecificStats>();
+
+    for (const userId of uniqueUserIds) {
+        accumulatedStatsByUserId.set(userId, createEmptyTichuStats());
+    }
+
+    const finishedMatches = await tx.matches.findMany({
+        where: {
+            game_id: gameId,
+            deleted_at: null,
+            match_players: {
+                some: {
+                    user_id: {
+                        in: uniqueUserIds,
+                    },
+                },
+            },
+        },
+        include: {
+            match_details: true,
+        },
+    });
+
+    for (const match of finishedMatches) {
+        if (!match.match_details) {
+            continue;
+        }
+
+        let details: NormalizedTichuRecordDetails;
+
+        try {
+            details = normalizeTichuRecordDetails(match.match_details.details);
+        } catch {
+            continue;
+        }
+
+        if (details.status !== "FINISHED" || !details.stats_applied) {
+            continue;
+        }
+
+        const matchStatsByUserId = getTichuMatchStatsByUser(details);
+
+        for (const userId of uniqueUserIds) {
+            const matchStats = matchStatsByUserId[userId];
+
+            if (!matchStats) {
+                continue;
+            }
+
+            const previousStats =
+                accumulatedStatsByUserId.get(userId) ?? createEmptyTichuStats();
+
+            accumulatedStatsByUserId.set(
+                userId,
+                addTichuStats(previousStats, matchStats),
+            );
+        }
+    }
+
+    for (const userId of uniqueUserIds) {
+        const tichuStats =
+            accumulatedStatsByUserId.get(userId) ?? createEmptyTichuStats();
+
+        const specificStats: TichuUserGameSpecificStats = {
+            schema_version: 2,
+            tichu: tichuStats,
+        };
+
+        await tx.user_game_stats.upsert({
+            where: {
+                user_id_game_id: {
+                    user_id: userId,
+                    game_id: gameId,
+                },
+            },
+            update: {
+                play_count: tichuStats.play_count,
+                specific_stats: specificStats as Prisma.InputJsonValue,
+            },
+            create: {
+                user_id: userId,
+                game_id: gameId,
+                play_count: tichuStats.play_count,
+                specific_stats: specificStats as Prisma.InputJsonValue,
+            },
+        });
+    }
 }
 
 export async function createTichuMatch(input: CreateTichuMatchInput) {
@@ -732,7 +829,6 @@ export async function createTichuMatch(input: CreateTichuMatchInput) {
     }
 
     const playerNames = validateTichuPlayerNames(input.playerNames);
-
     const teamAName = normalizeTichuText(input.teamAName) || "A팀";
     const teamBName = normalizeTichuText(input.teamBName) || "B팀";
 
@@ -766,7 +862,11 @@ export async function createTichuMatch(input: CreateTichuMatchInput) {
     const playerKeys = playerNames.map((playerName) => {
         const foundUserId = userMap.get(playerName);
 
-        return foundUserId ? `user_${foundUserId}` : `guest_${playerName}`;
+        if (foundUserId) {
+            return `user_${foundUserId}`;
+        }
+
+        return `guest_${playerName}`;
     }) as [string, string, string, string];
 
     const details = {
@@ -973,12 +1073,8 @@ export async function recordTichuRound(
     const reachedTarget =
         totalScores.TEAM_A >= details.target_score ||
         totalScores.TEAM_B >= details.target_score;
-
-    const hasWinnerByTarget =
-        reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
-
+    const hasWinnerByTarget = reachedTarget && totalScores.TEAM_A !== totalScores.TEAM_B;
     const shouldFinish = input.isForceFinish === true || hasWinnerByTarget;
-
     const winnerTeamKey = shouldFinish
         ? getWinnerTeamKeyFromScores(totalScores.TEAM_A, totalScores.TEAM_B)
         : null;
@@ -1005,7 +1101,7 @@ export async function recordTichuRound(
         current_round: shouldFinish ? round : round + 1,
         winner_team_key: winnerTeamKey,
         finished_at: shouldFinish ? now : null,
-        stats_applied: false,
+        stats_applied: shouldFinish,
         teams: {
             TEAM_A: {
                 ...details.teams.TEAM_A,
@@ -1043,6 +1139,12 @@ export async function recordTichuRound(
                 details: nextDetails,
                 tx,
             });
+
+            await syncTichuUserStatsForUsers({
+                gameId: game.id,
+                userIds: getTichuUserIdsFromDetails(nextDetails),
+                tx,
+            });
         }
 
         return result;
@@ -1050,8 +1152,12 @@ export async function recordTichuRound(
 
     if (updateResult.count !== 1) {
         throw new Error(
-            "다른 사용자가 먼저 기록을 수정했습니다. 새로고침 후 다시 시도해주세요.",
+            "다른 사용자가 먼저 기록을 수정했습니다.\n새로고침 후 다시 시도해주세요.",
         );
+    }
+
+    if (shouldFinish) {
+        await syncTichuAchievementsForMatch(input.matchId);
     }
 
     revalidateTichuMatchPaths(input.matchId);
@@ -1071,38 +1177,18 @@ function assertCanManageTichuMatch({
                                        currentUser,
                                        createdBy,
                                    }: {
-    currentUser: Awaited<ReturnType<typeof getCurrentTichuManager>>;
+    currentUser: CurrentTichuManager;
     createdBy: string | null;
 }) {
-    if (currentUser.isAdmin) return;
-    if (createdBy && currentUser.id === createdBy) return;
+    if (currentUser.isAdmin) {
+        return;
+    }
+
+    if (createdBy && currentUser.id === createdBy) {
+        return;
+    }
 
     throw new Error("게임 생성자 또는 관리자만 처리할 수 있습니다.");
-}
-
-function getWinnerTeamKeyFromScores(
-    teamAScore: number,
-    teamBScore: number,
-): TichuTeamKey | null {
-    if (teamAScore === teamBScore) return null;
-
-    return teamAScore > teamBScore ? "TEAM_A" : "TEAM_B";
-}
-
-function getTichuPlayerTeamKey(
-    details: NormalizedTichuRecordDetails,
-    playerKey: string,
-) {
-    return details.players[playerKey]?.team_key ?? null;
-}
-
-function getTichuTeamRank(
-    teamKey: TichuTeamKey,
-    winnerTeamKey: TichuTeamKey | null,
-) {
-    if (!winnerTeamKey) return 1;
-
-    return teamKey === winnerTeamKey ? 1 : 2;
 }
 
 async function applyTichuFinalScores({
@@ -1137,9 +1223,7 @@ async function applyTichuFinalScores({
         }
 
         const finalScore =
-            teamKey === "TEAM_A"
-                ? details.teams.TEAM_A.score
-                : details.teams.TEAM_B.score;
+            teamKey === "TEAM_A" ? details.teams.TEAM_A.score : details.teams.TEAM_B.score;
 
         await tx.match_players.update({
             where: {
@@ -1181,11 +1265,15 @@ function rebuildTichuDetailsAfterUndo(
     };
 
     logs.forEach((log) => {
-        if (!isRecord(log)) return;
+        if (!isRecord(log)) {
+            return;
+        }
 
         const scoreDeltas = log.score_deltas;
 
-        if (!isRecord(scoreDeltas)) return;
+        if (!isRecord(scoreDeltas)) {
+            return;
+        }
 
         const teamADelta =
             typeof scoreDeltas.TEAM_A === "number" ? scoreDeltas.TEAM_A : 0;
@@ -1220,6 +1308,7 @@ function rebuildTichuDetailsAfterUndo(
 function revalidateTichuMatchPaths(matchId: number) {
     revalidatePath("/tichu");
     revalidatePath("/tichu/matches");
+    revalidatePath("/tichu/achievements");
     revalidatePath(`/tichu/play/${matchId}`);
     revalidatePath(`/tichu/detail/${matchId}`);
 }
@@ -1258,6 +1347,7 @@ export async function deleteTichuMatch(matchId: number) {
         return;
     }
 
+    const userIds = getTichuUserIdsFromDetails(details);
     const deletedAt = new Date();
 
     const nextDetails: NormalizedTichuRecordDetails = {
@@ -1293,7 +1383,15 @@ export async function deleteTichuMatch(matchId: number) {
             matchId,
             tx,
         });
+
+        await syncTichuUserStatsForUsers({
+            gameId: match.games.id,
+            userIds,
+            tx,
+        });
     });
+
+    await syncTichuAchievementsForMatch(matchId);
 
     revalidateTichuMatchPaths(matchId);
 }
@@ -1349,6 +1447,7 @@ export async function undoTichuLastLog(matchId: number) {
         });
     }
 
+    const userIds = getTichuUserIdsFromDetails(details);
     const nextLogs = details.logs.slice(0, -1);
     const nextDetails = rebuildTichuDetailsAfterUndo(details, nextLogs);
 
@@ -1369,7 +1468,15 @@ export async function undoTichuLastLog(matchId: number) {
             matchId,
             tx,
         });
+
+        await syncTichuUserStatsForUsers({
+            gameId: match.games.id,
+            userIds,
+            tx,
+        });
     });
+
+    await syncTichuAchievementsForMatch(matchId);
 
     revalidateTichuMatchPaths(matchId);
 }
