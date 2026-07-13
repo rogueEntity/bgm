@@ -12,6 +12,7 @@ import { getAvatarImageUrl } from "@/lib/avatar";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { syncTichuAchievementsForMatch } from "@/app/actions/tichu-achievement.action";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -1050,8 +1051,12 @@ export async function recordTichuRound(
 
     if (updateResult.count !== 1) {
         throw new Error(
-            "다른 사용자가 먼저 기록을 수정했습니다. 새로고침 후 다시 시도해주세요.",
+            "다른 사용자가 먼저 기록을 수정했습니다.\n새로고침 후 다시 시도해주세요.",
         );
+    }
+
+    if (winnerTeamKey) {
+        await syncTichuAchievementsForMatch(input.matchId);
     }
 
     revalidateTichuMatchPaths(input.matchId);
@@ -1220,6 +1225,7 @@ function rebuildTichuDetailsAfterUndo(
 function revalidateTichuMatchPaths(matchId: number) {
     revalidatePath("/tichu");
     revalidatePath("/tichu/matches");
+    revalidatePath("/tichu/achievements");
     revalidatePath(`/tichu/play/${matchId}`);
     revalidatePath(`/tichu/detail/${matchId}`);
 }
@@ -1268,32 +1274,25 @@ export async function deleteTichuMatch(matchId: number) {
 
     await db.$transaction(async (tx) => {
         await tx.match_details.update({
-            where: {
-                match_id: matchId,
-            },
+            where: { match_id: matchId },
             data: {
                 details: nextDetails as Prisma.InputJsonValue,
-                version: {
-                    increment: 1,
-                },
+                version: { increment: 1 },
             },
         });
 
         await tx.matches.update({
-            where: {
-                id: matchId,
-            },
+            where: { id: matchId },
             data: {
                 deleted_at: deletedAt,
                 deleted_by: currentUser.id,
             },
         });
 
-        await clearTichuFinalScores({
-            matchId,
-            tx,
-        });
+        await clearTichuFinalScores({ matchId, tx });
     });
+
+    await syncTichuAchievementsForMatch(matchId);
 
     revalidateTichuMatchPaths(matchId);
 }
@@ -1354,22 +1353,17 @@ export async function undoTichuLastLog(matchId: number) {
 
     await db.$transaction(async (tx) => {
         await tx.match_details.update({
-            where: {
-                match_id: matchId,
-            },
+            where: { match_id: matchId },
             data: {
                 details: nextDetails as Prisma.InputJsonValue,
-                version: {
-                    increment: 1,
-                },
+                version: { increment: 1 },
             },
         });
 
-        await clearTichuFinalScores({
-            matchId,
-            tx,
-        });
+        await clearTichuFinalScores({ matchId, tx });
     });
+
+    await syncTichuAchievementsForMatch(matchId);
 
     revalidateTichuMatchPaths(matchId);
 }
