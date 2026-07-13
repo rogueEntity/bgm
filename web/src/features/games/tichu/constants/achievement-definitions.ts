@@ -14,7 +14,7 @@ export type TichuAchievementConditionType =
     | "TICHU_COMPLETED_MATCH_COUNT"
     | "TICHU_WIN_COUNT"
     | "TICHU_BIG_WIN_COUNT"
-    | "TICHU_CLOSE_WIN_COUNT"
+    | "TICHU_DRAW_COUNT"
     | "TICHU_CALL_COUNT"
     | "TICHU_SUCCESS_COUNT"
     | "TICHU_FAILURE_COUNT"
@@ -22,8 +22,8 @@ export type TichuAchievementConditionType =
     | "TICHU_GRAND_CALL_COUNT"
     | "TICHU_GRAND_SUCCESS_COUNT"
     | "TICHU_GRAND_FAILURE_COUNT"
-    | "TICHU_FIRST_PLACE_COUNT"
-    | "TICHU_LAST_PLACE_COUNT"
+    | "TICHU_FIRST_OUT_COUNT"
+    | "TICHU_ROUND_COUNT"
     | "TICHU_ONE_TWO_SUCCESS_COUNT"
     | "TICHU_ONE_TWO_SUFFERED_COUNT"
     | "TICHU_TOTAL_SCORE_DIFF_AT_LEAST"
@@ -46,7 +46,7 @@ export type TichuBadge = {
 
     /**
      * 배지 칩 안에 표시할 값.
-     * 예: "🃏", "티츄", "GT", "원투"
+     * 예: "", "티츄", "GT", "원투"
      */
     display: string;
 
@@ -57,7 +57,6 @@ export type TichuBadge = {
 
     /**
      * 추후 테두리/배경 강조용.
-     * 초기 UI에서는 전부 동일 스타일로 보여줘도 됨.
      */
     rarity: TichuBadgeRarity;
 };
@@ -88,14 +87,15 @@ export const TICHU_BADGES: TichuBadge[] = [
         id: "badge_tichu_rookie",
         name: "티츄 신입",
         description: "티츄 게임을 처음 완료한 플레이어입니다.",
-        display: "🔰",
+        display: "",
         displayType: "EMOJI",
         rarity: "COMMON",
     },
     {
         id: "badge_tichu_table_joined",
         name: "자리 착석",
-        description: "티츄 테이블에 본격적으로 앉기 시작한 플레이어입니다.",
+        description:
+            "티츄 테이블에 본격적으로 앉기 시작한 플레이어입니다.",
         display: "착석",
         displayType: "TEXT",
         rarity: "COMMON",
@@ -111,7 +111,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_resident",
         name: "티츄 주민",
-        description: "티츄 테이블에 거의 상주하는 플레이어입니다.",
+        description:
+            "티츄 테이블에 거의 상주하는 플레이어입니다.",
         display: "주민",
         displayType: "TEXT",
         rarity: "EPIC",
@@ -121,15 +122,17 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_first_win",
         name: "첫 승리",
-        description: "티츄 게임에서 첫 승리를 달성한 플레이어입니다.",
-        display: "🏆",
+        description:
+            "티츄 게임에서 첫 승리를 달성한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "COMMON",
     },
     {
         id: "badge_tichu_team_player",
         name: "팀플레이어",
-        description: "티츄 승리를 꾸준히 쌓아가는 플레이어입니다.",
+        description:
+            "티츄 승리를 꾸준히 쌓아가는 플레이어입니다.",
         display: "팀플",
         displayType: "TEXT",
         rarity: "COMMON",
@@ -137,7 +140,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_winner",
         name: "승리 수집가",
-        description: "티츄 승리를 많이 쌓은 플레이어입니다.",
+        description:
+            "티츄 승리를 많이 쌓은 플레이어입니다.",
         display: "승리",
         displayType: "TEXT",
         rarity: "RARE",
@@ -145,16 +149,18 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_stomp",
         name: "압도",
-        description: "큰 점수 차로 상대 팀을 눌러버린 플레이어입니다.",
+        description:
+            "큰 점수 차로 상대 팀을 눌러버린 플레이어입니다.",
         display: "압승",
         displayType: "TEXT",
         rarity: "RARE",
     },
     {
-        id: "badge_tichu_clutch",
-        name: "클러치",
-        description: "아슬아슬한 승부를 가져간 플레이어입니다.",
-        display: "클러치",
+        id: "badge_tichu_draw",
+        name: "팽팽한 승부",
+        description:
+            "승부를 무승부로 끝낸 경험이 있는 플레이어입니다.",
+        display: "무승부",
         displayType: "TEXT",
         rarity: "RARE",
     },
@@ -163,15 +169,17 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_first_call",
         name: "첫 선언",
-        description: "처음으로 티츄를 선언한 플레이어입니다.",
-        display: "📣",
+        description:
+            "처음으로 티츄를 선언한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "COMMON",
     },
     {
         id: "badge_tichu_believer",
         name: "믿음의 선언",
-        description: "티츄 선언을 성공시킨 플레이어입니다.",
+        description:
+            "티츄 선언을 성공시킨 플레이어입니다.",
         display: "티츄",
         displayType: "TEXT",
         rarity: "COMMON",
@@ -179,7 +187,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_shouter",
         name: "외치는 자",
-        description: "티츄를 자주 선언하는 플레이어입니다.",
+        description:
+            "티츄를 자주 선언하는 플레이어입니다.",
         display: "외침",
         displayType: "TEXT",
         rarity: "RARE",
@@ -187,7 +196,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_master",
         name: "티츄 장인",
-        description: "티츄 선언 성공을 꾸준히 쌓은 플레이어입니다.",
+        description:
+            "티츄 선언 성공을 꾸준히 쌓은 플레이어입니다.",
         display: "장인",
         displayType: "TEXT",
         rarity: "EPIC",
@@ -195,7 +205,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_sniper",
         name: "선언 저격수",
-        description: "높은 티츄 성공률을 기록한 플레이어입니다.",
+        description:
+            "높은 티츄 성공률을 기록한 플레이어입니다.",
         display: "저격",
         displayType: "TEXT",
         rarity: "EPIC",
@@ -203,8 +214,9 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_oops",
         name: "손이 미끄러졌네",
-        description: "티츄 실패도 추억으로 만드는 플레이어입니다.",
-        display: "🙃",
+        description:
+            "티츄 실패도 추억으로 만드는 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "RARE",
     },
@@ -213,15 +225,17 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_grand_tichu_first_call",
         name: "큰 판",
-        description: "처음으로 그랜드 티츄를 선언한 플레이어입니다.",
-        display: "🐉",
+        description:
+            "처음으로 그랜드 티츄를 선언한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "RARE",
     },
     {
         id: "badge_grand_tichu_success",
         name: "그랜드 성공",
-        description: "그랜드 티츄를 성공시킨 플레이어입니다.",
+        description:
+            "그랜드 티츄를 성공시킨 플레이어입니다.",
         display: "GT",
         displayType: "TEXT",
         rarity: "EPIC",
@@ -229,7 +243,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_grand_tichu_gambler",
         name: "배짱 플레이어",
-        description: "그랜드 티츄를 자주 선언하는 플레이어입니다.",
+        description:
+            "그랜드 티츄를 자주 선언하는 플레이어입니다.",
         display: "배짱",
         displayType: "TEXT",
         rarity: "EPIC",
@@ -237,16 +252,18 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_grand_tichu_legend",
         name: "위대한 승부사",
-        description: "그랜드 티츄 성공을 여러 번 기록한 플레이어입니다.",
-        display: "👑",
+        description:
+            "그랜드 티츄 성공을 여러 번 기록한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "LEGENDARY",
     },
     {
         id: "badge_grand_tichu_disaster",
         name: "대참사",
-        description: "그랜드 티츄 실패의 아픔을 아는 플레이어입니다.",
-        display: "💣",
+        description:
+            "그랜드 티츄 실패의 아픔을 아는 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "SPECIAL",
     },
@@ -254,16 +271,18 @@ export const TICHU_BADGES: TichuBadge[] = [
     // ROUND
     {
         id: "badge_tichu_first_out",
-        name: "첫 1등",
-        description: "라운드에서 처음으로 1등으로 나간 플레이어입니다.",
-        display: "🥇",
+        name: "첫 아웃",
+        description:
+            "라운드에서 처음으로 손패를 모두 소진한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "COMMON",
     },
     {
         id: "badge_tichu_vanguard",
         name: "선봉장",
-        description: "라운드 1등을 꾸준히 기록하는 플레이어입니다.",
+        description:
+            "라운드 첫 아웃을 꾸준히 기록하는 플레이어입니다.",
         display: "선봉",
         displayType: "TEXT",
         rarity: "RARE",
@@ -271,16 +290,18 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_ace",
         name: "에이스",
-        description: "라운드에서 자주 먼저 나가는 플레이어입니다.",
+        description:
+            "라운드에서 자주 가장 먼저 나가는 플레이어입니다.",
         display: "ACE",
         displayType: "TEXT",
         rarity: "EPIC",
     },
     {
-        id: "badge_tichu_cleaner",
-        name: "마무리 담당",
-        description: "라운드의 마지막을 자주 담당하는 플레이어입니다.",
-        display: "마무리",
+        id: "badge_tichu_round_veteran",
+        name: "라운드 베테랑",
+        description:
+            "수많은 티츄 라운드를 경험한 플레이어입니다.",
+        display: "베테랑",
         displayType: "TEXT",
         rarity: "RARE",
     },
@@ -289,7 +310,8 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_one_two",
         name: "완벽한 호흡",
-        description: "파트너와 함께 원투를 성공시킨 플레이어입니다.",
+        description:
+            "파트너와 함께 원투를 성공시킨 플레이어입니다.",
         display: "원투",
         displayType: "TEXT",
         rarity: "COMMON",
@@ -297,15 +319,17 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_one_two_punch",
         name: "원투 펀치",
-        description: "원투 성공을 여러 번 기록한 플레이어입니다.",
-        display: "🥊",
+        description:
+            "원투 성공을 여러 번 기록한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "RARE",
     },
     {
         id: "badge_tichu_one_two_storm",
         name: "폭풍 원투",
-        description: "원투 성공을 많이 쌓은 플레이어입니다.",
+        description:
+            "원투 성공을 많이 쌓은 플레이어입니다.",
         display: "폭풍",
         displayType: "TEXT",
         rarity: "EPIC",
@@ -313,8 +337,9 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_got_one_twoed",
         name: "당했다",
-        description: "상대 팀의 원투를 경험한 플레이어입니다.",
-        display: "🫠",
+        description:
+            "상대 팀의 원투를 경험한 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "COMMON",
     },
@@ -323,23 +348,26 @@ export const TICHU_BADGES: TichuBadge[] = [
     {
         id: "badge_tichu_score_maker",
         name: "점수 차 제조기",
-        description: "누적 점수 차를 크게 벌린 플레이어입니다.",
-        display: "📈",
+        description:
+            "누적 점수 차를 크게 벌린 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "EPIC",
     },
     {
         id: "badge_tichu_big_bang",
         name: "한 방에 끝냈다",
-        description: "한 경기에서 큰 점수 차를 만든 플레이어입니다.",
-        display: "🚀",
+        description:
+            "한 경기에서 큰 점수 차를 만든 플레이어입니다.",
+        display: "",
         displayType: "EMOJI",
         rarity: "EPIC",
     },
     {
         id: "badge_tichu_negative_legend",
         name: "점수는 거들 뿐",
-        description: "큰 마이너스 점수 차도 품어본 플레이어입니다.",
+        description:
+            "큰 마이너스 점수 차도 품어본 플레이어입니다.",
         display: "역풍",
         displayType: "TEXT",
         rarity: "SPECIAL",
@@ -426,16 +454,13 @@ export const TichuAchievementDefinitions: TichuAchievement[] = [
         },
     },
     {
-        id: "tichu_close_win",
-        title: "아슬아슬한 승리",
-        description: "100점 이하 차이로 승리하세요.",
+        id: "tichu_first_draw",
+        title: "승부는 다음에",
+        description: "티츄 게임을 무승부로 종료하세요.",
         category: "WIN",
         goal: 1,
-        badgeId: "badge_tichu_clutch",
-        conditionType: "TICHU_CLOSE_WIN_COUNT",
-        conditionValue: {
-            maxScoreDiff: 100,
-        },
+        badgeId: "badge_tichu_draw",
+        conditionType: "TICHU_DRAW_COUNT",
     },
 
     // TICHU
@@ -478,7 +503,8 @@ export const TichuAchievementDefinitions: TichuAchievement[] = [
     {
         id: "tichu_sniper",
         title: "선언 저격수",
-        description: "티츄 선언 10회 이상, 성공률 70% 이상을 달성하세요.",
+        description:
+            "티츄 선언 10회 이상, 성공률 70% 이상을 달성하세요.",
         category: "TICHU",
         goal: 1,
         badgeId: "badge_tichu_sniper",
@@ -548,46 +574,48 @@ export const TichuAchievementDefinitions: TichuAchievement[] = [
     // ROUND
     {
         id: "tichu_first_out",
-        title: "첫 1등",
-        description: "라운드에서 처음 1등으로 나가세요.",
+        title: "첫 아웃",
+        description:
+            "라운드에서 처음으로 손패를 모두 소진하세요.",
         category: "ROUND",
         goal: 1,
         badgeId: "badge_tichu_first_out",
-        conditionType: "TICHU_FIRST_PLACE_COUNT",
+        conditionType: "TICHU_FIRST_OUT_COUNT",
     },
     {
         id: "tichu_vanguard",
         title: "선봉장",
-        description: "라운드 1등을 10회 달성하세요.",
+        description: "라운드 첫 아웃을 10회 달성하세요.",
         category: "ROUND",
         goal: 10,
         badgeId: "badge_tichu_vanguard",
-        conditionType: "TICHU_FIRST_PLACE_COUNT",
+        conditionType: "TICHU_FIRST_OUT_COUNT",
     },
     {
         id: "tichu_ace",
         title: "에이스",
-        description: "라운드 1등을 30회 달성하세요.",
+        description: "라운드 첫 아웃을 30회 달성하세요.",
         category: "ROUND",
         goal: 30,
         badgeId: "badge_tichu_ace",
-        conditionType: "TICHU_FIRST_PLACE_COUNT",
+        conditionType: "TICHU_FIRST_OUT_COUNT",
     },
     {
-        id: "tichu_cleaner",
-        title: "마무리 담당",
-        description: "라운드 꼴등을 10회 달성하세요.",
+        id: "tichu_round_veteran",
+        title: "라운드 베테랑",
+        description: "티츄 라운드를 50회 완료하세요.",
         category: "ROUND",
-        goal: 10,
-        badgeId: "badge_tichu_cleaner",
-        conditionType: "TICHU_LAST_PLACE_COUNT",
+        goal: 50,
+        badgeId: "badge_tichu_round_veteran",
+        conditionType: "TICHU_ROUND_COUNT",
     },
 
     // TEAM
     {
         id: "tichu_one_two_first",
         title: "완벽한 호흡",
-        description: "같은 팀이 1등, 2등으로 라운드를 끝내세요.",
+        description:
+            "같은 팀이 1등, 2등으로 라운드를 끝내세요.",
         category: "TEAM",
         goal: 1,
         badgeId: "badge_tichu_one_two",
@@ -637,7 +665,8 @@ export const TichuAchievementDefinitions: TichuAchievement[] = [
     {
         id: "tichu_big_bang",
         title: "한 방에 끝냈다",
-        description: "한 경기에서 600점 이상 점수 차로 승리하세요.",
+        description:
+            "한 경기에서 600점 이상 점수 차로 승리하세요.",
         category: "SCORE",
         goal: 600,
         badgeId: "badge_tichu_big_bang",
@@ -649,7 +678,8 @@ export const TichuAchievementDefinitions: TichuAchievement[] = [
     {
         id: "tichu_negative_legend",
         title: "점수는 거들 뿐",
-        description: "한 경기에서 -500점 이하의 점수 차를 기록하세요.",
+        description:
+            "한 경기에서 -500점 이하의 점수 차를 기록하세요.",
         category: "SCORE",
         goal: 1,
         badgeId: "badge_tichu_negative_legend",
@@ -674,7 +704,10 @@ export const TICHU_ACHIEVEMENT_CATEGORY_LABELS: Record<
     SPECIAL: "특수",
 };
 
-export const TICHU_BADGE_RARITY_LABELS: Record<TichuBadgeRarity, string> = {
+export const TICHU_BADGE_RARITY_LABELS: Record<
+    TichuBadgeRarity,
+    string
+> = {
     COMMON: "일반",
     RARE: "희귀",
     EPIC: "영웅",
@@ -683,27 +716,30 @@ export const TICHU_BADGE_RARITY_LABELS: Record<TichuBadgeRarity, string> = {
 };
 
 export const TICHU_BADGE_MAP: Record<string, TichuBadge> =
-    TICHU_BADGES.reduce(
+    TICHU_BADGES.reduce<Record<string, TichuBadge>>(
         (acc, badge) => {
             acc[badge.id] = badge;
             return acc;
         },
-        {} as Record<string, TichuBadge>,
+        {},
     );
 
-export const TICHU_ACHIEVEMENT_MAP: Record<string, TichuAchievement> =
-    TichuAchievementDefinitions.reduce(
-        (acc, achievement) => {
-            acc[achievement.id] = achievement;
-            return acc;
-        },
-        {} as Record<string, TichuAchievement>,
-    );
+export const TICHU_ACHIEVEMENT_MAP: Record<
+    string,
+    TichuAchievement
+> = TichuAchievementDefinitions.reduce<
+    Record<string, TichuAchievement>
+>((acc, achievement) => {
+    acc[achievement.id] = achievement;
+    return acc;
+}, {});
 
 export const TICHU_ACHIEVEMENTS_BY_CATEGORY: Record<
     TichuAchievementCategory,
     TichuAchievement[]
-> = TichuAchievementDefinitions.reduce(
+> = TichuAchievementDefinitions.reduce<
+    Record<TichuAchievementCategory, TichuAchievement[]>
+>(
     (acc, achievement) => {
         acc[achievement.category].push(achievement);
         return acc;
@@ -717,5 +753,5 @@ export const TICHU_ACHIEVEMENTS_BY_CATEGORY: Record<
         TEAM: [],
         SCORE: [],
         SPECIAL: [],
-    } as Record<TichuAchievementCategory, TichuAchievement[]>,
+    },
 );
