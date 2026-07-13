@@ -10,6 +10,8 @@ import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 import { db } from "@/lib/prisma";
+import TichuNicknameWithBadges from "@/components/tichu/TichuNicknameWithBadges";
+import { getTichuEquippedBadgesByUserIds } from "@/app/actions/tichu-achievement.action";
 
 type TichuPlayPageProps = {
     params: Promise<{
@@ -60,6 +62,14 @@ function getPlayerTeamName(
     }
 
     return "소속 팀 없음";
+}
+
+function getUserIdFromTichuPlayerKey(playerKey: string) {
+    if (!playerKey.startsWith("user_")) {
+        return null;
+    }
+
+    return playerKey.slice("user_".length);
 }
 
 export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
@@ -113,6 +123,14 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
         return (a.seat_order ?? 0) - (b.seat_order ?? 0);
     });
 
+    const badgeUserIds = players
+        .map(([playerKey]) => getUserIdFromTichuPlayerKey(playerKey))
+        .filter((userId): userId is string => Boolean(userId));
+
+    const equippedBadgesByUserId = await getTichuEquippedBadgesByUserIds(
+        badgeUserIds,
+    );
+
     const currentUser = await getCurrentUserWithAdmin();
     const canManage = Boolean(
         currentUser?.isAdmin || currentUser?.id === match.created_by,
@@ -162,6 +180,7 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {players.map(([playerKey, player]) => {
+                        const userId = getUserIdFromTichuPlayerKey(playerKey);
                         const teamName = getPlayerTeamName(
                             player.team_key,
                             teamAName,
@@ -176,9 +195,16 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                                 <p className="text-xs font-bold text-foreground/40">
                                     {teamName}
                                 </p>
-                                <p className="mt-1 text-lg font-black">
-                                    {player.name ?? "이름 없음"}
-                                </p>
+                                <div className="mt-1 text-lg font-black">
+                                    {userId ? (
+                                        <TichuNicknameWithBadges
+                                            nickname={player.name ?? "이름 없음"}
+                                            badges={equippedBadgesByUserId[userId] ?? []}
+                                        />
+                                    ) : (
+                                        <span>{player.name ?? "이름 없음"}</span>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}

@@ -166,6 +166,9 @@ export default async function TichuDashboardPage() {
         me?.avatar_image_key,
         me?.avatar_image_updated_at,
     );
+    const equippedBadgesByUserId = await getTichuEquippedBadgesByUserIds(
+        currentUser ? [currentUser.id] : [],
+    );
 
     return (
         <main className="space-y-6">
@@ -192,9 +195,11 @@ export default async function TichuDashboardPage() {
                         <div className="min-w-0">
                             <p className="text-sm text-foreground/60">내 티츄 프로필</p>
 
-                            <h3 className="mt-1 max-w-[12rem] truncate text-xl font-black">
-                                {me.nickname}
-                            </h3>
+                            <TichuNicknameWithBadges
+                                nickname={me.nickname}
+                                badges={equippedBadgesByUserId[currentUser.id] ?? []}
+                                className="font-black"
+                            />
                         </div>
                     </div>
                 </section>

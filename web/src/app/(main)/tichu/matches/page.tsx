@@ -7,6 +7,8 @@ import UserAvatar from "@/components/common/UserAvatar";
 import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 import { getAvatarImageUrl } from "@/lib/avatar";
+import TichuNicknameWithBadges from "@/components/tichu/TichuNicknameWithBadges";
+import { getTichuEquippedBadgesByUserIds } from "@/app/actions/tichu-achievement.action";
 import { db } from "@/lib/prisma";
 
 type TichuMatchesPageProps = {
@@ -20,7 +22,7 @@ type TichuMatchesPageProps = {
 type TichuTeamKey = "TEAM_A" | "TEAM_B";
 
 type TichuDetails = {
-    status?: "PLAYING" | "FINISHED" | "DELETED" | string;
+    status?: string;
     current_round?: number;
     target_score?: number;
     winner_team_key?: TichuTeamKey | null;
@@ -313,6 +315,20 @@ export default async function TichuMatchesPage({
             return matchesKeyword(match.details, keyword, match.id);
         });
 
+    const badgeUserIds = [
+        ...new Set(
+            matches.flatMap((match) =>
+                match.match_players
+                    .map((player) => player.users?.id)
+                    .filter((userId): userId is string => Boolean(userId)),
+            ),
+        ),
+    ];
+
+    const equippedBadgesByUserId = await getTichuEquippedBadgesByUserIds(
+        badgeUserIds,
+    );
+
     return (
         <div className="mx-auto w-full max-w-3xl space-y-6">
             <header className="space-y-2">
@@ -430,6 +446,7 @@ export default async function TichuMatchesPage({
 
                                 return {
                                     key: player.users?.id ?? player.guest_name ?? `${index}`,
+                                    userId: player.users?.id ?? null,
                                     nickname,
                                     teamName: getPlayerTeamLabel(details, nickname, index),
                                     avatarEmoji: player.users?.avatar_emoji ?? null,
@@ -550,9 +567,15 @@ export default async function TichuMatchesPage({
                                     className="h-5 w-5 text-xs"
                                 />
 
-                                <span className="min-w-0 truncate">
-                                  {player.nickname}
-                                </span>
+                                  {player.userId ? (
+                                      <TichuNicknameWithBadges
+                                          nickname={player.nickname}
+                                          badges={equippedBadgesByUserId[player.userId] ?? []}
+                                          className="min-w-0"
+                                      />
+                                  ) : (
+                                      <span className="min-w-0 truncate">{player.nickname}</span>
+                                  )}
                               </span>
                             </span>
 
