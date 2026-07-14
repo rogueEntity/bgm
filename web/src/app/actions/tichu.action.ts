@@ -258,6 +258,36 @@ function validateTichuCallPlayerKeys({
     }
 }
 
+function validateTichuOneTwoFirstOutPlayer({
+                                               details,
+                                               firstOutPlayerKey,
+                                               oneTwoTeamKey,
+                                           }: {
+    details: TichuMatchDetails;
+    firstOutPlayerKey: string;
+    oneTwoTeamKey: TichuTeamKey | null;
+}): void {
+    if (!oneTwoTeamKey) {
+        return;
+    }
+
+    assertTichuTeamKey(oneTwoTeamKey);
+
+    const firstOutPlayer = details.players[firstOutPlayerKey];
+
+    if (!firstOutPlayer) {
+        throw new Error(
+            "1등으로 나간 플레이어 정보를 찾을 수 없습니다.",
+        );
+    }
+
+    if (firstOutPlayer.team_key !== oneTwoTeamKey) {
+        throw new Error(
+            "원투를 달성한 팀의 플레이어만 1등으로 선택할 수 있습니다.",
+        );
+    }
+}
+
 function createTichuCallLogs({
                                  details,
                                  playerKeys,
@@ -716,9 +746,7 @@ export async function recordTichuRound(
     });
 
     if (!match?.match_details) {
-        throw new Error(
-            "티츄 게임 기록을 찾을 수 없습니다.",
-        );
+        throw new Error("티츄 게임 기록을 찾을 수 없습니다.");
     }
 
     if (match.deleted_at) {
@@ -748,8 +776,7 @@ export async function recordTichuRound(
         );
     }
 
-    const firstOutPlayerKey =
-        input.firstOutPlayerKey.trim();
+    const firstOutPlayerKey = input.firstOutPlayerKey.trim();
 
     const smallTichuPlayerKeys = uniquePlayerKeys(
         input.smallTichuPlayerKeys,
@@ -766,10 +793,13 @@ export async function recordTichuRound(
         largeTichuPlayerKeys,
     });
 
-    const scoreDeltas: Record<
-        TichuTeamKey,
-        number
-    > = {
+    validateTichuOneTwoFirstOutPlayer({
+        details,
+        firstOutPlayerKey,
+        oneTwoTeamKey: input.oneTwoTeamKey,
+    });
+
+    const scoreDeltas: Record<TichuTeamKey, number> = {
         TEAM_A: 0,
         TEAM_B: 0,
     };
@@ -783,10 +813,9 @@ export async function recordTichuRound(
     if (input.oneTwoTeamKey) {
         assertTichuTeamKey(input.oneTwoTeamKey);
 
-        const oppositeTeamKey =
-            getOppositeTichuTeamKey(
-                input.oneTwoTeamKey,
-            );
+        const oppositeTeamKey = getOppositeTichuTeamKey(
+            input.oneTwoTeamKey,
+        );
 
         scoreDeltas[input.oneTwoTeamKey] = 200;
         scoreDeltas[oppositeTeamKey] = 0;
@@ -794,19 +823,11 @@ export async function recordTichuRound(
         teamACardScore = null;
         teamBCardScore = null;
     } else {
-        validateTichuCardScore(
-            teamACardScore,
-            "A팀",
-        );
-
-        validateTichuCardScore(
-            teamBCardScore,
-            "B팀",
-        );
+        validateTichuCardScore(teamACardScore, "A팀");
+        validateTichuCardScore(teamBCardScore, "B팀");
 
         if (
-            (teamACardScore ?? 0) +
-            (teamBCardScore ?? 0) !==
+            (teamACardScore ?? 0) + (teamBCardScore ?? 0) !==
             100
         ) {
             throw new Error(
@@ -814,37 +835,29 @@ export async function recordTichuRound(
             );
         }
 
-        scoreDeltas.TEAM_A =
-            teamACardScore ?? 0;
-
-        scoreDeltas.TEAM_B =
-            teamBCardScore ?? 0;
+        scoreDeltas.TEAM_A = teamACardScore ?? 0;
+        scoreDeltas.TEAM_B = teamBCardScore ?? 0;
     }
 
-    const smallTichuCalls =
-        createTichuCallLogs({
-            details,
-            playerKeys: smallTichuPlayerKeys,
-            firstOutPlayerKey,
-            successBonus: 100,
-            failPenalty: 100,
-            scoreDeltas,
-        });
+    const smallTichuCalls = createTichuCallLogs({
+        details,
+        playerKeys: smallTichuPlayerKeys,
+        firstOutPlayerKey,
+        successBonus: 100,
+        failPenalty: 100,
+        scoreDeltas,
+    });
 
-    const largeTichuCalls =
-        createTichuCallLogs({
-            details,
-            playerKeys: largeTichuPlayerKeys,
-            firstOutPlayerKey,
-            successBonus: 200,
-            failPenalty: 200,
-            scoreDeltas,
-        });
+    const largeTichuCalls = createTichuCallLogs({
+        details,
+        playerKeys: largeTichuPlayerKeys,
+        firstOutPlayerKey,
+        successBonus: 200,
+        failPenalty: 200,
+        scoreDeltas,
+    });
 
-    const totalScores: Record<
-        TichuTeamKey,
-        number
-    > = {
+    const totalScores: Record<TichuTeamKey, number> = {
         TEAM_A:
             details.teams.TEAM_A.score +
             scoreDeltas.TEAM_A,
@@ -854,19 +867,15 @@ export async function recordTichuRound(
     };
 
     const reachedTarget =
-        totalScores.TEAM_A >=
-        details.target_score ||
-        totalScores.TEAM_B >=
-        details.target_score;
+        totalScores.TEAM_A >= details.target_score ||
+        totalScores.TEAM_B >= details.target_score;
 
     const hasWinnerByTarget =
         reachedTarget &&
-        totalScores.TEAM_A !==
-        totalScores.TEAM_B;
+        totalScores.TEAM_A !== totalScores.TEAM_B;
 
     const shouldFinish =
-        input.isForceFinish === true ||
-        hasWinnerByTarget;
+        input.isForceFinish === true || hasWinnerByTarget;
 
     const winnerTeamKey = shouldFinish
         ? getWinnerTeamKeyFromScores(
@@ -880,18 +889,12 @@ export async function recordTichuRound(
 
     const newLog: TichuRoundLog = {
         round,
-        first_out_player_key:
-        firstOutPlayerKey,
-        team_a_card_score:
-        teamACardScore,
-        team_b_card_score:
-        teamBCardScore,
-        one_two_team_key:
-        input.oneTwoTeamKey,
-        small_tichu_calls:
-        smallTichuCalls,
-        large_tichu_calls:
-        largeTichuCalls,
+        first_out_player_key: firstOutPlayerKey,
+        team_a_card_score: teamACardScore,
+        team_b_card_score: teamBCardScore,
+        one_two_team_key: input.oneTwoTeamKey,
+        small_tichu_calls: smallTichuCalls,
+        large_tichu_calls: largeTichuCalls,
         score_deltas: scoreDeltas,
         total_scores: totalScores,
         created_at: now,
@@ -899,17 +902,10 @@ export async function recordTichuRound(
 
     const nextDetails: TichuMatchDetails = {
         ...details,
-        status: shouldFinish
-            ? "FINISHED"
-            : "PLAYING",
-        current_round: shouldFinish
-            ? round
-            : round + 1,
-        winner_team_key:
-        winnerTeamKey,
-        finished_at: shouldFinish
-            ? now
-            : null,
+        status: shouldFinish ? "FINISHED" : "PLAYING",
+        current_round: shouldFinish ? round : round + 1,
+        winner_team_key: winnerTeamKey,
+        finished_at: shouldFinish ? now : null,
         stats_applied: shouldFinish,
         teams: {
             TEAM_A: {
@@ -921,52 +917,46 @@ export async function recordTichuRound(
                 score: totalScores.TEAM_B,
             },
         },
-        logs: [
-            ...details.logs,
-            newLog,
-        ],
+        logs: [...details.logs, newLog],
     };
 
-    const updateResult =
-        await db.$transaction(
-            async (tx) => {
-                const result =
-                    await tx.match_details.updateMany({
-                        where: {
-                            match_id:
-                            matchDetail.match_id,
-                            version:
-                            input.expectedVersion,
+    const updateResult = await db.$transaction(
+        async (tx) => {
+            const result =
+                await tx.match_details.updateMany({
+                    where: {
+                        match_id: matchDetail.match_id,
+                        version: input.expectedVersion,
+                    },
+                    data: {
+                        details:
+                            nextDetails as Prisma.InputJsonValue,
+                        version: {
+                            increment: 1,
                         },
-                        data: {
-                            details:
-                                nextDetails as Prisma.InputJsonValue,
-                            version: {
-                                increment: 1,
-                            },
-                        },
-                    });
+                    },
+                });
 
-                if (result.count !== 1) {
-                    return result;
-                }
-
-                if (shouldFinish) {
-                    await applyTichuFinalScores({
-                        matchId: input.matchId,
-                        details: nextDetails,
-                        tx,
-                    });
-
-                    await syncAllTichuUserStats({
-                        gameId: game.id,
-                        tx,
-                    });
-                }
-
+            if (result.count !== 1) {
                 return result;
-            },
-        );
+            }
+
+            if (shouldFinish) {
+                await applyTichuFinalScores({
+                    matchId: input.matchId,
+                    details: nextDetails,
+                    tx,
+                });
+
+                await syncAllTichuUserStats({
+                    gameId: game.id,
+                    tx,
+                });
+            }
+
+            return result;
+        },
+    );
 
     if (updateResult.count !== 1) {
         throw new Error(
@@ -980,9 +970,7 @@ export async function recordTichuRound(
         );
     }
 
-    revalidateTichuMatchPaths(
-        input.matchId,
-    );
+    revalidateTichuMatchPaths(input.matchId);
 }
 
 export async function deleteTichuMatch(
