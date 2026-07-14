@@ -229,55 +229,7 @@ export default async function MahjongDashboardPage() {
         )}
       </section>
 
-      {/* 3. 타임라인 / 최신 소식 (커뮤니티 요소) */}
-      <section className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-black">최근 소식</h2>
-            <p className="mt-1 text-sm text-foreground/55">
-              작탁에서 방금 벌어진 따끈한 기록들입니다.
-            </p>
-          </div>
-        </div>
-
-        {recentNews.length > 0 ? (
-            <ul className="space-y-3">
-              {recentNews.map((news) => (
-                  <li
-                      key={news.id}
-                      className="rounded-2xl border border-foreground/10 bg-background/70 p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-lg">
-                        {news.event_type === "YAKUMAN" ? "🔥" : "🏆"}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
-                {news.event_type === "YAKUMAN"
-                    ? "역만"
-                    : "도전과제"}
-              </span>
-                          <p className="text-sm font-black">{news.title}</p>
-                        </div>
-
-                        <p className="mt-1 text-sm text-foreground/75">
-                          {news.message}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-              ))}
-            </ul>
-        ) : (
-            <div className="rounded-2xl border border-dashed border-foreground/15 p-5 text-sm text-foreground/55">
-              아직 새로운 소식이 없습니다. 첫 역만 뉴스의 주인공을 기다리는 중입니다.
-            </div>
-        )}
-      </section>
-
-      {/* 4. 하위 메뉴 카드 영역 (그리드 레이아웃) */}
+      {/* 3. 하위 메뉴 카드 영역 (그리드 레이아웃) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Link
             href="/mahjong/ranking"
@@ -345,6 +297,55 @@ export default async function MahjongDashboardPage() {
           </span>
         </Link>
       </div>
+
+      {/* 4. 타임라인 / 최신 소식 (커뮤니티 요소) */}
+      <section className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black">최근 소식</h2>
+            <p className="mt-1 text-sm text-foreground/55">
+              작탁에서 방금 벌어진 따끈한 기록들입니다.
+            </p>
+          </div>
+        </div>
+
+        {recentNews.length > 0 ? (
+            <ul className="space-y-3">
+              {recentNews.map((news) => (
+                  <li
+                      key={news.id}
+                      className="rounded-2xl border border-foreground/10 bg-background/70 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-lg">
+                        {news.event_type === "YAKUMAN" ? "🔥" : "🏆"}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
+                {news.event_type === "YAKUMAN"
+                    ? "역만"
+                    : "도전과제"}
+              </span>
+                          <p className="text-sm font-black">{news.title}</p>
+                        </div>
+
+                        <p className="mt-1 text-sm text-foreground/75">
+                          {news.message}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+              ))}
+            </ul>
+        ) : (
+            <div className="rounded-2xl border border-dashed border-foreground/15 p-5 text-sm text-foreground/55">
+              아직 새로운 소식이 없습니다. 첫 역만 뉴스의 주인공을 기다리는 중입니다.
+            </div>
+        )}
+      </section>
+
     </main>
   );
 }
