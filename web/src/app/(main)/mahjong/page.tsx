@@ -254,17 +254,6 @@ export default async function MahjongDashboardPage() {
         </Link>
 
         <Link
-            href="/mahjong/guide"
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
-        >
-          <span className="text-3xl">📘</span>
-          <span className="text-sm font-bold">역·점수 안내</span>
-          <span className="text-center text-xs font-semibold text-foreground/45">
-            역 족보와 점수 계산을 확인합니다.
-          </span>
-        </Link>
-
-        <Link
             href={`/mahjong/players/${currentUser.id}`}
             className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
         >
@@ -294,6 +283,17 @@ export default async function MahjongDashboardPage() {
           <span className="text-sm font-bold">라이벌</span>
           <span className="text-center text-xs font-semibold text-foreground/45">
             라이벌과의 상대 전적을 확인합니다.
+          </span>
+        </Link>
+
+        <Link
+            href="/mahjong/guide"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:border-foreground/30 hover:bg-foreground/10"
+        >
+          <span className="text-3xl">📘</span>
+          <span className="text-sm font-bold">역·점수 안내</span>
+          <span className="text-center text-xs font-semibold text-foreground/45">
+            역 족보와 점수 계산을 확인합니다.
           </span>
         </Link>
       </div>
