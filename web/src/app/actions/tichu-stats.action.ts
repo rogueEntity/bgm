@@ -305,3 +305,56 @@ export async function getMyTichuPlayerStats(): Promise<
 
     return getTichuPlayerStats(currentUser.id);
 }
+
+export async function getTichuRankingPlayers(): Promise<
+    TichuPlayerStatsItem[]
+> {
+    assertGameEnabledForAction(TICHU_GAME_KEY);
+
+    const currentUser = await getCurrentUserWithAdmin();
+
+    if (!currentUser) {
+        redirect("/login");
+    }
+
+    const gameId = await getTichuGameId();
+
+    const statRows = await db.user_game_stats.findMany({
+        where: {
+            game_id: gameId,
+        },
+        select: {
+            user_id: true,
+            mmr: true,
+            specific_stats: true,
+            users: {
+                select: {
+                    id: true,
+                    nickname: true,
+                    avatar_emoji: true,
+                    avatar_image_key: true,
+                    avatar_image_updated_at: true,
+                },
+            },
+        },
+    });
+
+    const userIds = statRows.map((row) => row.user_id);
+
+    const equippedBadgesByUserId =
+        await getTichuEquippedBadgesByUserIds(userIds);
+
+    return statRows
+        .map((row) => {
+            const stats = parseTichuSpecificStats(row.specific_stats);
+
+            return createTichuPlayerStatsItem({
+                user: row.users,
+                mmr: row.mmr,
+                stats,
+                equippedBadges:
+                    equippedBadgesByUserId[row.user_id] ?? [],
+            });
+        })
+        .filter((player) => player.playCount > 0);
+}
