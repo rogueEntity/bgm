@@ -11,6 +11,7 @@ import { TICHU_GAME_KEY } from "@/features/games/tichu/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 import TichuNicknameWithBadges from "@/components/tichu/TichuNicknameWithBadges";
 import { getTichuEquippedBadgesByUserIds } from "@/app/actions/tichu-achievement.action";
+import { getRecentTichuNewsEvents } from "@/features/games/tichu/news";
 
 type TichuDetailsSnapshot = {
     current_round?: number;
@@ -27,12 +28,58 @@ type TichuDetailsSnapshot = {
     };
 };
 
-type RecentTichuNewsItem = {
-    id: string;
-    title: string;
-    message: string;
-    event_type: "GAME" | "ACHIEVEMENT";
+type TichuNewsEventType =
+    | "ACHIEVEMENT"
+    | "GRAND_TICHU_SUCCESS"
+    | "ONE_TWO_SUCCESS"
+    | "COMEBACK_WIN"
+    | "CLOSE_GAME";
+
+type TichuNewsEventMeta = {
+    icon: string;
+    label: string;
 };
+
+const TICHU_NEWS_EVENT_META: Record<
+    TichuNewsEventType,
+    TichuNewsEventMeta
+> = {
+    ACHIEVEMENT: {
+        icon: "🏆",
+        label: "도전과제",
+    },
+    GRAND_TICHU_SUCCESS: {
+        icon: "🔥",
+        label: "라지 티츄",
+    },
+    ONE_TWO_SUCCESS: {
+        icon: "✌️",
+        label: "원투",
+    },
+    COMEBACK_WIN: {
+        icon: "🔄",
+        label: "대역전",
+    },
+    CLOSE_GAME: {
+        icon: "⚔️",
+        label: "초접전",
+    },
+};
+
+function getTichuNewsEventMeta(
+    eventType: string,
+): TichuNewsEventMeta {
+    if (eventType in TICHU_NEWS_EVENT_META) {
+        return TICHU_NEWS_EVENT_META[
+            eventType as TichuNewsEventType
+            ];
+    }
+
+    return {
+        icon: "🎮",
+        label: "게임",
+    };
+}
 
 async function getMyTichuDashboardData() {
     const session = await auth();
@@ -42,7 +89,7 @@ async function getMyTichuDashboardData() {
         return {
             me: null,
             activeMatch: null,
-            recentNews: [] as RecentTichuNewsItem[],
+            recentNews: [],
         };
     }
 
@@ -63,7 +110,7 @@ async function getMyTichuDashboardData() {
         return {
             me: null,
             activeMatch: null,
-            recentNews: [] as RecentTichuNewsItem[],
+            recentNews: [],
         };
     }
 
@@ -80,7 +127,7 @@ async function getMyTichuDashboardData() {
         return {
             me,
             activeMatch: null,
-            recentNews: [] as RecentTichuNewsItem[],
+            recentNews: [],
         };
     }
 
@@ -119,10 +166,12 @@ async function getMyTichuDashboardData() {
             return details?.status === "PLAYING";
         }) ?? null;
 
+    const recentNews = await getRecentTichuNewsEvents(10);
+
     return {
         me,
         activeMatch,
-        recentNews: [] as RecentTichuNewsItem[],
+        recentNews,
     };
 }
 
@@ -244,6 +293,7 @@ export default async function TichuDashboardPage() {
                 <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
                         <h2 className="text-lg font-black">최근 소식</h2>
+
                         <p className="mt-1 text-sm text-foreground/55">
                             티츄 테이블에서 방금 벌어진 따끈한 기록들입니다.
                         </p>
@@ -252,37 +302,43 @@ export default async function TichuDashboardPage() {
 
                 {recentNews.length > 0 ? (
                     <ul className="space-y-3">
-                        {recentNews.map((news) => (
-                            <li
-                                key={news.id}
-                                className="rounded-2xl border border-foreground/10 bg-background/70 p-4"
-                            >
-                                <div className="flex items-start gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-lg">
-                                        {news.event_type === "ACHIEVEMENT" ? "🏆" : "🎴"}
-                                    </div>
+                        {recentNews.map((news) => {
+                            const eventMeta = getTichuNewsEventMeta(news.event_type);
 
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
-                                                {news.event_type === "ACHIEVEMENT"
-                                                    ? "도전과제"
-                                                    : "게임"}
-                                            </span>
-                                            <p className="text-sm font-black">{news.title}</p>
+                            return (
+                                <li
+                                    key={news.id}
+                                    className="rounded-2xl border border-foreground/10 bg-background/70 p-4"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-lg">
+                                            {eventMeta.icon}
                                         </div>
 
-                                        <p className="mt-1 text-sm text-foreground/75">
-                                            {news.message}
-                                        </p>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs font-bold text-foreground/60">
+                                        {eventMeta.label}
+                                    </span>
+
+                                                <p className="text-sm font-black">
+                                                    {news.title}
+                                                </p>
+                                            </div>
+
+                                            <p className="mt-1 text-sm text-foreground/75">
+                                                {news.message}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            </li>
-                        ))}
+                                </li>
+                            );
+                        })}
                     </ul>
                 ) : (
                     <div className="rounded-2xl border border-dashed border-foreground/15 p-5 text-sm text-foreground/55">
-                        아직 새로운 소식이 없습니다. 첫 티츄 뉴스의 주인공을 기다리는 중입니다.
+                        아직 새로운 소식이 없습니다. 첫 티츄 뉴스의 주인공을
+                        기다리는 중입니다.
                     </div>
                 )}
             </section>

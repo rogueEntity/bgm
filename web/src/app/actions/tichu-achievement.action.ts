@@ -14,6 +14,7 @@ import {
 import { createEmptyTichuStats } from "@/features/games/tichu/stats";
 import type { TichuSpecificStats } from "@/features/games/tichu/types";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { createTichuAchievementNewsEvent } from "@/features/games/tichu/news";
 import { db } from "@/lib/prisma";
 
 const MAX_EQUIPPED_TICHU_BADGES = 3;
@@ -270,21 +271,26 @@ async function syncTichuAchievementsForSingleUser(
 
     const completedAchievementIds: string[] = [];
     const completedBadgeIds: string[] = [];
+    const newlyCompletedAchievements: Array<{
+        achievementId: string;
+        completedAt: Date;
+    }> = [];
 
     for (const achievement of TichuAchievementDefinitions) {
         const progress = getTichuAchievementProgress(
             achievement,
             stats,
         );
-
         const completed = progress >= achievement.goal;
+        const existingAchievement =
+            existingAchievementMap.get(achievement.id);
 
-        const existingAchievement = existingAchievementMap.get(
-            achievement.id,
-        );
+        const newlyCompleted =
+            completed &&
+            existingAchievement?.completed !== true;
 
         const completedAt = completed
-            ? (existingAchievement?.completed_at ?? new Date())
+            ? existingAchievement?.completed_at ?? new Date()
             : null;
 
         await db.tichu_user_achievements.upsert({
@@ -311,6 +317,13 @@ async function syncTichuAchievementsForSingleUser(
         if (completed) {
             completedAchievementIds.push(achievement.id);
             completedBadgeIds.push(achievement.badgeId);
+        }
+
+        if (newlyCompleted && completedAt) {
+            newlyCompletedAchievements.push({
+                achievementId: achievement.id,
+                completedAt,
+            });
         }
     }
 
@@ -349,6 +362,14 @@ async function syncTichuAchievementsForSingleUser(
                 user_id: userId,
                 badge_id: badgeId,
             },
+        });
+    }
+
+    for (const newlyCompleted of newlyCompletedAchievements) {
+        await createTichuAchievementNewsEvent({
+            userId,
+            achievementId: newlyCompleted.achievementId,
+            completedAt: newlyCompleted.completedAt,
         });
     }
 

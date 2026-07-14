@@ -20,6 +20,7 @@ import type {
 } from "@/features/games/tichu/types";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
+import { syncTichuNewsEventsForMatch } from "@/features/games/tichu/news";
 import { db } from "@/lib/prisma";
 
 type JsonRecord = Record<string, unknown>;
@@ -968,9 +969,15 @@ export async function recordTichuRound(
         await syncTichuAchievementsForMatch(
             input.matchId,
         );
+
+        await syncTichuNewsEventsForMatch(
+            input.matchId,
+        );
     }
 
-    revalidateTichuMatchPaths(input.matchId);
+    revalidateTichuMatchPaths(
+        input.matchId,
+    );
 }
 
 export async function deleteTichuMatch(
@@ -1072,6 +1079,10 @@ export async function deleteTichuMatch(
     });
 
     await syncTichuAchievementsForMatch(
+        matchId,
+    );
+
+    await syncTichuNewsEventsForMatch(
         matchId,
     );
 
@@ -1189,6 +1200,10 @@ export async function undoTichuLastLog(
     });
 
     await syncTichuAchievementsForMatch(
+        matchId,
+    );
+
+    await syncTichuNewsEventsForMatch(
         matchId,
     );
 
