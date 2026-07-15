@@ -405,6 +405,12 @@ export async function deleteMahjongMatchRecord({
                 deleted_by: deletedBy,
             },
         });
+
+        await tx.mahjong_news_events.deleteMany({
+            where: {
+                match_id: matchId,
+            },
+        });
     });
 
     await recalculateAllMahjongStatsAndAchievements();
