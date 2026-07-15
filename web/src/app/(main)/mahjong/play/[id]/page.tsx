@@ -263,7 +263,7 @@ export default async function MahjongPlayPage({
           })}
         </div>
 
-        {!isRecorder && (
+        {!canManageMatch && (
           <MahjongRoundLogCards
             details={details}
             playerNameMap={playerNameMap}
@@ -271,7 +271,7 @@ export default async function MahjongPlayPage({
         )}
       </div>
 
-      {isRecorder && (
+      {canManageMatch && (
         <>
           {/* 하단: 점수 기록 폼 */}
           <div className="w-full max-w-2xl mx-auto">
