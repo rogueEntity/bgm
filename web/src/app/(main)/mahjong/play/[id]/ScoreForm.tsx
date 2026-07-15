@@ -15,6 +15,7 @@ import {
   recordMahjongResult,
   recordRyuukyoku,
 } from "@/app/actions/mahjong.action";
+import type {MahjongChomboPenaltyRule} from "@/features/games/mahjong/types";
 
 interface Player {
   name: string;
@@ -145,6 +146,12 @@ export default function ScoreForm({
     createDefaultWin(firstPlayerKey),
   ]);
   const [chomboPlayerKey, setChomboPlayerKey] = useState(firstPlayerKey);
+  const [
+    chomboPenaltyRule,
+    setChomboPenaltyRule,
+  ] = useState<MahjongChomboPenaltyRule>(
+      "MANGAN_PAYMENT",
+  );
   const [currentRiichiKeys, setCurrentRiichiKeys] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isForceFinish, setIsForceFinish] = useState(false);
@@ -545,22 +552,48 @@ export default function ScoreForm({
       return;
     }
 
-    const isDealer = chomboPlayer.wind === "EAST";
+    const isLightPenalty = chomboPenaltyRule === "LIGHT_1000";
 
-    const penaltyDescription = isDealer
-        ? `${chomboPlayer.name} -12,000점\n나머지 작사 각 +4,000점`
-        : `${chomboPlayer.name} -8,000점\n친 +4,000점 / 나머지 자 각 +2,000점`;
+    let penaltyDescription: string;
+    let riichiDescription: string;
+    let progressionDescription: string;
 
-    const riichiDescription =
-        currentRiichiKeys.length > 0
-            ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 취소되며 리치봉은 차감되지 않습니다.`
-            : "";
+    if (isLightPenalty) {
+      penaltyDescription =
+          `${chomboPlayer.name} -3,000점\n` +
+          "나머지 작사 각 +1,000점\n" +
+          "공탁 리치봉은 변하지 않습니다.";
+
+      riichiDescription =
+          currentRiichiKeys.length > 0
+              ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 유지됩니다.`
+              : "";
+
+      progressionDescription =
+          "현재 국을 종료하지 않고 그대로 계속 진행합니다.";
+    } else {
+      const isDealer = chomboPlayer.wind === "EAST";
+
+      penaltyDescription = isDealer
+          ? `${chomboPlayer.name} -12,000점\n나머지 작사 각 +4,000점`
+          : `${chomboPlayer.name} -8,000점\n친 +4,000점 / 나머지 자 각 +2,000점`;
+
+      riichiDescription =
+          currentRiichiKeys.length > 0
+              ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 취소되며 리치봉은 차감되지 않습니다.`
+              : "";
+
+      progressionDescription =
+          "현재 국, 본장, 친을 유지한 채 재배패합니다.";
+    }
 
     const confirmed = confirm(
-        `${chomboPlayer.name}의 촌보를 기록합니다.\n\n` +
+        `${chomboPlayer.name}의 ${
+            isLightPenalty ? "경미한 반칙" : "촌보"
+        }를 기록합니다.\n\n` +
         `${penaltyDescription}` +
         `${riichiDescription}\n\n` +
-        `현재 국, 본장, 친은 유지한 채 재배패합니다.`,
+        progressionDescription,
     );
 
     if (!confirmed) {
@@ -577,6 +610,7 @@ export default function ScoreForm({
         expected_log_count: logCount,
         expected_version: stateVersion,
         chombo_player_key: chomboPlayerKey,
+        penalty_rule: chomboPenaltyRule,
         current_riichi_keys: currentRiichiKeys,
       });
 
@@ -590,12 +624,28 @@ export default function ScoreForm({
         return;
       }
 
-      alert("촌보가 기록되었습니다.");
+      alert(
+          isLightPenalty
+              ? "경미한 반칙이 기록되었습니다."
+              : "촌보가 기록되었습니다.",
+      );
 
-      setCurrentRiichiKeys([]);
+      /*
+       * 일반 촌보는 해당 국이 무효가 되므로
+       * 이번 국 리치 선택을 초기화한다.
+       *
+       * 경미한 반칙은 현재 국을 계속 진행하므로
+       * 리치 선택을 유지한다.
+       */
+      if (!isLightPenalty) {
+        setCurrentRiichiKeys([]);
+      }
+
       setChomboPlayerKey(firstPlayerKey);
+      setChomboPenaltyRule("MANGAN_PAYMENT");
 
       router.refresh();
+
       window.scrollTo({
         top: 0,
         behavior: "smooth",
@@ -1432,75 +1482,180 @@ export default function ScoreForm({
           </button>
         </div>
       ) : (
-        <div className="space-y-5">
-          <section className="space-y-3">
-            <div>
-              <p className="font-bold">촌보한 작사</p>
-              <p className="mt-1 text-xs text-foreground/60">
-                촌보자는 만관 지불 벌점을 적용받습니다.
-              </p>
-            </div>
+          <div className="space-y-5">
+            <section className="space-y-3">
+              <div>
+                <p className="font-bold">반칙한 작사</p>
 
-            {renderPlayerSelectButtons({
-              value: chomboPlayerKey,
-              onChange: setChomboPlayerKey,
-              activeClassName: "bg-red-600 text-white border-red-600",
-            })}
-          </section>
+                <p className="mt-1 text-xs text-foreground/60">
+                  반칙한 작사와 처리 방식을 선택해주세요.
+                </p>
+              </div>
 
-          <section className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm">
-            <p className="font-bold text-red-600 dark:text-red-400">
-              촌보 처리 규칙
-            </p>
+              {renderPlayerSelectButtons({
+                value: chomboPlayerKey,
+                onChange: setChomboPlayerKey,
+                activeClassName:
+                    chomboPenaltyRule === "LIGHT_1000"
+                        ? "bg-orange-500 text-white border-orange-500"
+                        : "bg-red-600 text-white border-red-600",
+              })}
+            </section>
 
-            <div className="mt-2 space-y-1 text-foreground/70">
-              <p>친 촌보: 나머지 작사에게 각각 4,000점 지급</p>
-              <p>자 촌보: 친에게 4,000점, 다른 자에게 각각 2,000점 지급</p>
-              <p>현재 국·본장·친을 유지하고 같은 국을 다시 시작합니다.</p>
-              <p>이번 국의 리치 선언은 취소되고 리치봉은 차감되지 않습니다.</p>
-            </div>
-          </section>
+            <section className="space-y-3">
+              <div>
+                <p className="font-bold">처리 방식</p>
 
-          <section className="space-y-2">
-            <p className="font-bold">
-              이번 국 리치 선언
-              <span className="ml-1 text-xs font-normal text-foreground/50">
-                  (촌보 처리 시 모두 취소)
-                </span>
-            </p>
+                <p className="mt-1 text-xs text-foreground/60">
+                  반칙의 정도에 맞는 처리 방식을 선택해주세요.
+                </p>
+              </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {players.map((player) => {
-              const isRiichi = currentRiichiKeys.includes(player.stateKey);
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={() => setChomboPenaltyRule("MANGAN_PAYMENT")}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                        chomboPenaltyRule === "MANGAN_PAYMENT"
+                            ? "border-red-600 bg-red-600 text-white"
+                            : "border-foreground/10 bg-foreground/5"
+                    }`}
+                >
+                  <p className="font-bold">일반 촌보</p>
 
-              return (
-                  <button
-                      key={player.stateKey}
-                      type="button"
-                      onClick={() => toggleRiichiPlayer(player.stateKey)}
-                      className={`flex flex-col items-center justify-center gap-1 rounded-lg border py-2 text-xs font-bold transition-all ${
-                          isRiichi
-                              ? "border-red-500 bg-red-500 text-white"
-                              : "border-foreground/10 bg-white opacity-70 hover:opacity-100 dark:bg-background"
+                  <p
+                      className={`mt-1 text-xs ${
+                          chomboPenaltyRule === "MANGAN_PAYMENT"
+                              ? "text-white/80"
+                              : "text-foreground/60"
                       }`}
                   >
-                    <span>{getWindLabel(player.wind)}</span>
-                    <span>{player.name}</span>
-                  </button>
-              );
-            })}
-          </div>
-        </section>
+                    만관 지불 후 재배패
+                  </p>
+                </button>
 
-        <button
-            type="button"
-            disabled={isSubmitting}
-            onClick={handleRecordChombo}
-            className="w-full rounded-xl bg-red-600 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSubmitting ? "기록 중..." : "촌보 기록"}
-        </button>
-      </div>
+                <button
+                    type="button"
+                    onClick={() => setChomboPenaltyRule("LIGHT_1000")}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                        chomboPenaltyRule === "LIGHT_1000"
+                            ? "border-orange-500 bg-orange-500 text-white"
+                            : "border-foreground/10 bg-foreground/5"
+                    }`}
+                >
+                  <p className="font-bold">경미한 반칙</p>
+
+                  <p
+                      className={`mt-1 text-xs ${
+                          chomboPenaltyRule === "LIGHT_1000"
+                              ? "text-white/80"
+                              : "text-foreground/60"
+                      }`}
+                  >
+                    나머지 작사에게 각 1,000점 지급
+                  </p>
+                </button>
+              </div>
+            </section>
+
+            <section
+                className={`rounded-xl border p-4 text-sm ${
+                    chomboPenaltyRule === "LIGHT_1000"
+                        ? "border-orange-500/20 bg-orange-500/5"
+                        : "border-red-500/20 bg-red-500/5"
+                }`}
+            >
+              <p
+                  className={`font-bold ${
+                      chomboPenaltyRule === "LIGHT_1000"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-red-600 dark:text-red-400"
+                  }`}
+              >
+                {chomboPenaltyRule === "LIGHT_1000"
+                    ? "경미한 반칙 처리 규칙"
+                    : "일반 촌보 처리 규칙"}
+              </p>
+
+              {chomboPenaltyRule === "LIGHT_1000" ? (
+                  <div className="mt-2 space-y-1 text-foreground/70">
+                    <p>반칙자가 나머지 작사에게 각각 1,000점을 지급합니다.</p>
+                    <p>반칙자는 총 3,000점을 잃습니다.</p>
+                    <p>공탁 리치봉은 변경하지 않습니다.</p>
+                    <p>현재 국·본장·친을 유지하고 그대로 진행합니다.</p>
+                    <p>이번 국에 선택한 리치 선언도 유지됩니다.</p>
+                  </div>
+              ) : (
+                  // 일반 촌보 안내
+                  <div className="mt-2 space-y-1 text-foreground/70">
+                    <p>친 촌보: 나머지 작사에게 각각 4,000점 지급</p>
+
+                    <p>
+                      자 촌보: 친에게 4,000점, 다른 자에게 각각 2,000점 지급
+                    </p>
+
+                    <p>
+                      현재 국·본장·친을 유지하고 같은 국을 다시 시작합니다.
+                    </p>
+
+                    <p>
+                      이번 국의 리치 선언은 취소되고 리치봉은 차감되지 않습니다.
+                    </p>
+                  </div>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <p className="font-bold">
+                이번 국 리치 선언
+
+                <span className="ml-1 text-xs font-normal text-foreground/50">
+          {chomboPenaltyRule === "MANGAN_PAYMENT"
+              ? "(일반 촌보 처리 시 모두 취소)"
+              : "(경미한 반칙 처리 후에도 유지)"}
+        </span>
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {players.map((player) => {
+                  const isRiichi = currentRiichiKeys.includes(player.stateKey);
+
+                  return (
+                      <button
+                          key={player.stateKey}
+                          type="button"
+                          onClick={() => toggleRiichiPlayer(player.stateKey)}
+                          className={`flex flex-col items-center justify-center gap-1 rounded-lg border py-2 text-xs font-bold transition-all ${
+                              isRiichi
+                                  ? "border-red-500 bg-red-500 text-white"
+                                  : "border-foreground/10 bg-white opacity-70 hover:opacity-100 dark:bg-background"
+                          }`}
+                      >
+                        <span>{getWindLabel(player.wind)}</span>
+                        <span>{player.name}</span>
+                      </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleRecordChombo}
+                className={`w-full rounded-xl py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
+                    chomboPenaltyRule === "LIGHT_1000"
+                        ? "bg-orange-500"
+                        : "bg-red-600"
+                }`}
+            >
+              {isSubmitting
+                  ? "기록 중..."
+                  : chomboPenaltyRule === "LIGHT_1000"
+                      ? "경미한 반칙 기록"
+                      : "촌보 기록"}
+            </button>
+          </div>
       )}
     </div>
   );

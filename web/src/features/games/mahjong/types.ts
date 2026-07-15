@@ -38,7 +38,9 @@ export type MahjongDetails = {
 
 export type MahjongScoreMap = Record<string, number>;
 
-export type MahjongChomboPenaltyRule = "MANGAN_PAYMENT";
+export type MahjongChomboPenaltyRule =
+    | "MANGAN_PAYMENT"
+    | "LIGHT_1000";
 
 export type MahjongWinLog = {
     winner_key: string;
@@ -86,6 +88,7 @@ export type MahjongRoundLog = {
 export type RecordMahjongChomboInput = MahjongExpectedStateInput & {
     match_id: number;
     chombo_player_key: string;
+    penalty_rule: MahjongChomboPenaltyRule;
 
     /**
      * 해당 국에서 선언됐지만 촌보로 취소된 리치.

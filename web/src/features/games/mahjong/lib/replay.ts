@@ -654,6 +654,11 @@ function applyChomboLogForReplay(
      * 과거 또는 수동 생성 로그도 재생할 수 있도록,
      * 저장된 점수 변동이 없으면 만관 지불을 다시 계산한다.
      */
+    const penaltyRule =
+        sourceLog.chombo_penalty_rule === "LIGHT_1000"
+            ? "LIGHT_1000"
+            : "MANGAN_PAYMENT";
+
     const savedScoreDeltas =
         typeof sourceLog.score_deltas === "object" &&
         sourceLog.score_deltas !== null
@@ -670,6 +675,17 @@ function applyChomboLogForReplay(
             if (Number.isFinite(delta)) {
                 players[key].score += delta;
             }
+        });
+    } else if (penaltyRule === "LIGHT_1000") {
+        const chomboPlayer = players[chomboPlayerKey];
+
+        Object.keys(players).forEach((playerKey) => {
+            if (playerKey === chomboPlayerKey) {
+                return;
+            }
+
+            chomboPlayer.score -= 1000;
+            players[playerKey].score += 1000;
         });
     } else {
         const chomboPlayer = players[chomboPlayerKey];
@@ -733,8 +749,11 @@ function applyChomboLogForReplay(
         round: currentRound,
         honba: currentHonba,
         chombo_player_key: chomboPlayerKey,
-        chombo_penalty_rule: "MANGAN_PAYMENT",
-        cancelled_riichi_keys: cancelledRiichiKeys,
+        chombo_penalty_rule: penaltyRule,
+        cancelled_riichi_keys:
+            penaltyRule === "MANGAN_PAYMENT"
+                ? cancelledRiichiKeys
+                : [],
         score_deltas: scoreDeltas,
         result_scores: resultScores,
         is_final: false,
