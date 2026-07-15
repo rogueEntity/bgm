@@ -26,7 +26,7 @@ import {
     rebuildMahjongDetailsFromLogs,
 } from "./replay";
 import { recalculateAllMahjongStatsAndAchievements } from "./stats-service";
-import {syncMahjongAchievementNewsEvents} from "./news";
+import {syncMahjongAchievementNewsEvents, syncMahjongNewsEventsForMatch} from "./news";
 
 const MAX_MAHJONG_NICKNAME_LENGTH = 6;
 
@@ -532,6 +532,7 @@ export async function undoMahjongLastLogRecord(matchId: number) {
 
     await recalculateAllMahjongStatsAndAchievements();
     await syncMahjongAchievementNewsEvents();
+    await syncMahjongNewsEventsForMatch(matchId);
 
     return {
         changed: true,
