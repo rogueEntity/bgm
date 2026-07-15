@@ -1,4 +1,5 @@
 // web/src/features/games/mahjong/lib/round.ts
+
 import type {
     GameMode,
     MahjongPlayerState,
@@ -25,15 +26,31 @@ export const ROUND_ORDER = [
 
 export const WIND_TURN_ORDER = ["EAST", "SOUTH", "WEST", "NORTH"] as const;
 
+/**
+ * 국이 진행될 때 각 작사의 다음 자리바람을 반환한다.
+ *
+ * 동1국:
+ * A 동 / B 남 / C 서 / D 북
+ *
+ * 동2국:
+ * A 북 / B 동 / C 남 / D 서
+ *
+ * 따라서 각 작사의 자리바람은
+ * 동 → 북
+ * 남 → 동
+ * 서 → 남
+ * 북 → 서
+ * 순서로 변경되어야 한다.
+ */
 export function getNextWind(currentWind: string) {
     const map: Record<string, MahjongPlayerState["wind"]> = {
-        EAST: "SOUTH",
-        SOUTH: "WEST",
-        WEST: "NORTH",
-        NORTH: "EAST",
+        EAST: "NORTH",
+        SOUTH: "EAST",
+        WEST: "SOUTH",
+        NORTH: "WEST",
     };
 
-    return map[currentWind] || "EAST";
+    return map[currentWind] ?? "EAST";
 }
 
 export function rotateWinds(players: Record<string, MahjongPlayerState>) {
@@ -76,5 +93,6 @@ export function getWindTurnDistance(
 export function getModeLimitIdx(gameMode: GameMode) {
     if (gameMode === "동풍전") return 1;
     if (gameMode === "반장전") return 2;
+
     return 4;
 }
