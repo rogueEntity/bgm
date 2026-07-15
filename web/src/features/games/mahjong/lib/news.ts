@@ -162,7 +162,15 @@ export async function createMahjongAchievementNewsEvent(params: {
     });
 }
 
-export async function syncMahjongNewsEventsForMatch(matchId: number) {
+export async function syncMahjongNewsEventsForMatch(
+    matchId: number,
+): Promise<void> {
+    await db.mahjong_news_events.deleteMany({
+        where: {
+            match_id: matchId,
+        },
+    });
+
     const mahjongGame = await db.games.findUnique({
         where: {
             key: MAHJONG_GAME_KEY,
@@ -172,7 +180,9 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
         },
     });
 
-    if (!mahjongGame) return;
+    if (!mahjongGame) {
+        return;
+    }
 
     const match = await db.matches.findFirst({
         where: {
@@ -188,23 +198,41 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
         },
     });
 
-    if (!match || match.deleted_at) return;
+    if (
+        !match ||
+        match.deleted_at ||
+        !match.match_details
+    ) {
+        return;
+    }
 
-    const details = normalizeDetails(match.match_details?.details);
+    const details = normalizeDetails(
+        match.match_details.details,
+    );
 
-    if (details.status === "DELETED") return;
+    if (details.status === "DELETED") {
+        return;
+    }
 
     for (const [logIndex, log] of details.logs.entries()) {
-        if (log.type !== "AGARI") continue;
+        if (log.type !== "AGARI") {
+            continue;
+        }
 
         const wins = getWins(log);
 
         for (const [winIndex, win] of wins.entries()) {
-            if (!isYakuman(win)) continue;
+            if (!isYakuman(win)) {
+                continue;
+            }
 
-            const winnerUserId = getUserIdFromPlayerKey(win.winner_key);
+            const winnerUserId = getUserIdFromPlayerKey(
+                win.winner_key,
+            );
 
-            if (!winnerUserId) continue;
+            if (!winnerUserId) {
+                continue;
+            }
 
             const user = await db.users.findUnique({
                 where: {
@@ -215,20 +243,31 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
                 },
             });
 
-            if (!user) continue;
+            if (!user) {
+                continue;
+            }
 
-            const yakumanLabel = getYakumanLabel(win.selected_yaku_ids);
-            const primaryYakuId = win.selected_yaku_ids[0] ?? null;
+            const yakumanLabel = getYakumanLabel(
+                win.selected_yaku_ids,
+            );
+
+            const primaryYakuId =
+                win.selected_yaku_ids[0] ?? null;
+
             const roundName = getRoundName(log.round);
 
             await createMahjongNewsEvent({
-                eventKey: `mahjong:yakuman:${matchId}:${logIndex}:${winIndex}:${winnerUserId}`,
+                eventKey:
+                    `mahjong:yakuman:${matchId}:` +
+                    `${logIndex}:${winIndex}:${winnerUserId}`,
                 eventType: "YAKUMAN",
                 userId: winnerUserId,
                 matchId,
                 yakuId: primaryYakuId,
                 title: "역만 화료",
-                message: `${user.nickname}님이 ${roundName}에서 역만(${yakumanLabel})을 화료했습니다!`,
+                message:
+                    `${user.nickname}님이 ${roundName}에서 ` +
+                    `역만(${yakumanLabel})을 화료했습니다!`,
                 metadata: {
                     match_id: matchId,
                     round: log.round ?? null,
@@ -236,7 +275,8 @@ export async function syncMahjongNewsEventsForMatch(matchId: number) {
                     yaku_ids: win.selected_yaku_ids,
                     yakuman_label: yakumanLabel,
                     base_score: win.base_score,
-                    yakuman_count: win.yakuman_count ?? null,
+                    yakuman_count:
+                        win.yakuman_count ?? null,
                 },
             });
         }
@@ -257,6 +297,66 @@ export async function getRecentMahjongNewsEvents(take = 5) {
                     avatar_image_key: true,
                     avatar_image_updated_at: true,
                 },
+            },
+        },
+    });
+}
+
+export async function syncMahjongAchievementNewsEvents() {
+    const achievementNewsEvents =
+        await db.mahjong_news_events.findMany({
+            where: {
+                event_type: "ACHIEVEMENT",
+            },
+            select: {
+                id: true,
+                user_id: true,
+                achievement_id: true,
+            },
+        });
+
+    if (achievementNewsEvents.length === 0) {
+        return;
+    }
+
+    const completedAchievements =
+        await db.mahjong_user_achievements.findMany({
+            where: {
+                completed: true,
+            },
+            select: {
+                user_id: true,
+                achievement_id: true,
+            },
+        });
+
+    const completedKeySet = new Set(
+        completedAchievements.map(
+            (achievement) =>
+                `${achievement.user_id}:${achievement.achievement_id}`,
+        ),
+    );
+
+    const invalidNewsEventIds = achievementNewsEvents
+        .filter((event) => {
+            if (!event.achievement_id) {
+                return true;
+            }
+
+            return !completedKeySet.has(
+                `${event.user_id}:${event.achievement_id}`,
+            );
+        })
+        .map((event) => event.id);
+
+    if (invalidNewsEventIds.length === 0) {
+        return;
+    }
+
+    await db.mahjong_news_events.deleteMany({
+        where: {
+            id: {
+                in: invalidNewsEventIds,
             },
         },
     });

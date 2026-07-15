@@ -515,3 +515,63 @@ export async function getRecentTichuNewsEvents(
         },
     });
 }
+
+export async function syncTichuAchievementNewsEvents() {
+    const achievementNewsEvents =
+        await db.tichu_news_events.findMany({
+            where: {
+                event_type: "ACHIEVEMENT",
+            },
+            select: {
+                id: true,
+                user_id: true,
+                achievement_id: true,
+            },
+        });
+
+    if (achievementNewsEvents.length === 0) {
+        return;
+    }
+
+    const completedAchievements =
+        await db.tichu_user_achievements.findMany({
+            where: {
+                completed: true,
+            },
+            select: {
+                user_id: true,
+                achievement_id: true,
+            },
+        });
+
+    const completedKeySet = new Set(
+        completedAchievements.map(
+            (achievement) =>
+                `${achievement.user_id}:${achievement.achievement_id}`,
+        ),
+    );
+
+    const invalidNewsEventIds = achievementNewsEvents
+        .filter((event) => {
+            if (!event.achievement_id) {
+                return true;
+            }
+
+            return !completedKeySet.has(
+                `${event.user_id}:${event.achievement_id}`,
+            );
+        })
+        .map((event) => event.id);
+
+    if (invalidNewsEventIds.length === 0) {
+        return;
+    }
+
+    await db.tichu_news_events.deleteMany({
+        where: {
+            id: {
+                in: invalidNewsEventIds,
+            },
+        },
+    });
+}
