@@ -14,6 +14,7 @@ import {
 import type {
     MahjongDetails,
     MahjongScoreMap,
+    RecordMahjongChomboInput,
     RecordMahjongResultInput,
     RecordRyuukyokuInput,
 } from "../types";
@@ -472,6 +473,130 @@ export function applyMahjongRyuukyokuResult({
         riichi_keys: data.current_riichi_keys,
         score_deltas: scoreDeltas,
         result_scores: resultScores,
+    });
+
+    return details;
+}
+
+export function applyMahjongChomboResult({
+                                             details,
+                                             data,
+                                         }: {
+    details: MahjongDetails;
+    data: RecordMahjongChomboInput;
+}) {
+    const players = details.players;
+    const currentRound = details.current_round;
+    const currentHonba = details.honba || 0;
+    const chomboPlayer = players[data.chombo_player_key];
+
+    if (!chomboPlayer) {
+        throw new Error("존재하지 않는 작사입니다.");
+    }
+
+    if (
+        data.penalty_rule !== "MANGAN_PAYMENT" &&
+        data.penalty_rule !== "LIGHT_1000"
+    ) {
+        throw new Error("올바르지 않은 촌보 처리 방식입니다.");
+    }
+
+    const currentRiichiKeys = Array.from(
+        new Set(data.current_riichi_keys ?? []),
+    );
+
+    currentRiichiKeys.forEach((playerKey) => {
+        if (!players[playerKey]) {
+            throw new Error(
+                "올바르지 않은 리치 선언자가 포함되어 있습니다.",
+            );
+        }
+    });
+
+    const initialScores: MahjongScoreMap = {};
+
+    Object.keys(players).forEach((playerKey) => {
+        initialScores[playerKey] = players[playerKey].score;
+    });
+
+    if (data.penalty_rule === "LIGHT_1000") {
+        /*
+         * 경미한 반칙
+         *
+         * - 반칙자가 다른 작사 3명에게 각각 1,000점 지급
+         * - 반칙자 총 -3,000점
+         * - 다른 작사 각 +1,000점
+         * - 공탁 리치봉 변경 없음
+         * - 현재 국과 본장을 그대로 진행
+         * - 현재 화면의 리치 선택도 유지
+         * - 즉시 토비 종료하지 않음
+         */
+        Object.keys(players).forEach((playerKey) => {
+            if (playerKey === data.chombo_player_key) {
+                return;
+            }
+
+            chomboPlayer.score -= 1000;
+            players[playerKey].score += 1000;
+        });
+    } else {
+        /*
+         * 일반 촌보
+         *
+         * - 만관 지불
+         * - 이번 국 무효
+         * - 이번 국의 리치 선언 취소
+         * - 현재 국, 본장, 친을 유지하고 재배패
+         * - 기존 공탁 리치봉은 변경하지 않음
+         * - 즉시 토비 종료하지 않음
+         */
+        const isDealerChombo = chomboPlayer.wind === "EAST";
+
+        Object.keys(players).forEach((playerKey) => {
+            if (playerKey === data.chombo_player_key) {
+                return;
+            }
+
+            const receiver = players[playerKey];
+
+            const payment = isDealerChombo
+                ? 4000
+                : receiver.wind === "EAST"
+                    ? 4000
+                    : 2000;
+
+            chomboPlayer.score -= payment;
+            receiver.score += payment;
+        });
+    }
+
+    const scoreDeltas: MahjongScoreMap = {};
+    const resultScores: MahjongScoreMap = {};
+
+    Object.keys(players).forEach((playerKey) => {
+        scoreDeltas[playerKey] =
+            players[playerKey].score - initialScores[playerKey];
+
+        resultScores[playerKey] = players[playerKey].score;
+    });
+
+    details.logs.push({
+        timestamp: new Date().toISOString(),
+        type: "CHOMBO",
+        round: currentRound,
+        honba: currentHonba,
+        chombo_player_key: data.chombo_player_key,
+        chombo_penalty_rule: data.penalty_rule,
+
+        cancelled_riichi_keys:
+            data.penalty_rule === "MANGAN_PAYMENT"
+                ? currentRiichiKeys
+                : [],
+
+        score_deltas: scoreDeltas,
+        result_scores: resultScores,
+        is_final: false,
+        forced_end: false,
     });
 
     return details;

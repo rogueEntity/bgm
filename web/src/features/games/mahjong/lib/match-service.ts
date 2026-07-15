@@ -26,6 +26,7 @@ import {
     rebuildMahjongDetailsFromLogs,
 } from "./replay";
 import { recalculateAllMahjongStatsAndAchievements } from "./stats-service";
+import {syncMahjongAchievementNewsEvents, syncMahjongNewsEventsForMatch} from "./news";
 
 const MAX_MAHJONG_NICKNAME_LENGTH = 6;
 
@@ -405,9 +406,16 @@ export async function deleteMahjongMatchRecord({
                 deleted_by: deletedBy,
             },
         });
+
+        await tx.mahjong_news_events.deleteMany({
+            where: {
+                match_id: matchId,
+            },
+        });
     });
 
     await recalculateAllMahjongStatsAndAchievements();
+    await syncMahjongAchievementNewsEvents();
 
     return {
         changed: true,
@@ -523,6 +531,8 @@ export async function undoMahjongLastLogRecord(matchId: number) {
     });
 
     await recalculateAllMahjongStatsAndAchievements();
+    await syncMahjongAchievementNewsEvents();
+    await syncMahjongNewsEventsForMatch(matchId);
 
     return {
         changed: true,
