@@ -11,6 +11,7 @@ import {
   getRecommendedFuOptions,
 } from "@/features/games/mahjong/lib/score";
 import {
+  recordMahjongChombo,
   recordMahjongResult,
   recordRyuukyoku,
 } from "@/app/actions/mahjong.action";
@@ -137,12 +138,13 @@ export default function ScoreForm({
   const firstPlayerKey = players[0]?.stateKey ?? "";
   const secondPlayerKey = players[1]?.stateKey ?? firstPlayerKey;
 
-  const [tab, setTab] = useState<"WIN" | "DRAW">("WIN");
+  const [tab, setTab] = useState<"WIN" | "DRAW" | "CHOMBO">("WIN");
   const [isTsumo, setIsTsumo] = useState(false);
   const [loserKey, setLoserKey] = useState(secondPlayerKey);
   const [wins, setWins] = useState<WinFormState[]>([
     createDefaultWin(firstPlayerKey),
   ]);
+  const [chomboPlayerKey, setChomboPlayerKey] = useState(firstPlayerKey);
   const [currentRiichiKeys, setCurrentRiichiKeys] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isForceFinish, setIsForceFinish] = useState(false);
@@ -529,6 +531,83 @@ export default function ScoreForm({
     },
   ];
 
+  const handleRecordChombo = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    const chomboPlayer = players.find(
+        (player) => player.stateKey === chomboPlayerKey,
+    );
+
+    if (!chomboPlayer) {
+      alert("촌보한 작사를 선택해주세요.");
+      return;
+    }
+
+    const isDealer = chomboPlayer.wind === "EAST";
+
+    const penaltyDescription = isDealer
+        ? `${chomboPlayer.name} -12,000점\n나머지 작사 각 +4,000점`
+        : `${chomboPlayer.name} -8,000점\n친 +4,000점 / 나머지 자 각 +2,000점`;
+
+    const riichiDescription =
+        currentRiichiKeys.length > 0
+            ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 취소되며 리치봉은 차감되지 않습니다.`
+            : "";
+
+    const confirmed = confirm(
+        `${chomboPlayer.name}의 촌보를 기록합니다.\n\n` +
+        `${penaltyDescription}` +
+        `${riichiDescription}\n\n` +
+        `현재 국, 본장, 친은 유지한 채 재배패합니다.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await recordMahjongChombo({
+        match_id: matchId,
+        expected_round: currentRound,
+        expected_honba: honba,
+        expected_log_count: logCount,
+        expected_version: stateVersion,
+        chombo_player_key: chomboPlayerKey,
+        current_riichi_keys: currentRiichiKeys,
+      });
+
+      if (!result.ok) {
+        if (result.code === "STALE_MAHJONG_STATE") {
+          handleStaleMahjongStateError(result.message);
+          return;
+        }
+
+        alert(result.message ?? "촌보 기록에 실패했습니다.");
+        return;
+      }
+
+      alert("촌보가 기록되었습니다.");
+
+      setCurrentRiichiKeys([]);
+      setChomboPlayerKey(firstPlayerKey);
+
+      router.refresh();
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (error) {
+      console.error(error);
+      alert("촌보 기록에 실패했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRecordRyuukyoku = async () => {
     if (!ryuukyokuType) {
       alert("유국 유형을 선택해주세요.");
@@ -758,29 +837,41 @@ export default function ScoreForm({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <button
-          type="button"
-          onClick={() => setTab("WIN")}
-          className={`py-3 rounded-xl font-bold text-sm border transition-all ${
-            tab === "WIN"
-              ? "bg-blue-600 text-white border-blue-600 shadow-md"
-              : "bg-foreground/5 border-foreground/10"
-          }`}
+            type="button"
+            onClick={() => setTab("WIN")}
+            className={`py-3 rounded-xl border font-bold transition-colors ${
+                tab === "WIN"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-foreground/5 border-foreground/10"
+            }`}
         >
           화료
         </button>
 
         <button
-          type="button"
-          onClick={() => setTab("DRAW")}
-          className={`py-3 rounded-xl font-bold text-sm border transition-all ${
-            tab === "DRAW"
-              ? "bg-orange-500 text-white border-orange-500 shadow-md"
-              : "bg-foreground/5 border-foreground/10"
-          }`}
+            type="button"
+            onClick={() => setTab("DRAW")}
+            className={`py-3 rounded-xl border font-bold transition-colors ${
+                tab === "DRAW"
+                    ? "bg-orange-500 text-white border-orange-500"
+                    : "bg-foreground/5 border-foreground/10"
+            }`}
         >
           유국
+        </button>
+
+        <button
+            type="button"
+            onClick={() => setTab("CHOMBO")}
+            className={`py-3 rounded-xl border font-bold transition-colors ${
+                tab === "CHOMBO"
+                    ? "bg-red-600 text-white border-red-600"
+                    : "bg-foreground/5 border-foreground/10"
+            }`}
+        >
+          촌보
         </button>
       </div>
 
@@ -1168,7 +1259,7 @@ export default function ScoreForm({
             {isSubmitting ? "기록 중..." : "점수 기록"}
           </button>
         </form>
-      ) : (
+      ) : tab === "DRAW" ? (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl border bg-foreground/5 space-y-3">
             <p className="text-sm font-bold">
@@ -1340,6 +1431,76 @@ export default function ScoreForm({
             {isSubmitting ? "기록 중..." : "유국 기록 완료"}
           </button>
         </div>
+      ) : (
+        <div className="space-y-5">
+          <section className="space-y-3">
+            <div>
+              <p className="font-bold">촌보한 작사</p>
+              <p className="mt-1 text-xs text-foreground/60">
+                촌보자는 만관 지불 벌점을 적용받습니다.
+              </p>
+            </div>
+
+            {renderPlayerSelectButtons({
+              value: chomboPlayerKey,
+              onChange: setChomboPlayerKey,
+              activeClassName: "bg-red-600 text-white border-red-600",
+            })}
+          </section>
+
+          <section className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm">
+            <p className="font-bold text-red-600 dark:text-red-400">
+              촌보 처리 규칙
+            </p>
+
+            <div className="mt-2 space-y-1 text-foreground/70">
+              <p>친 촌보: 나머지 작사에게 각각 4,000점 지급</p>
+              <p>자 촌보: 친에게 4,000점, 다른 자에게 각각 2,000점 지급</p>
+              <p>현재 국·본장·친을 유지하고 같은 국을 다시 시작합니다.</p>
+              <p>이번 국의 리치 선언은 취소되고 리치봉은 차감되지 않습니다.</p>
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <p className="font-bold">
+              이번 국 리치 선언
+              <span className="ml-1 text-xs font-normal text-foreground/50">
+                  (촌보 처리 시 모두 취소)
+                </span>
+            </p>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {players.map((player) => {
+              const isRiichi = currentRiichiKeys.includes(player.stateKey);
+
+              return (
+                  <button
+                      key={player.stateKey}
+                      type="button"
+                      onClick={() => toggleRiichiPlayer(player.stateKey)}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-lg border py-2 text-xs font-bold transition-all ${
+                          isRiichi
+                              ? "border-red-500 bg-red-500 text-white"
+                              : "border-foreground/10 bg-white opacity-70 hover:opacity-100 dark:bg-background"
+                      }`}
+                  >
+                    <span>{getWindLabel(player.wind)}</span>
+                    <span>{player.name}</span>
+                  </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleRecordChombo}
+            className="w-full rounded-xl bg-red-600 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isSubmitting ? "기록 중..." : "촌보 기록"}
+        </button>
+      </div>
       )}
     </div>
   );

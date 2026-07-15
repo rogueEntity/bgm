@@ -14,6 +14,7 @@ import {
 import type {
     MahjongDetails,
     MahjongScoreMap,
+    RecordMahjongChomboInput,
     RecordMahjongResultInput,
     RecordRyuukyokuInput,
 } from "../types";
@@ -470,6 +471,97 @@ export function applyMahjongRyuukyokuResult({
         tenpai_keys: isExhaustive || isNagashiMangan ? data.tenpai_keys : [],
         nagashi_mangan_winner_keys: nagashiManganWinnerKeys,
         riichi_keys: data.current_riichi_keys,
+        score_deltas: scoreDeltas,
+        result_scores: resultScores,
+    });
+
+    return details;
+}
+
+export function applyMahjongChomboResult({
+                                             details,
+                                             data,
+                                         }: {
+    details: MahjongDetails;
+    data: RecordMahjongChomboInput;
+}) {
+    const players = details.players;
+    const currentRound = details.current_round;
+    const currentHonba = details.honba || 0;
+    const chomboPlayer = players[data.chombo_player_key];
+
+    if (!chomboPlayer) {
+        throw new Error("존재하지 않는 작사입니다.");
+    }
+
+    const currentRiichiKeys = Array.from(
+        new Set(data.current_riichi_keys ?? []),
+    );
+
+    currentRiichiKeys.forEach((playerKey) => {
+        if (!players[playerKey]) {
+            throw new Error("올바르지 않은 리치 선언자가 포함되어 있습니다.");
+        }
+    });
+
+    const initialScores: MahjongScoreMap = {};
+
+    Object.keys(players).forEach((playerKey) => {
+        initialScores[playerKey] = players[playerKey].score;
+    });
+
+    const isDealerChombo = chomboPlayer.wind === "EAST";
+
+    Object.keys(players).forEach((playerKey) => {
+        if (playerKey === data.chombo_player_key) {
+            return;
+        }
+
+        const receiver = players[playerKey];
+
+        const payment = isDealerChombo
+            ? 4000
+            : receiver.wind === "EAST"
+                ? 4000
+                : 2000;
+
+        chomboPlayer.score -= payment;
+        receiver.score += payment;
+    });
+
+    const scoreDeltas: MahjongScoreMap = {};
+    const resultScores: MahjongScoreMap = {};
+
+    Object.keys(players).forEach((playerKey) => {
+        scoreDeltas[playerKey] =
+            players[playerKey].score - initialScores[playerKey];
+
+        resultScores[playerKey] = players[playerKey].score;
+    });
+
+    /*
+     * 촌보 국은 무효 처리 후 재배패한다.
+     *
+     * 따라서 아래 상태는 변경하지 않는다.
+     * - current_round
+     * - honba
+     * - 자리바람
+     * - riichi_sticks
+     * - status
+     *
+     * current_riichi_keys 역시 점수에서 차감하지 않는다.
+     * 이 국에서 선언한 리치는 촌보로 취소된 것으로 처리한다.
+     *
+     * 촌보로 점수가 0 이하가 되어도 토비 종료하지 않는다.
+     */
+    details.logs.push({
+        timestamp: new Date().toISOString(),
+        type: "CHOMBO",
+        round: currentRound,
+        honba: currentHonba,
+        chombo_player_key: data.chombo_player_key,
+        chombo_penalty_rule: "MANGAN_PAYMENT",
+        cancelled_riichi_keys: currentRiichiKeys,
         score_deltas: scoreDeltas,
         result_scores: resultScores,
     });

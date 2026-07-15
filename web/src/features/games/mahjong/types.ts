@@ -38,6 +38,8 @@ export type MahjongDetails = {
 
 export type MahjongScoreMap = Record<string, number>;
 
+export type MahjongChomboPenaltyRule = "MANGAN_PAYMENT";
+
 export type MahjongWinLog = {
     winner_key: string;
     loser_key?: string | null;
@@ -55,7 +57,7 @@ export type MahjongWinLog = {
 export type MahjongRoundLog = {
     timestamp?: string;
 
-    type?: "AGARI" | "RYUUKYOKU" | string;
+    type?: "AGARI" | "RYUUKYOKU" | "CHOMBO" | string;
     round?: string;
     honba?: number;
 
@@ -74,6 +76,22 @@ export type MahjongRoundLog = {
     ryuukyoku_type?: string;
     tenpai_keys?: string[];
     nagashi_mangan_winner_keys?: string[];
+
+    // 촌보
+    chombo_player_key?: string;
+    chombo_penalty_rule?: MahjongChomboPenaltyRule;
+    cancelled_riichi_keys?: string[];
+};
+
+export type RecordMahjongChomboInput = MahjongExpectedStateInput & {
+    match_id: number;
+    chombo_player_key: string;
+
+    /**
+     * 해당 국에서 선언됐지만 촌보로 취소된 리치.
+     * 점수에는 반영하지 않고 로그 표시 목적으로만 저장한다.
+     */
+    current_riichi_keys: string[];
 };
 
 export type MahjongExpectedStateInput = {
