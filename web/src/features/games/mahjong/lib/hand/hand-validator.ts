@@ -19,6 +19,8 @@ import type {
     MahjongTileCode,
 } from "./types";
 
+import { parseMahjongHand } from "./hand-parser";
+
 function getMeldTileCount(meld: MahjongMeldSnapshot): number {
     if (meld.type === "MINKAN" || meld.type === "ANKAN") {
         return 4;
@@ -380,25 +382,66 @@ export function validateMahjongHandSnapshot(
         };
     }
 
+    if (errors.length > 0) {
+        return {
+            ok: false,
+            errors,
+        };
+    }
+
     const normalizedHand: MahjongHandSnapshot = {
         ...hand,
 
-        concealed_tiles: sortMahjongTiles(hand.concealed_tiles),
+        concealed_tiles: sortMahjongTiles(
+            hand.concealed_tiles,
+        ),
+
+        winning_tile: hand.winning_tile,
 
         melds: hand.melds.map((meld) => ({
             ...meld,
-            tiles: sortMahjongTiles(meld.tiles),
-            called_tile: meld.called_tile ?? null,
-            from_player_key: meld.from_player_key ?? null,
+
+            tiles: sortMahjongTiles(
+                meld.tiles,
+            ),
+
+            called_tile:
+                meld.called_tile ?? null,
+
+            from_player_key:
+                meld.from_player_key ?? null,
         })),
 
-        dora_indicators: [...hand.dora_indicators],
-        ura_dora_indicators: [...hand.ura_dora_indicators],
+        dora_indicators: [
+            ...hand.dora_indicators,
+        ],
+
+        ura_dora_indicators: [
+            ...hand.ura_dora_indicators,
+        ],
 
         situation: {
             ...hand.situation,
         },
     };
+
+    const parsedHand =
+        parseMahjongHand(normalizedHand);
+
+    if (!parsedHand.ok) {
+        return {
+            ok: false,
+
+            errors: [
+                {
+                    code: "NOT_COMPLETE_HAND",
+
+                    message:
+                    parsedHand.message,
+                },
+            ],
+        };
+    }
 
     return {
         ok: true,

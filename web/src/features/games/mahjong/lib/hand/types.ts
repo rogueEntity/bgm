@@ -121,6 +121,115 @@ export type MahjongHandDraft = Omit<
     winning_tile: MahjongTileCode | null;
 };
 
+export type MahjongParsedMeldType =
+    | "SEQUENCE"
+    | "TRIPLET"
+    | "QUAD";
+
+export type MahjongParsedMeld = {
+    type: MahjongParsedMeldType;
+
+    /**
+     * 적도라는 일반 5로 정규화해서 저장한다.
+     */
+    tiles: MahjongTileCode[];
+
+    /**
+     * true면 치·퐁·명깡으로 만들어진 몸통이다.
+     * 암깡은 멘젠으로 취급하므로 false다.
+     */
+    open: boolean;
+
+    /**
+     * 원본 부로 종류.
+     *
+     * 손패에서 분해된 몸통이면 null이다.
+     */
+    source_meld_type: MahjongMeldType | null;
+};
+
+export type MahjongWinningGroupType =
+    | "PAIR"
+    | "SEQUENCE"
+    | "TRIPLET"
+    | "QUAD"
+    | "KOKUSHI_PAIR"
+    | "KOKUSHI_SINGLE";
+
+export type MahjongWinningGroup = {
+    type: MahjongWinningGroupType;
+
+    /**
+     * 화료패가 포함된 그룹의 인덱스.
+     *
+     * 일반형에서는 melds의 인덱스이고,
+     * 머리 화료면 null이다.
+     */
+    meld_index: number | null;
+
+    tiles: MahjongTileCode[];
+};
+
+export type MahjongStandardHandPattern = {
+    type: "STANDARD";
+
+    pair: [
+        MahjongTileCode,
+        MahjongTileCode,
+    ];
+
+    melds: MahjongParsedMeld[];
+
+    winning_group: MahjongWinningGroup;
+};
+
+export type MahjongChiitoitsuPattern = {
+    type: "CHIITOITSU";
+
+    pairs: Array<
+        [
+            MahjongTileCode,
+            MahjongTileCode,
+        ]
+    >;
+
+    winning_group: MahjongWinningGroup;
+};
+
+export type MahjongKokushiPattern = {
+    type: "KOKUSHI";
+
+    /**
+     * 국사무쌍의 중복된 1종.
+     */
+    pair_tile: MahjongTileCode;
+
+    /**
+     * 화료 전 13면 대기였는지 여부.
+     */
+    thirteen_wait: boolean;
+
+    winning_group: MahjongWinningGroup;
+};
+
+export type MahjongHandPattern =
+    | MahjongStandardHandPattern
+    | MahjongChiitoitsuPattern
+    | MahjongKokushiPattern;
+
+export type MahjongHandParseResult =
+    | {
+    ok: true;
+    patterns: MahjongHandPattern[];
+}
+    | {
+    ok: false;
+    code:
+        | "INVALID_TILE_COUNT"
+        | "NOT_COMPLETE_HAND";
+    message: string;
+};
+
 export type MahjongHandValidationErrorCode =
     | "INVALID_TILE_CODE"
     | "TOO_MANY_SAME_TILE"
@@ -135,7 +244,8 @@ export type MahjongHandValidationErrorCode =
     | "IPPATSU_WITHOUT_RIICHI"
     | "TSUMO_RON_CONFLICT"
     | "INVALID_TENHOU"
-    | "INVALID_CHIIHOU";
+    | "INVALID_CHIIHOU"
+    | "NOT_COMPLETE_HAND";
 
 export type MahjongHandValidationError = {
     code: MahjongHandValidationErrorCode;
