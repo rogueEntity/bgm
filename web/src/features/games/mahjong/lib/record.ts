@@ -17,6 +17,7 @@ import type {
     RecordMahjongChomboInput,
     RecordMahjongResultInput,
     RecordRyuukyokuInput,
+    ResolvedMahjongWinInput,
 } from "../types";
 
 function assertUniqueValues(values: string[], message: string) {
@@ -44,16 +45,20 @@ function getRoundWindIndex(round: string) {
 export function applyMahjongAgariResult({
                                             details,
                                             data,
+                                            resolvedWins,
                                         }: {
     details: MahjongDetails;
     data: RecordMahjongResultInput;
+    resolvedWins: ResolvedMahjongWinInput[];
 }) {
     const players = details.players;
+
     const currentRound = details.current_round;
+
     const currentHonba = details.honba || 0;
 
     const wins = recalculateWins({
-        wins: data.wins,
+        wins: resolvedWins,
         players,
         is_tsumo: data.is_tsumo,
     });
@@ -488,6 +493,7 @@ export function applyMahjongChomboResult({
     const players = details.players;
     const currentRound = details.current_round;
     const currentHonba = details.honba || 0;
+
     const chomboPlayer = players[data.chombo_player_key];
 
     if (!chomboPlayer) {
@@ -519,16 +525,31 @@ export function applyMahjongChomboResult({
         initialScores[playerKey] = players[playerKey].score;
     });
 
+    /**
+     * 촌보가 발생해 해당 국이 무효가 되더라도
+     * 이미 선언한 리치봉은 돌려주지 않는다.
+     *
+     * - 선언자마다 1,000점 차감
+     * - 기존 공탁 리치봉에 누적
+     * - 일반 촌보와 경미한 반칙에 동일하게 적용
+     */
+    currentRiichiKeys.forEach((playerKey) => {
+        players[playerKey].score -= 1000;
+    });
+
+    details.riichi_sticks =
+        (details.riichi_sticks || 0) + currentRiichiKeys.length;
+
     if (data.penalty_rule === "LIGHT_1000") {
-        /*
+        /**
          * 경미한 반칙
          *
          * - 반칙자가 다른 작사 3명에게 각각 1,000점 지급
          * - 반칙자 총 -3,000점
          * - 다른 작사 각 +1,000점
-         * - 공탁 리치봉 변경 없음
-         * - 현재 국과 본장을 그대로 진행
-         * - 현재 화면의 리치 선택도 유지
+         * - 이번 국의 리치 선언은 취소
+         * - 선언한 리치봉은 차감 후 공탁에 누적
+         * - 현재 국, 본장, 친을 유지
          * - 즉시 토비 종료하지 않음
          */
         Object.keys(players).forEach((playerKey) => {
@@ -540,14 +561,14 @@ export function applyMahjongChomboResult({
             players[playerKey].score += 1000;
         });
     } else {
-        /*
+        /**
          * 일반 촌보
          *
          * - 만관 지불
          * - 이번 국 무효
-         * - 이번 국의 리치 선언 취소
+         * - 이번 국의 리치 선언은 취소
+         * - 선언한 리치봉은 차감 후 공탁에 누적
          * - 현재 국, 본장, 친을 유지하고 재배패
-         * - 기존 공탁 리치봉은 변경하지 않음
          * - 즉시 토비 종료하지 않음
          */
         const isDealerChombo = chomboPlayer.wind === "EAST";
@@ -585,16 +606,19 @@ export function applyMahjongChomboResult({
         type: "CHOMBO",
         round: currentRound,
         honba: currentHonba,
+
         chombo_player_key: data.chombo_player_key,
         chombo_penalty_rule: data.penalty_rule,
 
-        cancelled_riichi_keys:
-            data.penalty_rule === "MANGAN_PAYMENT"
-                ? currentRiichiKeys
-                : [],
+        /**
+         * 두 촌보 방식 모두 이번 국 리치 선언을 취소한다.
+         * 실제 점수 차감과 공탁 누적은 위에서 이미 반영했다.
+         */
+        cancelled_riichi_keys: currentRiichiKeys,
 
         score_deltas: scoreDeltas,
         result_scores: resultScores,
+
         is_final: false,
         forced_end: false,
     });

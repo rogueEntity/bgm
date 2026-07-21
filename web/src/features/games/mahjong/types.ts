@@ -1,6 +1,10 @@
 // web/src/features/games/mahjong/types.ts
 
 import type { MatchStatus } from "../shared/types";
+import type {
+    MahjongHandSnapshot,
+    MahjongWinInputMode,
+} from "./lib/hand/types";
 
 export type GameMode = "동풍전" | "반장전" | "전장전";
 
@@ -45,15 +49,21 @@ export type MahjongChomboPenaltyRule =
 export type MahjongWinLog = {
     winner_key: string;
     loser_key?: string | null;
+
+    input_mode?: MahjongWinInputMode;
+    hand?: MahjongHandSnapshot;
+
     base_score: number;
     han: number;
     fu?: number | null;
+
     dora_total: number;
     selected_yaku_ids: string[];
+
     score_deltas?: MahjongScoreMap;
     yakuman_count?: number;
+
     is_menzen?: boolean;
-    is_mengen?: boolean;
 };
 
 export type MahjongRoundLog = {
@@ -85,14 +95,21 @@ export type MahjongRoundLog = {
     cancelled_riichi_keys?: string[];
 };
 
-export type RecordMahjongChomboInput = MahjongExpectedStateInput & {
+export type RecordMahjongChomboInput =
+    MahjongExpectedStateInput & {
     match_id: number;
     chombo_player_key: string;
     penalty_rule: MahjongChomboPenaltyRule;
 
     /**
-     * 해당 국에서 선언됐지만 촌보로 취소된 리치.
-     * 점수에는 반영하지 않고 로그 표시 목적으로만 저장한다.
+     * 해당 국에서 선언된 리치.
+     *
+     * 촌보 처리 시:
+     * - 선언자마다 1,000점을 차감한다.
+     * - 차감된 리치봉은 공탁에 누적한다.
+     * - 해당 국의 리치 선언은 취소한다.
+     *
+     * 일반 촌보와 경미한 반칙에 동일하게 적용한다.
      */
     current_riichi_keys: string[];
 };
@@ -104,18 +121,54 @@ export type MahjongExpectedStateInput = {
     expected_version: number;
 };
 
-export type MahjongWinInput = {
+type MahjongWinBaseInput = {
     winner_key: string;
     loser_key: string | null;
-    is_mengen?: boolean;
-    fu?: number | null;
+};
+
+export type MahjongYakuFuWinInput =
+    MahjongWinBaseInput & {
+    input_mode: "YAKU_FU";
+
+    is_menzen: boolean;
+    fu: number | null;
+
     dora_total: number;
     selected_yaku_ids: string[];
 };
 
-export type RecalculatedMahjongWin = MahjongWinInput & {
+export type MahjongHandWinInput =
+    MahjongWinBaseInput & {
+    input_mode: "HAND";
+    hand: MahjongHandSnapshot;
+};
+
+export type MahjongWinInput =
+    | MahjongYakuFuWinInput
+    | MahjongHandWinInput;
+
+/**
+ * 서버에서 HAND 입력을 재계산한 뒤
+ * 기존 점수 정산 로직에 넘기는 형태다.
+ */
+export type ResolvedMahjongWinInput =
+    MahjongWinBaseInput & {
+    input_mode: MahjongWinInputMode;
+
+    is_menzen: boolean;
+    fu: number | null;
+
+    dora_total: number;
+    selected_yaku_ids: string[];
+
+    hand?: MahjongHandSnapshot;
+};
+
+export type RecalculatedMahjongWin =
+    ResolvedMahjongWinInput & {
     base_score: number;
     han: number;
+    yakuman_count?: number;
     limit_name?: string;
     score_deltas?: MahjongScoreMap;
 };
@@ -220,7 +273,7 @@ export type MahjongWinLogForStats = {
     fu?: number | null;
     dora_total?: number;
     selected_yaku_ids?: string[];
-    is_mengen?: boolean;
+    is_menzen?: boolean;
 };
 
 export type MahjongLogForStats = {

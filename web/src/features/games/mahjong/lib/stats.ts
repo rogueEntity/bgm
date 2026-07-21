@@ -324,7 +324,7 @@ export function collectPlayerMatchStats({
                 result.tsumo_agari_count += 1;
             }
 
-            if (win.is_mengen === false) {
+            if (win.is_menzen === false) {
                 result.open_win_count += 1;
             }
 

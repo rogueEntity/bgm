@@ -38,6 +38,9 @@ import {
   updateMatchDetailsWithVersionGuard,
   type MahjongActionResult,
 } from "@/features/games/mahjong/lib/action-helpers";
+import {
+  resolveMahjongWinInputs,
+} from "@/features/games/mahjong/lib/hand/resolve-hand-win";
 
 // 도전과제 계산 중 오류가 나도 대국 기록 저장 자체가 실패하지 않도록 안전 호출 함수
 async function safeSyncMahjongAchievements(matchId: number) {
@@ -146,9 +149,23 @@ export async function recordMahjongResult(
       throw new Error("진행 중인 대국에만 기록을 추가할 수 있습니다.");
     }
 
+    const resolvedWins =
+        resolveMahjongWinInputs({
+          wins: data.wins,
+
+          details,
+
+          isTsumo:
+          data.is_tsumo,
+
+          currentRiichiKeys:
+          data.current_riichi_keys,
+        });
+
     applyMahjongAgariResult({
       details,
       data,
+      resolvedWins,
     });
 
     await updateMatchDetailsWithVersionGuard({
