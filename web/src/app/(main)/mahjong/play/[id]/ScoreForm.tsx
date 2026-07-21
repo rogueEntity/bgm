@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useMemo, } from "react";
+import React, { useEffect, useState, } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -84,16 +84,16 @@ const RYUUKYOKU_TYPES: RyuukyokuType[] = [
   "유국만관",
 ];
 
-const TSUMO_ONLY_YAKU_NAMES = [
+const TSUMO_ONLY_YAKU_NAMES = new Set([
   "멘젠쯔모",
   "해저로월",
   "영상개화",
-];
+]);
 
-const RON_ONLY_YAKU_NAMES = [
+const RON_ONLY_YAKU_NAMES = new Set([
   "하저로어",
   "창깡",
-];
+]);
 
 const CHIITOITSU_YAKU_IDS = new Set([
   "chiitoitsu",
@@ -574,14 +574,14 @@ export default function ScoreForm({
     }
 
     const usedWinnerKeys =
-        wins.map(
+        new Set(wins.map(
             (win) => win.winner_key,
-        );
+        ));
 
     const nextPlayer = players.find(
         (player) =>
             player.stateKey !== loserKey &&
-            !usedWinnerKeys.includes(
+            !usedWinnerKeys.has(
                 player.stateKey,
             ),
     );
@@ -660,7 +660,7 @@ export default function ScoreForm({
 
                       if (
                           nextIsTsumo &&
-                          RON_ONLY_YAKU_NAMES.includes(
+                          RON_ONLY_YAKU_NAMES.has(
                               yaku.name,
                           )
                       ) {
@@ -669,7 +669,7 @@ export default function ScoreForm({
 
                       if (
                           !nextIsTsumo &&
-                          TSUMO_ONLY_YAKU_NAMES.includes(
+                          TSUMO_ONLY_YAKU_NAMES.has(
                               yaku.name,
                           )
                       ) {
@@ -743,12 +743,12 @@ export default function ScoreForm({
           }
 
           const isTsumoOnly =
-              TSUMO_ONLY_YAKU_NAMES.includes(
+              TSUMO_ONLY_YAKU_NAMES.has(
                   targetYaku.name,
               );
 
           const isRonOnly =
-              RON_ONLY_YAKU_NAMES.includes(
+              RON_ONLY_YAKU_NAMES.has(
                   targetYaku.name,
               );
 
@@ -1026,12 +1026,12 @@ export default function ScoreForm({
         hasYakuman(win);
 
     const isTsumoOnly =
-        TSUMO_ONLY_YAKU_NAMES.includes(
+        TSUMO_ONLY_YAKU_NAMES.has(
             yName,
         );
 
     const isRonOnly =
-        RON_ONLY_YAKU_NAMES.includes(
+        RON_ONLY_YAKU_NAMES.has(
             yName,
         );
 
@@ -1494,18 +1494,13 @@ export default function ScoreForm({
       return;
     }
 
-    const unfinishedHandInputWin =
-        wins.find(
-            (win) =>
-                win.input_mode ===
-                "HAND",
-        );
+    const unfinishedHandInputWin = wins.some(
+        (win) => win.input_mode === "HAND",
+    );
 
-    if (
-        unfinishedHandInputWin
-    ) {
+    if (unfinishedHandInputWin) {
       alert(
-          "패 입력 자동 계산은 아직 계산 엔진 연결 중입니다.\n" +
+          "패 입력 자동 계산 결과의 서버 기록 기능은 아직 연결 중입니다.\n" +
           "현재는 역·부수 직접 선택 방식으로 기록해주세요.",
       );
 
@@ -1513,7 +1508,7 @@ export default function ScoreForm({
     }
 
     const noYakuWin =
-        wins.find(
+        wins.some(
             (win) =>
                 win.input_mode ===
                 "YAKU_FU" &&
@@ -1531,7 +1526,7 @@ export default function ScoreForm({
     }
 
     const invalidFuWin =
-        wins.find((win) => {
+        wins.some((win) => {
           if (
               win.input_mode !==
               "YAKU_FU"
@@ -1569,7 +1564,7 @@ export default function ScoreForm({
     }
 
     const invalidCalculatedScoreWin =
-        wins.find(
+        wins.some(
             (win) =>
                 !getCalculatedScore(
                     win,
@@ -1595,22 +1590,22 @@ export default function ScoreForm({
       }
 
       const selectedYakuNames =
-          win.selected_yaku_ids.map(
+          new Set(win.selected_yaku_ids.map(
               (id) =>
                   ALL_YAKU.find(
                       (item) =>
                           item.id === id,
                   )?.name,
-          );
+          ));
 
       const hasRiichiYaku =
-          selectedYakuNames.includes(
+          selectedYakuNames.has(
               "리치",
           ) ||
-          selectedYakuNames.includes(
+          selectedYakuNames.has(
               "더블 리치",
           ) ||
-          selectedYakuNames.includes(
+          selectedYakuNames.has(
               "더블리치",
           );
 
@@ -1635,7 +1630,7 @@ export default function ScoreForm({
       if (
           win.is_mengen &&
           isTsumo &&
-          !selectedYakuNames.includes(
+          !selectedYakuNames.has(
               "멘젠쯔모",
           )
       ) {
@@ -1921,6 +1916,13 @@ export default function ScoreForm({
                         getCalculatedScore(
                             win,
                         );
+
+                    const handScoreResult =
+                        win.input_mode === "HAND"
+                            ? calculateMahjongHandDraftScore(
+                                win.hand,
+                            )
+                            : null;
 
                     const fuOptions =
                         isChiitoitsuWin(
@@ -2471,55 +2473,42 @@ export default function ScoreForm({
                                   </p>
 
                                   <p className="mt-1 text-xs leading-relaxed text-foreground/55">
-                                    손패·화료패·부로·도라 표시패를 입력하면 역과 부수를 자동으로 계산합니다.
+                                    손패·화료패·부로·도라 표시패를 입력하면 역과 부수를
+                                    자동으로 계산합니다.
                                   </p>
                                 </div>
 
                                 <MahjongHandInput
-                                    value={
-                                      win.hand
-                                    }
-                                    disabled={
-                                      isSubmitting
-                                    }
+                                    value={win.hand}
+                                    disabled={isSubmitting}
                                     showUraDora={
-                                        win.hand
-                                            .situation
-                                            .riichi ||
-                                        win.hand
-                                            .situation
-                                            .double_riichi
+                                        win.hand.situation.riichi ||
+                                        win.hand.situation.double_riichi
                                     }
-                                    onChange={(
-                                        hand,
-                                    ) => {
-                                      const isMengen =
-                                          !hand.melds.some(
-                                              (
-                                                  meld,
-                                              ) =>
-                                                  meld.type ===
-                                                  "CHI" ||
-                                                  meld.type ===
-                                                  "PON" ||
-                                                  meld.type ===
-                                                  "MINKAN",
-                                          );
-
-                                      updateWin(
-                                          index,
-                                          {
-                                            hand,
-                                            is_mengen:
-                                            isMengen,
-                                          },
+                                    onChange={(hand) => {
+                                      const isMengen = !hand.melds.some(
+                                          (meld) =>
+                                              meld.type === "CHI" ||
+                                              meld.type === "PON" ||
+                                              meld.type === "MINKAN",
                                       );
+
+                                      updateWin(index, {
+                                        hand,
+                                        is_mengen: isMengen,
+                                      });
                                     }}
+                                />
+
+                                <MahjongHandResult
+                                    result={handScoreResult}
                                 />
 
                                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3">
                                   <p className="text-xs font-semibold leading-relaxed text-amber-700 dark:text-amber-400">
-                                    현재는 패 입력 UI만 연결되어 있습니다. 자동 계산 엔진 연결 후 실제 기록이 활성화됩니다.
+                                    자동 계산 결과는 확인할 수 있지만, 서버 기록 기능은 아직
+                                    연결 중입니다. 실제 점수 기록은 역·부수 직접 선택 방식을
+                                    사용해주세요.
                                   </p>
                                 </div>
                               </div>
