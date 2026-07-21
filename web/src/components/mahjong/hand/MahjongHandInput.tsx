@@ -38,7 +38,9 @@ const TARGET_LABELS: Record<HandInputTarget, string> = {
     URA_DORA: "뒷도라 표시패",
 };
 
-function getExpectedConcealedTileCount(meldCount: number) {
+function getExpectedConcealedTileCount(
+    meldCount: number,
+) {
     return 13 - meldCount * 3;
 }
 
@@ -50,10 +52,16 @@ export default function MahjongHandInput({
                                          }: Readonly<MahjongHandInputProps>) {
     const [target, setTarget] =
         useState<HandInputTarget>("CONCEALED");
-    const [errorMessage, setErrorMessage] = useState("");
+
+    const [
+        errorMessage,
+        setErrorMessage,
+    ] = useState("");
 
     const expectedConcealedTileCount =
-        getExpectedConcealedTileCount(value.melds.length);
+        getExpectedConcealedTileCount(
+            value.melds.length,
+        );
 
     const physicalTiles = useMemo(
         () => [
@@ -63,7 +71,9 @@ export default function MahjongHandInput({
                 ? [value.winning_tile]
                 : []),
 
-            ...value.melds.flatMap((meld) => meld.tiles),
+            ...value.melds.flatMap(
+                (meld) => meld.tiles,
+            ),
         ],
         [
             value.concealed_tiles,
@@ -72,13 +82,6 @@ export default function MahjongHandInput({
         ],
     );
 
-    /**
-     * winning_tile은 타입상 필수지만 입력 도중에는 빈 값이 필요하다.
-     * 연결 단계에서 별도 Draft 타입을 도입하기 전까지는
-     * 화면 입력용으로 null 가능 상태를 외부에서 관리하지 않는다.
-     *
-     * 현재 컴포넌트는 전달받은 winning_tile을 항상 표시한다.
-     */
     const allUsedTiles = useMemo(
         () => [
             ...physicalTiles,
@@ -103,14 +106,26 @@ export default function MahjongHandInput({
         setErrorMessage("");
     };
 
-    const canAddPhysicalTile = (tile: MahjongTileCode) => {
-        const counts = countNormalizedTiles(physicalTiles);
-        const normalizedTile = normalizeRedFive(tile);
+    const canAddPhysicalTile = (
+        tile: MahjongTileCode,
+    ) => {
+        const counts =
+            countNormalizedTiles(
+                physicalTiles,
+            );
 
-        return (counts.get(normalizedTile) ?? 0) < 4;
+        const normalizedTile =
+            normalizeRedFive(tile);
+
+        return (
+            (counts.get(normalizedTile) ??
+                0) < 4
+        );
     };
 
-    const addTile = (tile: MahjongTileCode) => {
+    const addTile = (
+        tile: MahjongTileCode,
+    ) => {
         if (disabled) {
             return;
         }
@@ -123,25 +138,29 @@ export default function MahjongHandInput({
             setErrorMessage(
                 "같은 패는 적도라를 포함해 4장을 초과할 수 없습니다.",
             );
+
             return;
         }
 
         if (target === "CONCEALED") {
             if (
-                value.concealed_tiles.length >=
+                value.concealed_tiles
+                    .length >=
                 expectedConcealedTileCount
             ) {
                 setErrorMessage(
                     `현재 부로 수 기준으로 손패는 ${expectedConcealedTileCount}장까지 입력할 수 있습니다.`,
                 );
+
                 return;
             }
 
             updateValue({
-                concealed_tiles: sortMahjongTiles([
-                    ...value.concealed_tiles,
-                    tile,
-                ]),
+                concealed_tiles:
+                    sortMahjongTiles([
+                        ...value.concealed_tiles,
+                        tile,
+                    ]),
             });
 
             return;
@@ -156,10 +175,14 @@ export default function MahjongHandInput({
         }
 
         if (target === "DORA") {
-            if (value.dora_indicators.length >= 5) {
+            if (
+                value.dora_indicators
+                    .length >= 5
+            ) {
                 setErrorMessage(
                     "도라 표시패는 최대 5장까지 입력할 수 있습니다.",
                 );
+
                 return;
             }
 
@@ -173,10 +196,14 @@ export default function MahjongHandInput({
             return;
         }
 
-        if (value.ura_dora_indicators.length >= 5) {
+        if (
+            value.ura_dora_indicators
+                .length >= 5
+        ) {
             setErrorMessage(
                 "뒷도라 표시패는 최대 5장까지 입력할 수 있습니다.",
             );
+
             return;
         }
 
@@ -188,12 +215,24 @@ export default function MahjongHandInput({
         });
     };
 
-    const removeConcealedTile = (index: number) => {
+    const removeConcealedTile = (
+        index: number,
+    ) => {
         updateValue({
-            concealed_tiles: value.concealed_tiles.filter(
-                (_, tileIndex) => tileIndex !== index,
-            ),
+            concealed_tiles:
+                value.concealed_tiles.filter(
+                    (_, tileIndex) =>
+                        tileIndex !== index,
+                ),
         });
+    };
+
+    const removeWinningTile = () => {
+        updateValue({
+            winning_tile: null,
+        });
+
+        setTarget("WINNING");
     };
 
     const removeIndicator = ({
@@ -207,7 +246,8 @@ export default function MahjongHandInput({
             updateValue({
                 dora_indicators:
                     value.dora_indicators.filter(
-                        (_, tileIndex) => tileIndex !== index,
+                        (_, tileIndex) =>
+                            tileIndex !== index,
                     ),
             });
 
@@ -217,7 +257,8 @@ export default function MahjongHandInput({
         updateValue({
             ura_dora_indicators:
                 value.ura_dora_indicators.filter(
-                    (_, tileIndex) => tileIndex !== index,
+                    (_, tileIndex) =>
+                        tileIndex !== index,
                 ),
         });
     };
@@ -226,7 +267,8 @@ export default function MahjongHandInput({
         targetValue: HandInputTarget,
         description: string,
     ) => {
-        const active = target === targetValue;
+        const active =
+            target === targetValue;
 
         return (
             <button
@@ -248,7 +290,11 @@ export default function MahjongHandInput({
         `}
             >
         <span className="block text-xs font-bold">
-          {TARGET_LABELS[targetValue]}
+          {
+              TARGET_LABELS[
+                  targetValue
+                  ]
+          }
         </span>
 
                 <span
@@ -277,7 +323,9 @@ export default function MahjongHandInput({
 
                 {renderTargetButton(
                     "WINNING",
-                    "1장 선택",
+                    value.winning_tile
+                        ? "입력 완료"
+                        : "1장 선택",
                 )}
 
                 {renderTargetButton(
@@ -303,19 +351,31 @@ export default function MahjongHandInput({
         `}
             >
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold">손패</h4>
+                    <h4 className="text-sm font-bold">
+                        손패
+                    </h4>
 
                     <span className="text-xs text-foreground/50">
-            {value.concealed_tiles.length}/
-                        {expectedConcealedTileCount}장
+            {
+                value.concealed_tiles
+                    .length
+            }
+                        /
+                        {
+                            expectedConcealedTileCount
+                        }
+                        장
           </span>
                 </div>
 
-                {value.concealed_tiles.length === 0 ? (
+                {value.concealed_tiles
+                    .length === 0 ? (
                     <button
                         type="button"
                         disabled={disabled}
-                        onClick={() => setTarget("CONCEALED")}
+                        onClick={() =>
+                            setTarget("CONCEALED")
+                        }
                         className="
               flex min-h-16 w-full items-center justify-center
               rounded-xl border border-dashed border-foreground/15
@@ -327,17 +387,21 @@ export default function MahjongHandInput({
                     </button>
                 ) : (
                     <div className="flex min-h-16 flex-wrap items-center gap-1.5 rounded-xl bg-background p-2">
-                        {value.concealed_tiles.map((tile, index) => (
-                            <MahjongTile
-                                key={`${tile}-${index}`}
-                                tile={tile}
-                                size="md"
-                                removable
-                                onRemove={() =>
-                                    removeConcealedTile(index)
-                                }
-                            />
-                        ))}
+                        {value.concealed_tiles.map(
+                            (tile, index) => (
+                                <MahjongTile
+                                    key={`${tile}-${index}`}
+                                    tile={tile}
+                                    size="md"
+                                    removable
+                                    onRemove={() =>
+                                        removeConcealedTile(
+                                            index,
+                                        )
+                                    }
+                                />
+                            ),
+                        )}
                     </div>
                 )}
             </section>
@@ -353,21 +417,48 @@ export default function MahjongHandInput({
         `}
             >
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold">화료패</h4>
+                    <h4 className="text-sm font-bold">
+                        화료패
+                    </h4>
 
                     <span className="text-[11px] text-foreground/45">
             새 패를 선택하면 교체됩니다.
           </span>
                 </div>
 
-                <div className="flex min-h-16 items-center rounded-xl bg-background p-2">
-                    <MahjongTile
-                        tile={value.winning_tile}
-                        size="lg"
-                        selected={target === "WINNING"}
-                        onClick={() => setTarget("WINNING")}
-                    />
-                </div>
+                {value.winning_tile ? (
+                    <div className="flex min-h-16 items-center rounded-xl bg-background p-2">
+                        <MahjongTile
+                            tile={
+                                value.winning_tile
+                            }
+                            size="lg"
+                            selected={
+                                target === "WINNING"
+                            }
+                            removable
+                            onRemove={
+                                removeWinningTile
+                            }
+                        />
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                            setTarget("WINNING")
+                        }
+                        className="
+              flex min-h-16 w-full items-center justify-center
+              rounded-xl border border-dashed border-foreground/15
+              text-xs text-foreground/40
+              disabled:cursor-not-allowed disabled:opacity-40
+            "
+                    >
+                        화료패 영역을 선택하고 아래에서 패를 입력해주세요.
+                    </button>
+                )}
             </section>
 
             <MahjongMeldInput
@@ -382,12 +473,16 @@ export default function MahjongHandInput({
                 disabled={disabled}
                 onChange={(melds) => {
                     const nextExpectedCount =
-                        getExpectedConcealedTileCount(melds.length);
+                        getExpectedConcealedTileCount(
+                            melds.length,
+                        );
 
                     updateValue({
                         melds,
+
                         concealed_tiles:
-                            value.concealed_tiles.length >
+                            value.concealed_tiles
+                                .length >
                             nextExpectedCount
                                 ? value.concealed_tiles.slice(
                                     0,
@@ -414,19 +509,27 @@ export default function MahjongHandInput({
                     </h4>
 
                     <span className="text-xs text-foreground/50">
-            {value.dora_indicators.length}/5장
+            {
+                value.dora_indicators
+                    .length
+            }
+                        /5장
           </span>
                 </div>
 
-                {value.dora_indicators.length === 0 ? (
+                {value.dora_indicators
+                    .length === 0 ? (
                     <button
                         type="button"
                         disabled={disabled}
-                        onClick={() => setTarget("DORA")}
+                        onClick={() =>
+                            setTarget("DORA")
+                        }
                         className="
               flex min-h-14 w-full items-center justify-center
               rounded-xl border border-dashed border-foreground/15
               text-xs text-foreground/40
+              disabled:cursor-not-allowed disabled:opacity-40
             "
                     >
                         도라 자체가 아니라 표시패를 입력합니다.
@@ -470,19 +573,30 @@ export default function MahjongHandInput({
                         </h4>
 
                         <span className="text-xs text-foreground/50">
-              {value.ura_dora_indicators.length}/5장
+              {
+                  value
+                      .ura_dora_indicators
+                      .length
+              }
+                            /5장
             </span>
                     </div>
 
-                    {value.ura_dora_indicators.length === 0 ? (
+                    {value.ura_dora_indicators
+                        .length === 0 ? (
                         <button
                             type="button"
                             disabled={disabled}
-                            onClick={() => setTarget("URA_DORA")}
+                            onClick={() =>
+                                setTarget(
+                                    "URA_DORA",
+                                )
+                            }
                             className="
                 flex min-h-14 w-full items-center justify-center
                 rounded-xl border border-dashed border-foreground/15
                 text-xs text-foreground/40
+                disabled:cursor-not-allowed disabled:opacity-40
               "
                         >
                             리치 화료인 경우에만 입력합니다.
@@ -498,7 +612,8 @@ export default function MahjongHandInput({
                                         removable
                                         onRemove={() =>
                                             removeIndicator({
-                                                type: "URA_DORA",
+                                                type:
+                                                    "URA_DORA",
                                                 index,
                                             })
                                         }
@@ -531,8 +646,11 @@ export default function MahjongHandInput({
                     }
                     disabled={
                         disabled ||
-                        (target === "CONCEALED" &&
-                            value.concealed_tiles.length >=
+                        (target ===
+                            "CONCEALED" &&
+                            value
+                                .concealed_tiles
+                                .length >=
                             expectedConcealedTileCount)
                     }
                     onSelect={addTile}
