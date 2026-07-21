@@ -1006,7 +1006,7 @@ export const YAKU_GUIDE_ITEMS: YakuGuideItem[] = [
         closedHan: 13,
         openHan: 13,
         isYakuman: true,
-        yakumanMultiplier: 1,
+        yakumanMultiplier: 2,
         openType: "OPEN_ALLOWED",
         description: "풍패 4종을 모두 커쯔 또는 깡쯔로 만들면 성립합니다.",
         exampleTiles: [

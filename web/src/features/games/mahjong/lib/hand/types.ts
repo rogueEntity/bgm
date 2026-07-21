@@ -363,3 +363,36 @@ export type MahjongPatternFuResult = {
     pattern: MahjongHandPattern;
     calculation: MahjongFuCalculation;
 };
+
+export type MahjongDetectedYaku = {
+    id: string;
+    name: string;
+
+    /**
+     * 현재 멘젠·후로 상태를 반영한 판수.
+     * 역만은 기존 yaku.ts 값에 맞춰 13으로 둔다.
+     */
+    han: number;
+
+    is_yakuman: boolean;
+    yakuman_multiplier: number;
+};
+
+export type MahjongPatternYakuResult = {
+    pattern: MahjongHandPattern;
+
+    yaku: MahjongDetectedYaku[];
+
+    yaku_ids: string[];
+
+    /**
+     * 도라를 제외한 일반 역의 총 판수.
+     * 역만이 있으면 0으로 둔다.
+     */
+    han: number;
+
+    yakuman_count: number;
+
+    is_pinfu: boolean;
+    is_menzen: boolean;
+};
