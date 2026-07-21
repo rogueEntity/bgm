@@ -552,40 +552,37 @@ export default function ScoreForm({
       return;
     }
 
-    const isLightPenalty = chomboPenaltyRule === "LIGHT_1000";
+    const isLightPenalty =
+        chomboPenaltyRule === "LIGHT_1000";
 
     let penaltyDescription: string;
-    let riichiDescription: string;
     let progressionDescription: string;
 
     if (isLightPenalty) {
       penaltyDescription =
           `${chomboPlayer.name} -3,000점\n` +
-          "나머지 작사 각 +1,000점\n" +
-          "공탁 리치봉은 변하지 않습니다.";
-
-      riichiDescription =
-          currentRiichiKeys.length > 0
-              ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 유지됩니다.`
-              : "";
+          "나머지 작사 각 +1,000점";
 
       progressionDescription =
-          "현재 국을 종료하지 않고 그대로 계속 진행합니다.";
+          "현재 국, 본장, 친을 유지한 채 같은 국을 다시 시작합니다.";
     } else {
       const isDealer = chomboPlayer.wind === "EAST";
 
       penaltyDescription = isDealer
-          ? `${chomboPlayer.name} -12,000점\n나머지 작사 각 +4,000점`
-          : `${chomboPlayer.name} -8,000점\n친 +4,000점 / 나머지 자 각 +2,000점`;
-
-      riichiDescription =
-          currentRiichiKeys.length > 0
-              ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 취소되며 리치봉은 차감되지 않습니다.`
-              : "";
+          ? `${chomboPlayer.name} -12,000점\n` +
+          "나머지 작사 각 +4,000점"
+          : `${chomboPlayer.name} -8,000점\n` +
+          "친 +4,000점 / 나머지 자 각 +2,000점";
 
       progressionDescription =
           "현재 국, 본장, 친을 유지한 채 재배패합니다.";
     }
+
+    const riichiDescription =
+        currentRiichiKeys.length > 0
+            ? `\n\n이번 국의 리치 선언 ${currentRiichiKeys.length}건은 취소됩니다.\n` +
+            `선언자마다 1,000점이 차감되고 공탁 리치봉이 ${currentRiichiKeys.length}개 증가합니다.`
+            : "\n\n이번 국에 취소할 리치 선언은 없습니다.";
 
     const confirmed = confirm(
         `${chomboPlayer.name}의 ${
@@ -605,10 +602,12 @@ export default function ScoreForm({
     try {
       const result = await recordMahjongChombo({
         match_id: matchId,
+
         expected_round: currentRound,
         expected_honba: honba,
         expected_log_count: logCount,
         expected_version: stateVersion,
+
         chombo_player_key: chomboPlayerKey,
         penalty_rule: chomboPenaltyRule,
         current_riichi_keys: currentRiichiKeys,
@@ -620,7 +619,10 @@ export default function ScoreForm({
           return;
         }
 
-        alert(result.message ?? "촌보 기록에 실패했습니다.");
+        alert(
+            result.message ?? "촌보 기록에 실패했습니다.",
+        );
+
         return;
       }
 
@@ -630,16 +632,11 @@ export default function ScoreForm({
               : "촌보가 기록되었습니다.",
       );
 
-      /*
-       * 일반 촌보는 해당 국이 무효가 되므로
-       * 이번 국 리치 선택을 초기화한다.
-       *
-       * 경미한 반칙은 현재 국을 계속 진행하므로
-       * 리치 선택을 유지한다.
+      /**
+       * 두 촌보 방식 모두 해당 국의 리치 선언이 취소된다.
+       * 리치봉 점수 차감과 공탁 누적은 서버에서 처리한다.
        */
-      if (!isLightPenalty) {
-        setCurrentRiichiKeys([]);
-      }
+      setCurrentRiichiKeys([]);
 
       setChomboPlayerKey(firstPlayerKey);
       setChomboPenaltyRule("MANGAN_PAYMENT");
@@ -1578,30 +1575,53 @@ export default function ScoreForm({
               </p>
 
               {chomboPenaltyRule === "LIGHT_1000" ? (
-                  <div className="mt-2 space-y-1 text-foreground/70">
-                    <p>반칙자가 나머지 작사에게 각각 1,000점을 지급합니다.</p>
+                  <>
+                    <p>
+                      반칙자가 나머지 작사에게 각각 1,000점을
+                      지급합니다.
+                    </p>
+
                     <p>반칙자는 총 3,000점을 잃습니다.</p>
-                    <p>공탁 리치봉은 변경하지 않습니다.</p>
-                    <p>현재 국·본장·친을 유지하고 그대로 진행합니다.</p>
-                    <p>이번 국에 선택한 리치 선언도 유지됩니다.</p>
-                  </div>
+
+                    <p>
+                      이번 국의 리치 선언은 모두 취소됩니다.
+                    </p>
+
+                    <p>
+                      리치 선언자에게서 1,000점씩 차감하고,
+                      해당 리치봉은 공탁에 남깁니다.
+                    </p>
+
+                    <p>
+                      현재 국·본장·친을 유지하고 같은 국을 다시
+                      시작합니다.
+                    </p>
+                  </>
               ) : (
-                  // 일반 촌보 안내
-                  <div className="mt-2 space-y-1 text-foreground/70">
-                    <p>친 촌보: 나머지 작사에게 각각 4,000점 지급</p>
-
+                  <>
                     <p>
-                      자 촌보: 친에게 4,000점, 다른 자에게 각각 2,000점 지급
+                      친 촌보: 나머지 작사에게 각각 4,000점 지급
                     </p>
 
                     <p>
-                      현재 국·본장·친을 유지하고 같은 국을 다시 시작합니다.
+                      자 촌보: 친에게 4,000점, 다른 자에게 각각
+                      2,000점 지급
                     </p>
 
                     <p>
-                      이번 국의 리치 선언은 취소되고 리치봉은 차감되지 않습니다.
+                      현재 국·본장·친을 유지하고 같은 국을 다시
+                      시작합니다.
                     </p>
-                  </div>
+
+                    <p>
+                      이번 국의 리치 선언은 모두 취소됩니다.
+                    </p>
+
+                    <p>
+                      리치 선언자에게서 1,000점씩 차감하고,
+                      해당 리치봉은 공탁에 남깁니다.
+                    </p>
+                  </>
               )}
             </section>
 
@@ -1610,10 +1630,8 @@ export default function ScoreForm({
                 이번 국 리치 선언
 
                 <span className="ml-1 text-xs font-normal text-foreground/50">
-          {chomboPenaltyRule === "MANGAN_PAYMENT"
-              ? "(일반 촌보 처리 시 모두 취소)"
-              : "(경미한 반칙 처리 후에도 유지)"}
-        </span>
+                  (촌보 처리 시 모두 취소되고 리치봉은 공탁에 남음)
+                </span>
               </p>
 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

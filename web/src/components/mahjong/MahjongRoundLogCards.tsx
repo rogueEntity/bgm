@@ -838,46 +838,39 @@ export default function MahjongRoundLogCards({
                           )}
 
                           {isChombo && (
-                              <div className="space-y-1 text-sm">
-                                  <p className="font-bold">
-                                      {getPlayerName(log.chombo_player_key)}{" "}
-                                      {isLightChombo ? "경미한 반칙" : "촌보"}
-                                  </p>
+                              <div className="space-y-1">
+                                <p className="font-bold">
+                                  {getPlayerName(log.chombo_player_key)}{" "}
+                                  {isLightChombo ? "경미한 반칙" : "촌보"}
+                                </p>
 
-                                  {isLightChombo ? (
-                                      <>
-                                          <p className="text-foreground/60">
-                                              나머지 작사에게 각각 1,000점 지급
-                                          </p>
+                                {isLightChombo ? (
+                                    <>
+                                      <p>나머지 작사에게 각각 1,000점 지급</p>
+                                      <p>반칙자 총 3,000점 차감</p>
+                                      <p>현재 국·본장·친을 유지하고 재배패</p>
+                                    </>
+                                ) : (
+                                    <p>
+                                      만관 지불 · 현재 국, 본장과 친을 유지하고
+                                      재배패
+                                    </p>
+                                )}
 
-                                          <p className="text-foreground/60">
-                                              반칙자 총 3,000점 차감
-                                          </p>
+                                {cancelledRiichiKeys.length > 0 && (
+                                    <>
+                                      <p>
+                                        취소된 리치:{" "}
+                                        {cancelledRiichiKeys
+                                            .map((key) => getPlayerName(key))
+                                            .join(", ")}
+                                      </p>
 
-                                          <p className="text-foreground/60">
-                                              공탁 리치봉 변동 없음
-                                          </p>
-
-                                          <p className="text-foreground/60">
-                                              현재 국·본장·친을 유지하고 그대로 진행
-                                          </p>
-                                      </>
-                                  ) : (
-                                      <>
-                                          <p className="text-foreground/60">
-                                              만관 지불 · 현재 국, 본장과 친을 유지하고 재배패
-                                          </p>
-
-                                          {cancelledRiichiKeys.length > 0 && (
-                                              <p className="text-foreground/60">
-                                                  취소된 리치:{" "}
-                                                  {cancelledRiichiKeys
-                                                      .map((key) => getPlayerName(key))
-                                                      .join(", ")}
-                                              </p>
-                                          )}
-                                      </>
-                                  )}
+                                      <p className="text-foreground/60">
+                                        리치봉 {cancelledRiichiKeys.length}개 공탁 누적
+                                      </p>
+                                    </>
+                                )}
                               </div>
                           )}
 

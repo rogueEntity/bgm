@@ -85,14 +85,21 @@ export type MahjongRoundLog = {
     cancelled_riichi_keys?: string[];
 };
 
-export type RecordMahjongChomboInput = MahjongExpectedStateInput & {
+export type RecordMahjongChomboInput =
+    MahjongExpectedStateInput & {
     match_id: number;
     chombo_player_key: string;
     penalty_rule: MahjongChomboPenaltyRule;
 
     /**
-     * 해당 국에서 선언됐지만 촌보로 취소된 리치.
-     * 점수에는 반영하지 않고 로그 표시 목적으로만 저장한다.
+     * 해당 국에서 선언된 리치.
+     *
+     * 촌보 처리 시:
+     * - 선언자마다 1,000점을 차감한다.
+     * - 차감된 리치봉은 공탁에 누적한다.
+     * - 해당 국의 리치 선언은 취소한다.
+     *
+     * 일반 촌보와 경미한 반칙에 동일하게 적용한다.
      */
     current_riichi_keys: string[];
 };
