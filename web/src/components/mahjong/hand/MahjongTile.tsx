@@ -1,4 +1,4 @@
-// web/src/features/games/mahjong/lib/hand/MahjongTile.tsx
+// web/src/components/mahjong/hand/MahjongTile.tsx
 
 "use client";
 
