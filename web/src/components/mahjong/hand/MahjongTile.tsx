@@ -2,14 +2,13 @@
 
 "use client";
 
-import type { ButtonHTMLAttributes } from "react";
+import type {
+    ButtonHTMLAttributes,
+    CSSProperties,
+} from "react";
+import { useState } from "react";
 
 import { MAHJONG_TILE_LABELS } from "@/features/games/mahjong/lib/hand/tiles";
-import {
-    getTileNumber,
-    getTileSuit,
-    isRedDoraTile,
-} from "@/features/games/mahjong/lib/hand/tile-utils";
 import type { MahjongTileCode } from "@/features/games/mahjong/lib/hand/types";
 
 type MahjongTileSize = "sm" | "md" | "lg";
@@ -28,77 +27,76 @@ type MahjongTileProps = {
     className?: string;
 };
 
-const SIZE_CLASS_MAP: Record<MahjongTileSize, string> = {
-    sm: "h-10 w-7 rounded-md text-base",
-    md: "h-12 w-8 rounded-md text-lg",
-    lg: "h-14 w-10 rounded-lg text-xl",
+const SIZE_CLASS_MAP: Record<
+    MahjongTileSize,
+    string
+> = {
+    sm: "h-10 w-7",
+    md: "h-12 w-8",
+    lg: "h-14 w-10",
 };
 
-function getTileDisplay(tile: MahjongTileCode) {
-    const suit = getTileSuit(tile);
-    const number = getTileNumber(tile);
+const TILE_IMAGE_SRC_MAP: Record<
+    MahjongTileCode,
+    string
+> = {
+    "1m": "/mahjong/tiles/m1.svg",
+    "2m": "/mahjong/tiles/m2.svg",
+    "3m": "/mahjong/tiles/m3.svg",
+    "4m": "/mahjong/tiles/m4.svg",
+    "5m": "/mahjong/tiles/m5.svg",
+    "0m": "/mahjong/tiles/red_m5.svg",
+    "6m": "/mahjong/tiles/m6.svg",
+    "7m": "/mahjong/tiles/m7.svg",
+    "8m": "/mahjong/tiles/m8.svg",
+    "9m": "/mahjong/tiles/m9.svg",
 
-    if (suit === "z") {
-        const honorMap: Partial<Record<MahjongTileCode, string>> = {
-            "1z": "東",
-            "2z": "南",
-            "3z": "西",
-            "4z": "北",
-            "5z": "白",
-            "6z": "發",
-            "7z": "中",
-        };
+    "1p": "/mahjong/tiles/p1.svg",
+    "2p": "/mahjong/tiles/p2.svg",
+    "3p": "/mahjong/tiles/p3.svg",
+    "4p": "/mahjong/tiles/p4.svg",
+    "5p": "/mahjong/tiles/p5.svg",
+    "0p": "/mahjong/tiles/red_p5.svg",
+    "6p": "/mahjong/tiles/p6.svg",
+    "7p": "/mahjong/tiles/p7.svg",
+    "8p": "/mahjong/tiles/p8.svg",
+    "9p": "/mahjong/tiles/p9.svg",
 
-        return {
-            main: honorMap[tile] ?? "",
-            sub: "",
-        };
+    "1s": "/mahjong/tiles/s1.svg",
+    "2s": "/mahjong/tiles/s2.svg",
+    "3s": "/mahjong/tiles/s3.svg",
+    "4s": "/mahjong/tiles/s4.svg",
+    "5s": "/mahjong/tiles/s5.svg",
+    "0s": "/mahjong/tiles/red_s5.svg",
+    "6s": "/mahjong/tiles/s6.svg",
+    "7s": "/mahjong/tiles/s7.svg",
+    "8s": "/mahjong/tiles/s8.svg",
+    "9s": "/mahjong/tiles/s9.svg",
+
+    "1z": "/mahjong/tiles/ton.svg",
+    "2z": "/mahjong/tiles/nan.svg",
+    "3z": "/mahjong/tiles/shaa.svg",
+    "4z": "/mahjong/tiles/pei.svg",
+    "5z": "/mahjong/tiles/haku.svg",
+    "6z": "/mahjong/tiles/hatsu.svg",
+    "7z": "/mahjong/tiles/chun.svg",
+};
+
+const TILE_BACK_SRC =
+    "/mahjong/tiles/back.svg";
+
+function getImageStyle({
+                           sideways,
+                       }: {
+    sideways: boolean;
+}): CSSProperties {
+    if (!sideways) {
+        return {};
     }
-
-    const suitLabel = {
-        m: "萬",
-        p: "筒",
-        s: "索",
-    }[suit];
 
     return {
-        main: String(number),
-        sub: suitLabel,
+        transform: "rotate(90deg)",
     };
-}
-
-function getTileTextClass(tile: MahjongTileCode) {
-    if (isRedDoraTile(tile)) {
-        return "text-red-600 dark:text-red-400";
-    }
-
-    if (tile === "5z") {
-        return "text-foreground";
-    }
-
-    if (tile === "6z") {
-        return "text-emerald-700 dark:text-emerald-400";
-    }
-
-    if (tile === "7z") {
-        return "text-red-600 dark:text-red-400";
-    }
-
-    const suit = getTileSuit(tile);
-
-    if (suit === "m") {
-        return "text-red-700 dark:text-red-400";
-    }
-
-    if (suit === "p") {
-        return "text-blue-700 dark:text-blue-400";
-    }
-
-    if (suit === "s") {
-        return "text-emerald-700 dark:text-emerald-400";
-    }
-
-    return "text-foreground";
 }
 
 export default function MahjongTile({
@@ -114,75 +112,112 @@ export default function MahjongTile({
                                         onRemove,
                                         className = "",
                                     }: Readonly<MahjongTileProps>) {
-    const display = getTileDisplay(tile);
-    const label = MAHJONG_TILE_LABELS[tile];
+    const [hasImageError, setHasImageError] =
+        useState(false);
 
-    const content = hidden ? (
+    const label =
+        MAHJONG_TILE_LABELS[tile];
+
+    const imageSrc = hidden
+        ? TILE_BACK_SRC
+        : TILE_IMAGE_SRC_MAP[tile];
+
+    const isInteractive =
+        Boolean(onClick || onRemove);
+
+    const imageContainerClassName = `
+    relative shrink-0
+    ${SIZE_CLASS_MAP[size]}
+    ${sideways ? "mx-2" : ""}
+    ${className}
+  `;
+
+    const imageClassName = `
+    block h-full w-full
+    select-none object-contain
+    transition-all
+    ${
+        selected
+            ? "drop-shadow-[0_0_5px_rgba(37,99,235,0.7)]"
+            : "drop-shadow-sm"
+    }
+    ${disabled ? "opacity-35" : ""}
+  `;
+
+    const image = hasImageError ? (
         <div
-            aria-label="뒤집힌 패"
             className={`
-        ${SIZE_CLASS_MAP[size]}
-        border border-emerald-900/40
-        bg-emerald-700
-        shadow-sm
+        flex h-full w-full items-center justify-center
+        rounded-md border border-foreground/15
+        bg-[#fffdf4]
+        text-xs font-black text-foreground
       `}
         >
-            <div className="m-1 h-[calc(100%-0.5rem)] rounded-sm border border-white/20" />
+            {tile}
         </div>
     ) : (
-        <div
-            className={`
-        relative flex shrink-0 flex-col items-center justify-center
-        border bg-[#fffdf4] shadow-sm
-        dark:bg-[#f8f4e8]
-        ${SIZE_CLASS_MAP[size]}
-        ${
-                selected
-                    ? "border-blue-500 ring-2 ring-blue-500/30"
-                    : "border-black/15"
+        // SVG 타일 자산은 public 경로에서 직접 사용한다.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={imageSrc}
+            alt={hidden ? "뒤집힌 패" : label}
+            draggable={false}
+            className={imageClassName}
+            style={getImageStyle({
+                sideways,
+            })}
+            onError={() =>
+                setHasImageError(true)
             }
-        ${disabled ? "opacity-35" : ""}
-        ${sideways ? "rotate-90 mx-2" : ""}
-        ${className}
-      `}
-        >
-      <span
-          className={`
-          leading-none font-black
-          ${getTileTextClass(tile)}
-        `}
-      >
-        {display.main}
-      </span>
+        />
+    );
 
-            {display.sub && (
+    const content = (
+        <div className={imageContainerClassName}>
+            {image}
+
+            {selected && (
                 <span
-                    className={`
-            mt-0.5 text-[9px] leading-none font-bold
-            ${getTileTextClass(tile)}
-          `}
-                >
-          {display.sub}
-        </span>
-            )}
-
-            {isRedDoraTile(tile) && (
-                <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+                    aria-hidden="true"
+                    className="
+            pointer-events-none absolute inset-0
+            rounded-md ring-2 ring-blue-500
+            ring-offset-1 ring-offset-background
+          "
+                />
             )}
 
             {removable && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black leading-none text-white shadow">
+                <span
+                    aria-hidden="true"
+                    className="
+            absolute -right-1.5 -top-1.5
+            z-10 flex h-4 w-4
+            items-center justify-center
+            rounded-full bg-red-500
+            text-[10px] font-black
+            leading-none text-white shadow
+          "
+                >
           ×
         </span>
             )}
         </div>
     );
 
-    if (!onClick && !onRemove) {
+    if (!isInteractive) {
         return (
             <div
-                title={showLabel ? label : undefined}
-                aria-label={label}
+                title={
+                    showLabel
+                        ? label
+                        : undefined
+                }
+                aria-label={
+                    hidden
+                        ? "뒤집힌 패"
+                        : label
+                }
                 className="shrink-0"
             >
                 {content}
@@ -190,27 +225,30 @@ export default function MahjongTile({
         );
     }
 
-    const handleClick: ButtonHTMLAttributes<HTMLButtonElement>["onClick"] = (
-        event,
-    ) => {
-        event.preventDefault();
+    const handleClick: ButtonHTMLAttributes<HTMLButtonElement>["onClick"] =
+        (event) => {
+            event.preventDefault();
 
-        if (disabled) {
-            return;
-        }
+            if (disabled) {
+                return;
+            }
 
-        if (onRemove) {
-            onRemove();
-            return;
-        }
+            if (onRemove) {
+                onRemove();
+                return;
+            }
 
-        onClick?.();
-    };
+            onClick?.();
+        };
 
     return (
         <button
             type="button"
-            title={showLabel ? label : undefined}
+            title={
+                showLabel
+                    ? label
+                    : undefined
+            }
             aria-label={
                 removable
                     ? `${label} 제거`
