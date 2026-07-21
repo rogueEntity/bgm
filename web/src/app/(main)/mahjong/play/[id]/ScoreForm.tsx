@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useEffect, useState, } from "react";
+import React, { useEffect, useMemo, useState, } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -306,6 +306,22 @@ export default function ScoreForm({
       isTsumo: false,
     }),
   ]);
+
+  const handScoreResults = useMemo(
+      () =>
+          wins.map((win) => {
+            if (
+                win.input_mode !== "HAND"
+            ) {
+              return null;
+            }
+
+            return calculateMahjongHandDraftScore(
+                win.hand,
+            );
+          }),
+      [wins],
+  );
 
   const [
     chomboPlayerKey,
@@ -1559,7 +1575,7 @@ export default function ScoreForm({
     }
 
     const invalidHandInputWin =
-        wins.some((win) => {
+        wins.some((win, index) => {
           if (
               win.input_mode !== "HAND"
           ) {
@@ -1567,9 +1583,7 @@ export default function ScoreForm({
           }
 
           const result =
-              calculateMahjongHandDraftScore(
-                  win.hand,
-              );
+              handScoreResults[index];
 
           return (
               result === null ||
@@ -2049,11 +2063,7 @@ export default function ScoreForm({
                         );
 
                     const handScoreResult =
-                        win.input_mode === "HAND"
-                            ? calculateMahjongHandDraftScore(
-                                win.hand,
-                            )
-                            : null;
+                        handScoreResults[index];
 
                     const fuOptions =
                         isChiitoitsuWin(
