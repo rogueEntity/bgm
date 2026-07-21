@@ -15,7 +15,16 @@ import {
   recordMahjongResult,
   recordRyuukyoku,
 } from "@/app/actions/mahjong.action";
-import type {MahjongChomboPenaltyRule} from "@/features/games/mahjong/types";
+import type {
+  MahjongChomboPenaltyRule,
+  MahjongWind,
+} from "@/features/games/mahjong/types";
+import MahjongHandInput from "@/components/mahjong/hand/MahjongHandInput";
+import type {
+  MahjongHandDraft,
+  MahjongWinInputMode,
+} from "@/features/games/mahjong/lib/hand/types";
+
 
 interface Player {
   name: string;
@@ -25,6 +34,10 @@ interface Player {
 
 type WinFormState = {
   winner_key: string;
+
+  input_mode: MahjongWinInputMode;
+  hand: MahjongHandDraft;
+
   is_mengen: boolean;
   dora_indicator: number;
   red_dora: number;
@@ -87,9 +100,105 @@ function getWindLabel(wind: string) {
   return "北";
 }
 
-function createDefaultWin(winnerKey: string): WinFormState {
+function getRoundWind(
+    currentRound: string,
+): MahjongWind {
+  if (currentRound.startsWith("SOUTH")) {
+    return "SOUTH";
+  }
+
+  if (currentRound.startsWith("WEST")) {
+    return "WEST";
+  }
+
+  if (currentRound.startsWith("NORTH")) {
+    return "NORTH";
+  }
+
+  return "EAST";
+}
+
+function toMahjongWind(wind: string): MahjongWind {
+  if (
+      wind === "EAST" ||
+      wind === "SOUTH" ||
+      wind === "WEST" ||
+      wind === "NORTH"
+  ) {
+    return wind;
+  }
+
+  return "EAST";
+}
+
+function createDefaultHandDraft({
+                                  winnerKey,
+                                  players,
+                                  currentRound,
+                                  isTsumo,
+                                }: {
+  winnerKey: string;
+  players: Player[];
+  currentRound: string;
+  isTsumo: boolean;
+}): MahjongHandDraft {
+  const winner = players.find(
+      (player) => player.stateKey === winnerKey,
+  );
+
+  return {
+    concealed_tiles: [],
+    winning_tile: null,
+    melds: [],
+
+    dora_indicators: [],
+    ura_dora_indicators: [],
+
+    win_method: isTsumo ? "TSUMO" : "RON",
+    round_wind: getRoundWind(currentRound),
+    seat_wind: toMahjongWind(
+        winner?.wind ?? "EAST",
+    ),
+
+    situation: {
+      riichi: false,
+      double_riichi: false,
+      ippatsu: false,
+
+      rinshan: false,
+      chankan: false,
+      haitei: false,
+      houtei: false,
+
+      tenhou: false,
+      chiihou: false,
+    },
+  };
+}
+
+function createDefaultWin({
+                            winnerKey,
+                            players,
+                            currentRound,
+                            isTsumo,
+                          }: {
+  winnerKey: string;
+  players: Player[];
+  currentRound: string;
+  isTsumo: boolean;
+}): WinFormState {
   return {
     winner_key: winnerKey,
+
+    input_mode: "YAKU_FU",
+
+    hand: createDefaultHandDraft({
+      winnerKey,
+      players,
+      currentRound,
+      isTsumo,
+    }),
+
     is_mengen: true,
     dora_indicator: 0,
     red_dora: 0,
@@ -143,7 +252,12 @@ export default function ScoreForm({
   const [isTsumo, setIsTsumo] = useState(false);
   const [loserKey, setLoserKey] = useState(secondPlayerKey);
   const [wins, setWins] = useState<WinFormState[]>([
-    createDefaultWin(firstPlayerKey),
+    createDefaultWin({
+      winnerKey: firstPlayerKey,
+      players,
+      currentRound,
+      isTsumo: false,
+    }),
   ]);
   const [chomboPlayerKey, setChomboPlayerKey] = useState(firstPlayerKey);
   const [
@@ -271,6 +385,13 @@ export default function ScoreForm({
         return {
           ...win,
           winner_key: replacement.stateKey,
+
+          hand: {
+            ...win.hand,
+            seat_wind: toMahjongWind(
+                replacement.wind,
+            ),
+          },
         };
       });
     });
@@ -298,7 +419,16 @@ export default function ScoreForm({
       return;
     }
 
-    setWins((prev) => [...prev, createDefaultWin(nextPlayer.stateKey)]);
+    setWins((prev) => [
+      ...prev,
+
+      createDefaultWin({
+        winnerKey: nextPlayer.stateKey,
+        players,
+        currentRound,
+        isTsumo: false,
+      }),
+    ]);
   };
 
   const removeRonWinner = (index: number) => {
@@ -315,24 +445,43 @@ export default function ScoreForm({
     setWins((prev) => {
       const nextWins = nextIsTsumo ? [prev[0]] : prev;
 
-      return nextWins.map((win) => ({
+      return {
         ...win,
-        selected_yaku_ids: win.selected_yaku_ids.filter((id) => {
-          const yaku = ALL_YAKU.find((item) => item.id === id);
 
-          if (!yaku) return false;
+        hand: {
+          ...win.hand,
+          win_method: nextIsTsumo
+              ? "TSUMO"
+              : "RON",
+        },
 
-          if (nextIsTsumo && RON_ONLY_YAKU_NAMES.includes(yaku.name)) {
-            return false;
-          }
+        selected_yaku_ids:
+            win.selected_yaku_ids.filter((id) => {
+              const yaku = ALL_YAKU.find(
+                  (item) => item.id === id,
+              );
 
-          if (!nextIsTsumo && TSUMO_ONLY_YAKU_NAMES.includes(yaku.name)) {
-            return false;
-          }
+              if (!yaku) {
+                return false;
+              }
 
-          return true;
-        }),
-      }));
+              if (
+                  nextIsTsumo &&
+                  RON_ONLY_YAKU_NAMES.includes(yaku.name)
+              ) {
+                return false;
+              }
+
+              if (
+                  !nextIsTsumo &&
+                  TSUMO_ONLY_YAKU_NAMES.includes(yaku.name)
+              ) {
+                return false;
+              }
+
+              return true;
+            }),
+      };
     });
   };
 
@@ -1031,8 +1180,23 @@ export default function ScoreForm({
 
                   {renderPlayerSelectButtons({
                     value: win.winner_key,
-                    onChange: (stateKey) =>
-                      updateWin(index, { winner_key: stateKey }),
+                    onChange: (stateKey) => {
+                      const nextWinner = players.find(
+                          (player) => player.stateKey === stateKey,
+                      );
+
+                      updateWin(index, {
+                        winner_key: stateKey,
+
+                        hand: {
+                          ...win.hand,
+
+                          seat_wind: toMahjongWind(
+                              nextWinner?.wind ?? "EAST",
+                          ),
+                        },
+                      });
+                    },
                     disabledKeys: disabledWinnerKeys,
                   })}
                 </div>
@@ -1626,34 +1790,56 @@ export default function ScoreForm({
             </section>
 
             <section className="space-y-2">
-              <p className="font-bold">
-                이번 국 리치 선언
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold">
+                  점수 입력 방식
+                </h4>
 
-                <span className="ml-1 text-xs font-normal text-foreground/50">
-                  (촌보 처리 시 모두 취소되고 리치봉은 공탁에 남음)
+                <span className="text-[11px] text-foreground/45">
+                  화료자별로 선택
                 </span>
-              </p>
+              </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {players.map((player) => {
-                  const isRiichi = currentRiichiKeys.includes(player.stateKey);
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={() => {
+                      updateWin(index, {
+                        input_mode: "YAKU_FU",
+                      });
+                    }}
+                    className={`
+                      rounded-xl border px-3 py-3
+                      text-sm font-bold transition-colors
+                      ${
+                        win.input_mode === "YAKU_FU"
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-foreground/10 bg-foreground/5"
+                      }
+                    `}
+                >
+                  역·부수 직접 선택
+                </button>
 
-                  return (
-                      <button
-                          key={player.stateKey}
-                          type="button"
-                          onClick={() => toggleRiichiPlayer(player.stateKey)}
-                          className={`flex flex-col items-center justify-center gap-1 rounded-lg border py-2 text-xs font-bold transition-all ${
-                              isRiichi
-                                  ? "border-red-500 bg-red-500 text-white"
-                                  : "border-foreground/10 bg-white opacity-70 hover:opacity-100 dark:bg-background"
-                          }`}
-                      >
-                        <span>{getWindLabel(player.wind)}</span>
-                        <span>{player.name}</span>
-                      </button>
-                  );
-                })}
+                <button
+                    type="button"
+                    onClick={() => {
+                      updateWin(index, {
+                        input_mode: "HAND",
+                      });
+                    }}
+                    className={`
+                      rounded-xl border px-3 py-3
+                      text-sm font-bold transition-colors
+                      ${
+                        win.input_mode === "HAND"
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-foreground/10 bg-foreground/5"
+                      }
+                    `}
+                >
+                  패 입력 자동 계산
+                </button>
               </div>
             </section>
 

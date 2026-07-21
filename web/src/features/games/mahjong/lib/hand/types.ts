@@ -110,6 +110,17 @@ export type MahjongHandSnapshot = {
     situation: MahjongHandSituation;
 };
 
+export type MahjongHandDraft = Omit<
+    MahjongHandSnapshot,
+    "winning_tile"
+> & {
+    /**
+     * UI 입력 중에는 아직 화료패가 선택되지 않을 수 있다.
+     * 서버에 기록하기 전에는 반드시 MahjongTileCode여야 한다.
+     */
+    winning_tile: MahjongTileCode | null;
+};
+
 export type MahjongHandValidationErrorCode =
     | "INVALID_TILE_CODE"
     | "TOO_MANY_SAME_TILE"
