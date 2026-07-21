@@ -20,7 +20,7 @@ type MahjongWinLog = {
     fu?: number | null;
     dora_total?: number;
     selected_yaku_ids?: string[];
-    is_mengen?: boolean;
+    is_menzen?: boolean;
 };
 
 type MahjongRoundLog = {
@@ -406,7 +406,7 @@ function getWinGraphFromLogs(logs: MahjongRoundLog[], userKeySet: Set<string>) {
                 riichiAgariCount += 1;
             }
 
-            if (win.is_mengen === false) {
+            if (win.is_menzen === false) {
                 openAgariCount += 1;
             }
         }

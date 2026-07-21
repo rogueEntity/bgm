@@ -6,7 +6,7 @@ import { getWindTurnDistance } from "./round";
 import type {
     MahjongPlayerState,
     MahjongScoreMap,
-    MahjongWinInput,
+    ResolvedMahjongWinInput,
     RecalculatedMahjongWin,
     YakuLike,
 } from "../types";
@@ -98,10 +98,10 @@ function isChiitoitsuWin(selectedYakuIds: string[]) {
 
 function getYakuHan({
                         yaku,
-                        isMengen,
+                        isMenzen,
                     }: {
     yaku: YakuLike;
-    isMengen: boolean;
+    isMenzen: boolean;
 }) {
     if (yaku.isYakuman) return 0;
 
@@ -112,7 +112,7 @@ function getYakuHan({
     }
 
     if (han && typeof han === "object") {
-        return isMengen ? han.closed ?? 0 : han.open ?? han.closed ?? 0;
+        return isMenzen ? han.closed ?? 0 : han.open ?? han.closed ?? 0;
     }
 
     return 0;
@@ -121,11 +121,11 @@ function getYakuHan({
 function getTotalHan({
                          selectedYakuIds,
                          doraTotal,
-                         isMengen,
+                         isMenzen,
                      }: {
     selectedYakuIds: string[];
     doraTotal: number;
-    isMengen: boolean;
+    isMenzen: boolean;
 }) {
     const yakuHan = selectedYakuIds.reduce((sum, yakuId) => {
         const yaku = ALL_YAKU.find((item) => item.id === yakuId);
@@ -134,7 +134,7 @@ function getTotalHan({
             return sum;
         }
 
-        return sum + getYakuHan({ yaku, isMengen });
+        return sum + getYakuHan({ yaku, isMenzen });
     }, 0);
 
     return yakuHan + doraTotal;
@@ -145,7 +145,7 @@ export function recalculateWins({
                                     players,
                                     is_tsumo,
                                 }: {
-    wins: MahjongWinInput[];
+    wins: ResolvedMahjongWinInput[];
     players: Record<string, MahjongPlayerState>;
     is_tsumo: boolean;
 }): RecalculatedMahjongWin[] {
@@ -160,7 +160,7 @@ export function recalculateWins({
         const han = getTotalHan({
             selectedYakuIds: win.selected_yaku_ids,
             doraTotal: win.dora_total,
-            isMengen: win.is_mengen !== false,
+            isMenzen: win.is_menzen !== false,
         });
 
         const effectiveFu =

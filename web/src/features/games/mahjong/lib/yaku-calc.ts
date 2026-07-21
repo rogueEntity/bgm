@@ -27,7 +27,7 @@ export function getValidatedYakuList(selectedIds: string[], newId: string): stri
 
 export function calculateTotalHan(
   selectedIds: string[],
-  isMengen: boolean,
+  isMenzen: boolean,
   doraCount: number
 ) {
   let totalHan = doraCount;
@@ -37,9 +37,9 @@ export function calculateTotalHan(
     if (!yaku) continue;
 
     // 멘젠 전용 역 체크 (멘젠이 아닌데 멘젠 전용인 경우 계산에서 제외)
-    if (!isMengen && yaku.isMengenOnly) continue;
+    if (!isMenzen && yaku.isMenzenOnly) continue;
 
-    const han = isMengen ? yaku.han.closed : yaku.han.open;
+    const han = isMenzen ? yaku.han.closed : yaku.han.open;
     totalHan += han;
   }
   return totalHan;

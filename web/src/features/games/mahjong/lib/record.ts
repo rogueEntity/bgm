@@ -17,6 +17,7 @@ import type {
     RecordMahjongChomboInput,
     RecordMahjongResultInput,
     RecordRyuukyokuInput,
+    ResolvedMahjongWinInput,
 } from "../types";
 
 function assertUniqueValues(values: string[], message: string) {
@@ -44,16 +45,20 @@ function getRoundWindIndex(round: string) {
 export function applyMahjongAgariResult({
                                             details,
                                             data,
+                                            resolvedWins,
                                         }: {
     details: MahjongDetails;
     data: RecordMahjongResultInput;
+    resolvedWins: ResolvedMahjongWinInput[];
 }) {
     const players = details.players;
+
     const currentRound = details.current_round;
+
     const currentHonba = details.honba || 0;
 
     const wins = recalculateWins({
-        wins: data.wins,
+        wins: resolvedWins,
         players,
         is_tsumo: data.is_tsumo,
     });

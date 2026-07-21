@@ -55,7 +55,7 @@
         {
           "winner_key": "user_00000000-0000-0000-0000-000000000001",
           "loser_key": "guest_지인B",
-          "is_mengen": true,
+          "is_menzen": true,
           "fu": 30,
           "base_score": 8000,
           "han": 5,

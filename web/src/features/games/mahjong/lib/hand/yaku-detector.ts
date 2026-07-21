@@ -88,7 +88,7 @@ function isOpenMeld(
     return meld.open;
 }
 
-function isMengenPattern(
+function isMenzenPattern(
     pattern: MahjongHandPattern,
 ) {
     if (pattern.type !== "STANDARD") {
@@ -241,17 +241,17 @@ function countConcealedTriplets({
 
 function detectSituationYaku({
                                  hand,
-                                 isMengen,
+                                 isMenzen,
                                  target,
                              }: {
     hand: MahjongHandSnapshot;
-    isMengen: boolean;
+    isMenzen: boolean;
     target: Set<string>;
 }) {
     const { situation } = hand;
 
     if (
-        isMengen &&
+        isMenzen &&
         situation.double_riichi
     ) {
         addDetectedYaku(
@@ -259,7 +259,7 @@ function detectSituationYaku({
             "double_riichi",
         );
     } else if (
-        isMengen &&
+        isMenzen &&
         situation.riichi
     ) {
         addDetectedYaku(
@@ -269,7 +269,7 @@ function detectSituationYaku({
     }
 
     if (
-        isMengen &&
+        isMenzen &&
         situation.ippatsu &&
         (
             situation.riichi ||
@@ -283,7 +283,7 @@ function detectSituationYaku({
     }
 
     if (
-        isMengen &&
+        isMenzen &&
         hand.win_method === "TSUMO"
     ) {
         addDetectedYaku(
@@ -514,15 +514,15 @@ function detectYakuhai({
 function detectPinfu({
                          hand,
                          pattern,
-                         isMengen,
+                         isMenzen,
                          target,
                      }: {
     hand: MahjongHandSnapshot;
     pattern: MahjongStandardHandPattern;
-    isMengen: boolean;
+    isMenzen: boolean;
     target: Set<string>;
 }) {
-    if (!isMengen) {
+    if (!isMenzen) {
         return false;
     }
 
@@ -565,14 +565,14 @@ function detectPinfu({
 
 function detectPeikou({
                           pattern,
-                          isMengen,
+                          isMenzen,
                           target,
                       }: {
     pattern: MahjongStandardHandPattern;
-    isMengen: boolean;
+    isMenzen: boolean;
     target: Set<string>;
 }) {
-    if (!isMengen) {
+    if (!isMenzen) {
         return;
     }
 
@@ -886,12 +886,12 @@ function detectKantsu({
 function detectAnkou({
                          hand,
                          pattern,
-                         isMengen,
+                         isMenzen,
                          target,
                      }: {
     hand: MahjongHandSnapshot;
     pattern: MahjongStandardHandPattern;
-    isMengen: boolean;
+    isMenzen: boolean;
     target: Set<string>;
 }) {
     const concealedTripletCount =
@@ -902,7 +902,7 @@ function detectAnkou({
 
     if (
         concealedTripletCount === 4 &&
-        isMengen
+        isMenzen
     ) {
         if (
             pattern.winning_group.type ===
@@ -1119,12 +1119,12 @@ function detectChuuren({
 function detectStandardYaku({
                                 hand,
                                 pattern,
-                                isMengen,
+                                isMenzen,
                                 target,
                             }: {
     hand: MahjongHandSnapshot;
     pattern: MahjongStandardHandPattern;
-    isMengen: boolean;
+    isMenzen: boolean;
     target: Set<string>;
 }) {
     detectYakuhai({
@@ -1136,13 +1136,13 @@ function detectStandardYaku({
     detectPinfu({
         hand,
         pattern,
-        isMengen,
+        isMenzen,
         target,
     });
 
     detectPeikou({
         pattern,
-        isMengen,
+        isMenzen,
         target,
     });
 
@@ -1179,7 +1179,7 @@ function detectStandardYaku({
     detectAnkou({
         hand,
         pattern,
-        isMengen,
+        isMenzen,
         target,
     });
 
@@ -1196,10 +1196,10 @@ function detectStandardYaku({
 
 function createDetectedYakuList({
                                     ids,
-                                    isMengen,
+                                    isMenzen,
                                 }: {
     ids: Set<string>;
-    isMengen: boolean;
+    isMenzen: boolean;
 }): MahjongDetectedYaku[] {
     return ALL_YAKU
         .filter(
@@ -1210,7 +1210,7 @@ function createDetectedYakuList({
             id: yaku.id,
             name: yaku.name,
 
-            han: isMengen
+            han: isMenzen
                 ? yaku.han.closed
                 : yaku.han.open,
 
@@ -1242,12 +1242,12 @@ export function detectMahjongPatternYaku({
     const target =
         new Set<string>();
 
-    const isMengen =
-        isMengenPattern(pattern);
+    const isMenzen =
+        isMenzenPattern(pattern);
 
     detectSituationYaku({
         hand,
-        isMengen,
+        isMenzen,
         target,
     });
 
@@ -1284,7 +1284,7 @@ export function detectMahjongPatternYaku({
         detectStandardYaku({
             hand,
             pattern,
-            isMengen,
+            isMenzen,
             target,
         });
     }
@@ -1297,7 +1297,7 @@ export function detectMahjongPatternYaku({
     let yaku =
         createDetectedYakuList({
             ids: target,
-            isMengen,
+            isMenzen,
         });
 
     const yakuman =
@@ -1347,7 +1347,7 @@ export function detectMahjongPatternYaku({
                     item.id === "pinfu",
             ),
         is_menzen:
-        isMengen,
+        isMenzen,
     };
 }
 

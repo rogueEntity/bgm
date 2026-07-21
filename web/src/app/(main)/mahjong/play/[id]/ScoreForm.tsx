@@ -51,7 +51,7 @@ type WinFormState = {
   input_mode: MahjongWinInputMode;
   hand: MahjongHandDraft;
 
-  is_mengen: boolean;
+  is_menzen: boolean;
   dora_indicator: number;
   red_dora: number;
   selected_yaku_ids: string[];
@@ -229,7 +229,7 @@ function createDefaultWin({
       isTsumo,
     }),
 
-    is_mengen: true,
+    is_menzen: true,
     dora_indicator: 0,
     red_dora: 0,
     selected_yaku_ids: [],
@@ -354,7 +354,7 @@ export default function ScoreForm({
 
     return calculateTotalHan(
         win.selected_yaku_ids,
-        win.is_mengen,
+        win.is_menzen,
         totalDora,
     );
   };
@@ -543,6 +543,11 @@ export default function ScoreForm({
             replacement.stateKey,
         );
 
+        const replacementIsRiichi =
+            currentRiichiKeys.includes(
+                replacement.stateKey,
+            );
+
         return {
           ...win,
 
@@ -551,10 +556,23 @@ export default function ScoreForm({
 
           hand: {
             ...win.hand,
+
             seat_wind:
                 toMahjongWind(
                     replacement.wind,
                 ),
+
+            situation: {
+              ...win.hand.situation,
+
+              riichi:
+              replacementIsRiichi,
+
+              double_riichi: false,
+              ippatsu: false,
+            },
+
+            ura_dora_indicators: [],
           },
         };
       });
@@ -684,7 +702,7 @@ export default function ScoreForm({
     });
   };
 
-  const toggleMengen = (
+  const toggleMenzen = (
       index: number,
   ) => {
     setWins((prev) =>
@@ -693,17 +711,17 @@ export default function ScoreForm({
             return win;
           }
 
-          const nextIsMengen =
-              !win.is_mengen;
+          const nextIsMenzen =
+              !win.is_menzen;
 
           return {
             ...win,
 
-            is_mengen:
-            nextIsMengen,
+            is_menzen:
+            nextIsMenzen,
 
             selected_yaku_ids:
-                nextIsMengen
+                nextIsMenzen
                     ? win.selected_yaku_ids
                     : win.selected_yaku_ids.filter(
                         (id) => {
@@ -715,7 +733,7 @@ export default function ScoreForm({
                               );
 
                           return (
-                              !yaku?.isMengenOnly
+                              !yaku?.isMenzenOnly
                           );
                         },
                     ),
@@ -753,8 +771,8 @@ export default function ScoreForm({
               );
 
           if (
-              !win.is_mengen &&
-              targetYaku.isMengenOnly &&
+              !win.is_menzen &&
+              targetYaku.isMenzenOnly &&
               !win.selected_yaku_ids.includes(
                   id,
               )
@@ -900,18 +918,64 @@ export default function ScoreForm({
   const toggleRiichiPlayer = (
       stateKey: string,
   ) => {
-    setCurrentRiichiKeys(
-        (prev) =>
-            prev.includes(stateKey)
-                ? prev.filter(
-                    (key) =>
-                        key !== stateKey,
-                )
-                : [
-                  ...prev,
-                  stateKey,
-                ],
-    );
+    setCurrentRiichiKeys((prev) => {
+      const nextIsRiichi =
+          !prev.includes(stateKey);
+
+      const nextKeys = nextIsRiichi
+          ? [...prev, stateKey]
+          : prev.filter(
+              (key) => key !== stateKey,
+          );
+
+      setWins((currentWins) =>
+          currentWins.map((win) => {
+            if (
+                win.winner_key !== stateKey
+            ) {
+              return win;
+            }
+
+            return {
+              ...win,
+
+              hand: {
+                ...win.hand,
+
+                situation: {
+                  ...win.hand.situation,
+
+                  riichi: nextIsRiichi,
+
+                  /**
+                   * 리치 선언을 해제하면
+                   * 더블 리치와 일발도 함께 해제한다.
+                   */
+                  double_riichi:
+                      nextIsRiichi
+                          ? win.hand.situation
+                              .double_riichi
+                          : false,
+
+                  ippatsu:
+                      nextIsRiichi
+                          ? win.hand.situation
+                              .ippatsu
+                          : false,
+                },
+
+                ura_dora_indicators:
+                    nextIsRiichi
+                        ? win.hand
+                            .ura_dora_indicators
+                        : [],
+              },
+            };
+          }),
+      );
+
+      return nextKeys;
+    });
   };
 
   const toggleTenpaiPlayer = (
@@ -1015,7 +1079,7 @@ export default function ScoreForm({
   const getDisabledStatus = (
       win: WinFormState,
       yName: string,
-      isMengenOnly:
+      isMenzenOnly:
           | boolean
           | undefined,
       isYakuman:
@@ -1036,8 +1100,8 @@ export default function ScoreForm({
         );
 
     return (
-        (!win.is_mengen &&
-            isMengenOnly) ||
+        (!win.is_menzen &&
+            isMenzenOnly) ||
         (winHasYakuman &&
             !isYakuman) ||
         (!isTsumo &&
@@ -1051,11 +1115,11 @@ export default function ScoreForm({
       win: WinFormState,
       yaku: Yaku,
   ) => {
-    if (win.is_mengen) {
+    if (win.is_menzen) {
       return yaku.han.closed;
     }
 
-    if (yaku.isMengenOnly) {
+    if (yaku.isMenzenOnly) {
       return yaku.han.closed;
     }
 
@@ -1494,21 +1558,36 @@ export default function ScoreForm({
       return;
     }
 
-    const unfinishedHandInputWin = wins.some(
-        (win) => win.input_mode === "HAND",
-    );
+    const invalidHandInputWin =
+        wins.some((win) => {
+          if (
+              win.input_mode !== "HAND"
+          ) {
+            return false;
+          }
 
-    if (unfinishedHandInputWin) {
+          const result =
+              calculateMahjongHandDraftScore(
+                  win.hand,
+              );
+
+          return (
+              result === null ||
+              !result.ok
+          );
+        });
+
+    if (invalidHandInputWin) {
       alert(
-          "패 입력 자동 계산 결과의 서버 기록 기능은 아직 연결 중입니다.\n" +
-          "현재는 역·부수 직접 선택 방식으로 기록해주세요.",
+          "패 입력 자동 계산을 완료할 수 없는 화료자가 있습니다.\n" +
+          "손패·화료패·부로·화료 상황을 확인해주세요.",
       );
 
       return;
     }
 
     const noYakuWin =
-        wins.some(
+        wins.find(
             (win) =>
                 win.input_mode ===
                 "YAKU_FU" &&
@@ -1564,12 +1643,15 @@ export default function ScoreForm({
     }
 
     const invalidCalculatedScoreWin =
-        wins.some(
-            (win) =>
-                !getCalculatedScore(
-                    win,
-                ),
-        );
+        wins.find((win) => {
+          if (
+              win.input_mode !== "YAKU_FU"
+          ) {
+            return false;
+          }
+
+          return !getCalculatedScore(win);
+        });
 
     if (
         invalidCalculatedScoreWin
@@ -1582,6 +1664,12 @@ export default function ScoreForm({
     }
 
     for (const win of wins) {
+      if (
+          win.input_mode === "HAND"
+      ) {
+        continue;
+      }
+
       const winHasYakuman =
           hasYakuman(win);
 
@@ -1590,13 +1678,15 @@ export default function ScoreForm({
       }
 
       const selectedYakuNames =
-          new Set(win.selected_yaku_ids.map(
-              (id) =>
-                  ALL_YAKU.find(
-                      (item) =>
-                          item.id === id,
-                  )?.name,
-          ));
+          new Set(
+              win.selected_yaku_ids.map(
+                  (id) =>
+                      ALL_YAKU.find(
+                          (item) =>
+                              item.id === id,
+                      )?.name,
+              ),
+          );
 
       const hasRiichiYaku =
           selectedYakuNames.has(
@@ -1628,7 +1718,7 @@ export default function ScoreForm({
       }
 
       if (
-          win.is_mengen &&
+          win.is_menzen &&
           isTsumo &&
           !selectedYakuNames.has(
               "멘젠쯔모",
@@ -1670,32 +1760,71 @@ export default function ScoreForm({
                 is_tsumo:
                 isTsumo,
 
-                wins: wins.map(
-                    (win) => ({
+                wins: wins.map((win) => {
+                  const winnerKey =
+                      win.winner_key;
+
+                  const loserKeyForWin =
+                      isTsumo
+                          ? null
+                          : loserKey;
+
+                  if (
+                      win.input_mode === "HAND"
+                  ) {
+                    if (!win.hand.winning_tile) {
+                      throw new Error(
+                          "화료패가 입력되지 않았습니다.",
+                      );
+                    }
+
+                    return {
+                      input_mode: "HAND" as const,
+
                       winner_key:
-                      win.winner_key,
+                      winnerKey,
 
                       loser_key:
-                          isTsumo
-                              ? null
-                              : loserKey,
+                      loserKeyForWin,
 
-                      is_mengen:
-                      win.is_mengen,
+                      hand: {
+                        ...win.hand,
 
-                      fu:
-                          getEffectiveFu(
-                              win,
-                          ),
+                        winning_tile:
+                        win.hand.winning_tile,
 
-                      dora_total:
-                          win.dora_indicator +
-                          win.red_dora,
+                        win_method:
+                            isTsumo
+                                ? "TSUMO"
+                                : "RON",
+                      },
+                    };
+                  }
 
-                      selected_yaku_ids:
-                      win.selected_yaku_ids,
-                    }),
-                ),
+                  return {
+                    input_mode:
+                        "YAKU_FU" as const,
+
+                    winner_key:
+                    winnerKey,
+
+                    loser_key:
+                    loserKeyForWin,
+
+                    is_menzen:
+                    win.is_menzen,
+
+                    fu:
+                        getEffectiveFu(win),
+
+                    dora_total:
+                        win.dora_indicator +
+                        win.red_dora,
+
+                    selected_yaku_ids:
+                    win.selected_yaku_ids,
+                  };
+                }),
 
                 current_riichi_keys:
                 currentRiichiKeys,
@@ -1760,7 +1889,9 @@ export default function ScoreForm({
       console.error(error);
 
       alert(
-          "기록 실패!",
+          error instanceof Error
+              ? error.message
+              : "기록 실패!",
       );
     } finally {
       setIsSubmitting(false);
@@ -2013,23 +2144,47 @@ export default function ScoreForm({
                                                     stateKey,
                                             );
 
-                                        updateWin(
-                                            index,
-                                            {
-                                              winner_key:
-                                              stateKey,
+                                        const nextWinnerIsRiichi =
+                                            currentRiichiKeys.includes(
+                                                stateKey,
+                                            );
 
-                                              hand: {
-                                                ...win.hand,
+                                        updateWin(index, {
+                                          winner_key: stateKey,
 
-                                                seat_wind:
-                                                    toMahjongWind(
-                                                        nextWinner?.wind ??
-                                                        "EAST",
-                                                    ),
-                                              },
+                                          hand: {
+                                            ...win.hand,
+
+                                            seat_wind: toMahjongWind(
+                                                nextWinner?.wind ?? "EAST",
+                                            ),
+
+                                            situation: {
+                                              ...win.hand.situation,
+
+                                              riichi:
+                                              nextWinnerIsRiichi,
+
+                                              double_riichi:
+                                                  nextWinnerIsRiichi
+                                                      ? win.hand.situation
+                                                          .double_riichi
+                                                      : false,
+
+                                              ippatsu:
+                                                  nextWinnerIsRiichi
+                                                      ? win.hand.situation
+                                                          .ippatsu
+                                                      : false,
                                             },
-                                        );
+
+                                            ura_dora_indicators:
+                                                nextWinnerIsRiichi
+                                                    ? win.hand
+                                                        .ura_dora_indicators
+                                                    : [],
+                                          },
+                                        });
                                       },
 
                                   disabledKeys:
@@ -2106,17 +2261,17 @@ export default function ScoreForm({
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        toggleMengen(
+                                        toggleMenzen(
                                             index,
                                         )
                                     }
                                     className={`w-full rounded-xl border py-2 font-bold transition-colors ${
-                                        win.is_mengen
+                                        win.is_menzen
                                             ? "border-blue-600 bg-blue-600 text-white"
                                             : "border-foreground/10 bg-foreground/5"
                                     }`}
                                 >
-                                  {win.is_mengen
+                                  {win.is_menzen
                                       ? "멘젠 상태"
                                       : "후로 상태"}
                                 </button>
@@ -2217,7 +2372,7 @@ export default function ScoreForm({
                                                 getDisabledStatus(
                                                     win,
                                                     yaku.name,
-                                                    yaku.isMengenOnly,
+                                                    yaku.isMenzenOnly,
                                                     yaku.isYakuman,
                                                 );
 
@@ -2308,7 +2463,7 @@ export default function ScoreForm({
                                                             getDisabledStatus(
                                                                 win,
                                                                 yaku.name,
-                                                                yaku.isMengenOnly,
+                                                                yaku.isMenzenOnly,
                                                                 yaku.isYakuman,
                                                             );
 
@@ -2478,6 +2633,233 @@ export default function ScoreForm({
                                   </p>
                                 </div>
 
+                                <section className="space-y-3 rounded-2xl border border-foreground/10 p-4">
+                                  <div>
+                                    <h4 className="text-sm font-bold">
+                                      화료 상황
+                                    </h4>
+
+                                    <p className="mt-1 text-[11px] text-foreground/50">
+                                      패 모양만으로 확인할 수 없는 상황역을 선택합니다.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            isSubmitting ||
+                                            !currentRiichiKeys.includes(
+                                                win.winner_key,
+                                            )
+                                        }
+                                        onClick={() => {
+                                          const nextDoubleRiichi =
+                                              !win.hand.situation
+                                                  .double_riichi;
+
+                                          updateWin(index, {
+                                            hand: {
+                                              ...win.hand,
+
+                                              situation: {
+                                                ...win.hand.situation,
+
+                                                riichi: true,
+
+                                                double_riichi:
+                                                nextDoubleRiichi,
+                                              },
+                                            },
+                                          });
+                                        }}
+                                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                                            win.hand.situation
+                                                .double_riichi
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : "border-foreground/10 bg-background"
+                                        }`}
+                                    >
+                                      더블 리치
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            isSubmitting ||
+                                            !(
+                                                win.hand.situation.riichi ||
+                                                win.hand.situation
+                                                    .double_riichi
+                                            )
+                                        }
+                                        onClick={() =>
+                                            updateWin(index, {
+                                              hand: {
+                                                ...win.hand,
+
+                                                situation: {
+                                                  ...win.hand.situation,
+
+                                                  ippatsu:
+                                                      !win.hand.situation
+                                                          .ippatsu,
+
+                                                  /**
+                                                   * 일발과 영상·창깡은
+                                                   * 동시에 성립하지 않는다.
+                                                   */
+                                                  rinshan: false,
+                                                  chankan: false,
+                                                },
+                                              },
+                                            })
+                                        }
+                                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                                            win.hand.situation.ippatsu
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : "border-foreground/10 bg-background"
+                                        }`}
+                                    >
+                                      일발
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            isSubmitting || !isTsumo
+                                        }
+                                        onClick={() =>
+                                            updateWin(index, {
+                                              hand: {
+                                                ...win.hand,
+
+                                                situation: {
+                                                  ...win.hand.situation,
+
+                                                  rinshan:
+                                                      !win.hand.situation
+                                                          .rinshan,
+
+                                                  chankan: false,
+                                                  ippatsu: false,
+                                                },
+                                              },
+                                            })
+                                        }
+                                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                                            win.hand.situation.rinshan
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : "border-foreground/10 bg-background"
+                                        }`}
+                                    >
+                                      영상개화
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            isSubmitting || isTsumo
+                                        }
+                                        onClick={() =>
+                                            updateWin(index, {
+                                              hand: {
+                                                ...win.hand,
+
+                                                situation: {
+                                                  ...win.hand.situation,
+
+                                                  chankan:
+                                                      !win.hand.situation
+                                                          .chankan,
+
+                                                  rinshan: false,
+                                                  ippatsu: false,
+                                                },
+                                              },
+                                            })
+                                        }
+                                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                                            win.hand.situation.chankan
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : "border-foreground/10 bg-background"
+                                        }`}
+                                    >
+                                      창깡
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            isSubmitting || !isTsumo
+                                        }
+                                        onClick={() =>
+                                            updateWin(index, {
+                                              hand: {
+                                                ...win.hand,
+
+                                                situation: {
+                                                  ...win.hand.situation,
+
+                                                  haitei:
+                                                      !win.hand.situation
+                                                          .haitei,
+
+                                                  houtei: false,
+                                                },
+                                              },
+                                            })
+                                        }
+                                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                                            win.hand.situation.haitei
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : "border-foreground/10 bg-background"
+                                        }`}
+                                    >
+                                      해저로월
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            isSubmitting || isTsumo
+                                        }
+                                        onClick={() =>
+                                            updateWin(index, {
+                                              hand: {
+                                                ...win.hand,
+
+                                                situation: {
+                                                  ...win.hand.situation,
+
+                                                  houtei:
+                                                      !win.hand.situation
+                                                          .houtei,
+
+                                                  haitei: false,
+                                                },
+                                              },
+                                            })
+                                        }
+                                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                                            win.hand.situation.houtei
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : "border-foreground/10 bg-background"
+                                        }`}
+                                    >
+                                      하저로어
+                                    </button>
+                                  </div>
+
+                                  {currentRiichiKeys.includes(
+                                      win.winner_key,
+                                  ) && (
+                                      <p className="text-[11px] text-blue-600 dark:text-blue-400">
+                                        이번 국 리치 선언이 반영되어 리치와 뒷도라 계산이 활성화됩니다.
+                                      </p>
+                                  )}
+                                </section>
+
                                 <MahjongHandInput
                                     value={win.hand}
                                     disabled={isSubmitting}
@@ -2486,7 +2868,7 @@ export default function ScoreForm({
                                         win.hand.situation.double_riichi
                                     }
                                     onChange={(hand) => {
-                                      const isMengen = !hand.melds.some(
+                                      const isMenzen = !hand.melds.some(
                                           (meld) =>
                                               meld.type === "CHI" ||
                                               meld.type === "PON" ||
@@ -2495,7 +2877,7 @@ export default function ScoreForm({
 
                                       updateWin(index, {
                                         hand,
-                                        is_mengen: isMengen,
+                                        is_menzen: isMenzen,
                                       });
                                     }}
                                 />
@@ -2503,14 +2885,6 @@ export default function ScoreForm({
                                 <MahjongHandResult
                                     result={handScoreResult}
                                 />
-
-                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3">
-                                  <p className="text-xs font-semibold leading-relaxed text-amber-700 dark:text-amber-400">
-                                    자동 계산 결과는 확인할 수 있지만, 서버 기록 기능은 아직
-                                    연결 중입니다. 실제 점수 기록은 역·부수 직접 선택 방식을
-                                    사용해주세요.
-                                  </p>
-                                </div>
                               </div>
                           )}
                         </div>

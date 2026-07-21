@@ -1,6 +1,10 @@
 // web/src/features/games/mahjong/types.ts
 
 import type { MatchStatus } from "../shared/types";
+import type {
+    MahjongHandSnapshot,
+    MahjongWinInputMode,
+} from "./lib/hand/types";
 
 export type GameMode = "동풍전" | "반장전" | "전장전";
 
@@ -45,15 +49,21 @@ export type MahjongChomboPenaltyRule =
 export type MahjongWinLog = {
     winner_key: string;
     loser_key?: string | null;
+
+    input_mode?: MahjongWinInputMode;
+    hand?: MahjongHandSnapshot;
+
     base_score: number;
     han: number;
     fu?: number | null;
+
     dora_total: number;
     selected_yaku_ids: string[];
+
     score_deltas?: MahjongScoreMap;
     yakuman_count?: number;
+
     is_menzen?: boolean;
-    is_mengen?: boolean;
 };
 
 export type MahjongRoundLog = {
@@ -111,18 +121,54 @@ export type MahjongExpectedStateInput = {
     expected_version: number;
 };
 
-export type MahjongWinInput = {
+type MahjongWinBaseInput = {
     winner_key: string;
     loser_key: string | null;
-    is_mengen?: boolean;
-    fu?: number | null;
+};
+
+export type MahjongYakuFuWinInput =
+    MahjongWinBaseInput & {
+    input_mode: "YAKU_FU";
+
+    is_menzen: boolean;
+    fu: number | null;
+
     dora_total: number;
     selected_yaku_ids: string[];
 };
 
-export type RecalculatedMahjongWin = MahjongWinInput & {
+export type MahjongHandWinInput =
+    MahjongWinBaseInput & {
+    input_mode: "HAND";
+    hand: MahjongHandSnapshot;
+};
+
+export type MahjongWinInput =
+    | MahjongYakuFuWinInput
+    | MahjongHandWinInput;
+
+/**
+ * 서버에서 HAND 입력을 재계산한 뒤
+ * 기존 점수 정산 로직에 넘기는 형태다.
+ */
+export type ResolvedMahjongWinInput =
+    MahjongWinBaseInput & {
+    input_mode: MahjongWinInputMode;
+
+    is_menzen: boolean;
+    fu: number | null;
+
+    dora_total: number;
+    selected_yaku_ids: string[];
+
+    hand?: MahjongHandSnapshot;
+};
+
+export type RecalculatedMahjongWin =
+    ResolvedMahjongWinInput & {
     base_score: number;
     han: number;
+    yakuman_count?: number;
     limit_name?: string;
     score_deltas?: MahjongScoreMap;
 };
@@ -227,7 +273,7 @@ export type MahjongWinLogForStats = {
     fu?: number | null;
     dora_total?: number;
     selected_yaku_ids?: string[];
-    is_mengen?: boolean;
+    is_menzen?: boolean;
 };
 
 export type MahjongLogForStats = {
