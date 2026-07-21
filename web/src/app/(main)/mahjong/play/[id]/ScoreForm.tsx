@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -32,6 +32,12 @@ import type {
   MahjongHandDraft,
   MahjongWinInputMode,
 } from "@/features/games/mahjong/lib/hand/types";
+
+import MahjongHandResult from "@/components/mahjong/hand/MahjongHandResult";
+
+import {
+  calculateMahjongHandDraftScore,
+} from "@/features/games/mahjong/lib/hand/hand-score-calculator";
 
 interface Player {
   name: string;

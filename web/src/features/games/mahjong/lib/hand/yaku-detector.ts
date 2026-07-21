@@ -82,23 +82,6 @@ function getAllHandTiles(
     ].map(normalizeRedFive);
 }
 
-function getPatternTiles(
-    pattern: MahjongHandPattern,
-): MahjongTileCode[] {
-    if (pattern.type === "KOKUSHI") {
-        return [];
-    }
-
-    if (pattern.type === "CHIITOITSU") {
-        return pattern.pairs.flat();
-    }
-
-    return [
-        ...pattern.pair,
-        ...pattern.melds.flatMap((meld) => meld.tiles),
-    ];
-}
-
 function isOpenMeld(
     meld: MahjongParsedMeld,
 ) {

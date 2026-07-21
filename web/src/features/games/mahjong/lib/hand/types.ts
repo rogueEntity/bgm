@@ -262,7 +262,7 @@ export type MahjongHandValidationResult =
     errors: MahjongHandValidationError[];
 };
 
-export type MahjongHandScoreResult = {
+export type MahjongHandScoreSummary = {
     selected_yaku_ids: string[];
 
     han: number;
@@ -396,3 +396,53 @@ export type MahjongPatternYakuResult = {
     is_pinfu: boolean;
     is_menzen: boolean;
 };
+
+export type MahjongCalculatedScore = ReturnType<
+    typeof import("../score").calculateMahjongScore
+>;
+
+export type MahjongHandScoreCandidate = {
+    pattern: MahjongHandPattern;
+
+    yaku: MahjongDetectedYaku[];
+    yaku_ids: string[];
+
+    yaku_han: number;
+    dora_count: number;
+    ura_dora_count: number;
+    red_dora_count: number;
+    total_han: number;
+
+    yakuman_count: number;
+
+    fu: MahjongFuCalculation;
+
+    score: MahjongCalculatedScore;
+
+    is_menzen: boolean;
+    is_pinfu: boolean;
+};
+
+export type MahjongHandScoreSuccess = {
+    ok: true;
+
+    hand: MahjongHandSnapshot;
+
+    best: MahjongHandScoreCandidate;
+    candidates: MahjongHandScoreCandidate[];
+};
+
+export type MahjongHandScoreFailureCode =
+    | "INVALID_HAND"
+    | "NO_YAKU"
+    | "SCORE_CALCULATION_FAILED";
+
+export type MahjongHandScoreFailure = {
+    ok: false;
+    code: MahjongHandScoreFailureCode;
+    message: string;
+};
+
+export type MahjongHandScoreResult =
+    | MahjongHandScoreSuccess
+    | MahjongHandScoreFailure;
