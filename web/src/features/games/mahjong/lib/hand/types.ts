@@ -280,3 +280,86 @@ export type MahjongHandScoreResult = {
 
     limit_name?: string;
 };
+
+export type MahjongWaitType =
+    | "RYANMEN"
+    | "KANCHAN"
+    | "PENCHAN"
+    | "TANKI"
+    | "SHANPON"
+    | "CHIITOITSU"
+    | "KOKUSHI_SINGLE"
+    | "KOKUSHI_THIRTEEN";
+
+export type MahjongWaitResult = {
+    type: MahjongWaitType;
+
+    /**
+     * 대기 형태로 추가되는 부수.
+     *
+     * - 간짱: 2부
+     * - 변짱: 2부
+     * - 단기: 2부
+     * - 나머지: 0부
+     */
+    fu: number;
+};
+
+export type MahjongFuReason =
+    | "BASE"
+    | "MENZEN_RON"
+    | "TSUMO"
+    | "PAIR_DRAGON"
+    | "PAIR_SEAT_WIND"
+    | "PAIR_ROUND_WIND"
+    | "WAIT_KANCHAN"
+    | "WAIT_PENCHAN"
+    | "WAIT_TANKI"
+    | "OPEN_SIMPLE_TRIPLET"
+    | "CLOSED_SIMPLE_TRIPLET"
+    | "OPEN_TERMINAL_HONOR_TRIPLET"
+    | "CLOSED_TERMINAL_HONOR_TRIPLET"
+    | "OPEN_SIMPLE_QUAD"
+    | "CLOSED_SIMPLE_QUAD"
+    | "OPEN_TERMINAL_HONOR_QUAD"
+    | "CLOSED_TERMINAL_HONOR_QUAD"
+    | "CHIITOITSU_FIXED"
+    | "OPEN_RON_MINIMUM"
+    | "ROUND_UP";
+
+export type MahjongFuItem = {
+    reason: MahjongFuReason;
+    label: string;
+    fu: number;
+};
+
+export type MahjongFuCalculation = {
+    /**
+     * 반올림 전 부수.
+     */
+    raw_fu: number;
+
+    /**
+     * 실제 점수 계산에 사용할 부수.
+     */
+    fu: number | null;
+
+    wait: MahjongWaitResult;
+
+    items: MahjongFuItem[];
+
+    /**
+     * 핑후 쯔모의 20부 고정 여부.
+     */
+    pinfu_tsumo: boolean;
+
+    /**
+     * 국사무쌍 등 부수 계산을 하지 않는 형태인지 여부.
+     */
+    not_applicable: boolean;
+};
+
+export type MahjongPatternFuResult = {
+    pattern: MahjongHandPattern;
+    calculation: MahjongFuCalculation;
+};
