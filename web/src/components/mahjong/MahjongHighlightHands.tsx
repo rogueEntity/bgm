@@ -148,11 +148,13 @@ function HighlightHandCard({
             </div>
 
             <div className="space-y-5 p-4">
-                <ReadonlyHand
-                    concealedTiles={highlight.hand.concealed_tiles}
-                    winningTile={highlight.hand.winning_tile}
-                    melds={highlight.hand.melds}
-                />
+                <div className="border-y border-border bg-foreground/[0.025] py-5">
+                    <ReadonlyHand
+                        concealedTiles={highlight.hand.concealed_tiles}
+                        winningTile={highlight.hand.winning_tile}
+                        melds={highlight.hand.melds}
+                    />
+                </div>
 
                 {highlight.yakuLabels.length > 0 ? (
                     <div>
@@ -212,43 +214,42 @@ function ReadonlyHand({
     melds: MahjongMeldSnapshot[];
 }>) {
     return (
-        <div>
-            <p className="mb-2 text-xs font-bold text-foreground/45">화료 패보</p>
+        <div className="overflow-x-auto px-4 pb-3 sm:px-5">
+            <div className="flex min-w-max items-end gap-4">
+                <div className="flex items-end gap-0.5">
+                    {concealedTiles.map((tile, index) => (
+                        <MahjongTile
+                            key={`concealed-${tile}-${index}`}
+                            tile={tile}
+                            size="md"
+                        />
+                    ))}
 
-            <div className="-mx-1 overflow-x-auto px-1 pb-2">
-                <div className="flex min-w-max items-end gap-3">
-                    <div className="flex items-end gap-0.5">
-                        {concealedTiles.map((tile, index) => (
+                    <div className="ml-3 flex flex-col items-center">
+            <span className="mb-1 text-[10px] font-black text-rose-500">
+              화료
+            </span>
+
+                        <div className="rounded-md ring-2 ring-rose-500/70 ring-offset-2 ring-offset-background">
                             <MahjongTile
-                                key={`concealed-${tile}-${index}`}
-                                tile={tile}
-                                size="sm"
+                                tile={winningTile}
+                                size="md"
                             />
-                        ))}
-
-                        <div className="ml-2 flex flex-col items-center">
-              <span className="mb-1 text-[10px] font-bold text-rose-500">
-                화료
-              </span>
-
-                            <div className="rounded-md ring-2 ring-rose-500/70 ring-offset-2 ring-offset-background">
-                                <MahjongTile tile={winningTile} size="sm" />
-                            </div>
                         </div>
                     </div>
-
-                    {melds.length > 0 ? (
-                        <div className="flex items-end gap-2">
-                            {melds.map((meld, index) => (
-                                <ReadonlyMeld
-                                    key={`${meld.type}-${index}`}
-                                    meld={meld}
-                                    index={index}
-                                />
-                            ))}
-                        </div>
-                    ) : null}
                 </div>
+
+                {melds.length > 0 ? (
+                    <div className="flex items-end gap-3">
+                        {melds.map((meld, index) => (
+                            <ReadonlyMeld
+                                key={`${meld.type}-${index}`}
+                                meld={meld}
+                                index={index}
+                            />
+                        ))}
+                    </div>
+                ) : null}
             </div>
         </div>
     );
