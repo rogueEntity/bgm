@@ -57,7 +57,7 @@ export type MahjongMeldSnapshot = {
     called_tile?: MahjongTileCode | null;
 
     /**
-     * 부로패를 버린 작사의 stateKey.
+     * 후로패를 버린 작사의 stateKey.
      *
      * 현재 단계에서는 선택값으로 두고,
      * 이후 전체 패보 확장 시 활용할 수 있다.
@@ -83,8 +83,8 @@ export type MahjongHandSnapshot = {
     /**
      * 화료패를 제외한 손패.
      *
-     * 부로가 없다면 일반적으로 13장이다.
-     * 부로 1개당 3장씩 줄어든다.
+     * 후로가 없다면 일반적으로 13장이다.
+     * 후로 1개당 3장씩 줄어든다.
      */
     concealed_tiles: MahjongTileCode[];
 
@@ -141,7 +141,7 @@ export type MahjongParsedMeld = {
     open: boolean;
 
     /**
-     * 원본 부로 종류.
+     * 원본 후로 종류.
      *
      * 손패에서 분해된 몸통이면 null이다.
      */

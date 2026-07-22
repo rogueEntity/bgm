@@ -149,7 +149,7 @@ export default function MahjongHandInput({
                 expectedConcealedTileCount
             ) {
                 setErrorMessage(
-                    `현재 부로 수 기준으로 손패는 ${expectedConcealedTileCount}장까지 입력할 수 있습니다.`,
+                    `현재 후로 수 기준으로 손패는 ${expectedConcealedTileCount}장까지 입력할 수 있습니다.`,
                 );
 
                 return;

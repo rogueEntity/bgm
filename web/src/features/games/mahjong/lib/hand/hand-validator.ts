@@ -32,14 +32,14 @@ function getMeldTileCount(meld: MahjongMeldSnapshot): number {
 /**
  * 손패 입력 칸에 들어가야 하는 패 수.
  *
- * 부로 0개: 화료패 제외 13장
- * 부로 1개: 화료패 제외 10장
- * 부로 2개: 화료패 제외 7장
- * 부로 3개: 화료패 제외 4장
- * 부로 4개: 화료패 제외 1장
+ * 후로 0개: 화료패 제외 13장
+ * 후로 1개: 화료패 제외 10장
+ * 후로 2개: 화료패 제외 7장
+ * 후로 3개: 화료패 제외 4장
+ * 후로 4개: 화료패 제외 1장
  *
  * 깡은 실제 패 수는 4장이지만 하나의 몸통으로 취급하기 때문에
- * 손패 입력 기대 수는 다른 부로와 동일하게 3장씩 감소한다.
+ * 손패 입력 기대 수는 다른 후로와 동일하게 3장씩 감소한다.
  */
 function getExpectedConcealedTileCount(
     meldCount: number,
@@ -317,7 +317,7 @@ export function validateMahjongHandSnapshot(
     if (hand.melds.length > 4) {
         errors.push({
             code: "INVALID_MELD_COUNT",
-            message: "부로와 깡은 합계 4개를 초과할 수 없습니다.",
+            message: "후로와 깡은 합계 4개를 초과할 수 없습니다.",
         });
     }
 
@@ -348,7 +348,7 @@ export function validateMahjongHandSnapshot(
         errors.push({
             code: "INVALID_CONCEALED_TILE_COUNT",
             message:
-                `현재 부로 ${hand.melds.length}개 기준으로 ` +
+                `현재 후로 ${hand.melds.length}개 기준으로 ` +
                 `화료패를 제외한 손패는 ${expectedConcealedTileCount}장이어야 합니다.`,
         });
     }

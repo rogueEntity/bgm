@@ -784,7 +784,7 @@ export function parseMahjongHand(
             code: "INVALID_TILE_COUNT",
 
             message:
-                `현재 부로 ${hand.melds.length}개 기준으로 ` +
+                `현재 후로 ${hand.melds.length}개 기준으로 ` +
                 `손패와 화료패의 합은 ${expectedClosedTileCount}장이어야 합니다.`,
         };
     }

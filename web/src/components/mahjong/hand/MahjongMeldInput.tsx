@@ -288,7 +288,7 @@ export default function MahjongMeldInput({
         <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
                 <div>
-                    <h4 className="text-sm font-bold">부로·깡</h4>
+                    <h4 className="text-sm font-bold">후로·깡</h4>
                     <p className="mt-0.5 text-[11px] text-foreground/50">
                         {melds.length}/{maxMeldCount}개
                     </p>
@@ -308,7 +308,7 @@ export default function MahjongMeldInput({
               disabled:cursor-not-allowed disabled:opacity-40
             "
                     >
-                        + 부로 추가
+                        + 후로 추가
                     </button>
                 )}
             </div>
@@ -497,7 +497,7 @@ export default function MahjongMeldInput({
                             onClick={saveDraft}
                             className="rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white"
                         >
-                            부로 추가
+                            후로 추가
                         </button>
                     </div>
                 </div>
