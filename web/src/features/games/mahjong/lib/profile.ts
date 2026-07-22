@@ -6,6 +6,7 @@ import { db } from "@/lib/prisma";
 import { BADGE_MAP } from "../constants/achievement-definitions";
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "../constants/yaku";
 import { MAHJONG_GAME_KEY } from "../constants";
+import type { MahjongHandSnapshot } from "./hand/types";
 
 type GameMode = "동풍전" | "반장전" | "전장전";
 
@@ -15,16 +16,22 @@ type StoredMahjongModeKey = Exclude<MahjongModeKey, "all">;
 type MahjongWinLog = {
     winner_key?: string;
     loser_key?: string | null;
+    input_mode?: "HAND" | "YAKU_FU";
+    hand?: MahjongHandSnapshot;
     base_score?: number;
     han?: number;
     fu?: number | null;
     dora_total?: number;
     selected_yaku_ids?: string[];
+    yakuman_count?: number;
     is_menzen?: boolean;
 };
 
 type MahjongRoundLog = {
+    timestamp?: string;
     type?: string;
+    round?: string;
+    honba?: number;
     is_tsumo?: boolean;
     wins?: MahjongWinLog[];
     riichi_declared_keys?: string[];
@@ -76,6 +83,24 @@ type SpecificMahjongStats = {
         modes?: Partial<Record<StoredMahjongModeKey, SpecificMahjongModeStats>>;
         yaku_counts?: Record<string, number>;
     };
+};
+
+export type MahjongHighlightHand = {
+    matchId: number;
+    logIndex: number;
+    winIndex: number;
+    playedAt: string;
+    round: string;
+    honba: number;
+    isTsumo: boolean;
+    baseScore: number;
+    han: number;
+    fu: number | null;
+    doraTotal: number;
+    yakumanCount: number;
+    selectedYakuIds: string[];
+    yakuLabels: string[];
+    hand: MahjongHandSnapshot;
 };
 
 export type MahjongPlayerProfileData = {
@@ -131,6 +156,8 @@ export type MahjongPlayerProfileData = {
         label: string;
         count: number;
     }[];
+
+    highlightHands: MahjongHighlightHand[];
 };
 
 export type MahjongModeDetailStats = {
@@ -548,6 +575,8 @@ export async function getMahjongPlayerProfile(
     const userKeySet = new Set<string>([userId, `user_${userId}`]);
     const allLogs: MahjongRoundLog[] = [];
     const yakuCountMap = new Map<string, number>();
+    const yakuLabelMap = getYakuLabelMap();
+    const highlightHandCandidates: MahjongHighlightHand[] = [];
 
     let doraTotal = 0;
     let agariCount = 0;
@@ -573,17 +602,22 @@ export async function getMahjongPlayerProfile(
 
         allLogs.push(...logs);
 
-        for (const log of logs) {
+        for (const [logIndex, log] of logs.entries()) {
             if (log.type !== "AGARI") continue;
 
-            for (const win of log.wins ?? []) {
-                if (!win.winner_key || !userKeySet.has(win.winner_key)) continue;
+            for (const [winIndex, win] of (log.wins ?? []).entries()) {
+                if (!win.winner_key || !userKeySet.has(win.winner_key)) {
+                    continue;
+                }
 
                 agariCount += 1;
                 doraTotal += toNumber(win.dora_total);
 
                 for (const yakuId of win.selected_yaku_ids ?? []) {
-                    yakuCountMap.set(yakuId, (yakuCountMap.get(yakuId) ?? 0) + 1);
+                    yakuCountMap.set(
+                        yakuId,
+                        (yakuCountMap.get(yakuId) ?? 0) + 1,
+                    );
 
                     if (yakuId === "ippatsu") {
                         ippatsuCount += 1;
@@ -598,6 +632,46 @@ export async function getMahjongPlayerProfile(
                         rareYakuCount += 1;
                     }
                 }
+
+                if (win.input_mode !== "HAND" || !win.hand) {
+                    continue;
+                }
+
+                const selectedYakuIds = Array.isArray(win.selected_yaku_ids)
+                    ? win.selected_yaku_ids
+                    : [];
+
+                highlightHandCandidates.push({
+                    matchId: matchPlayer.match_id,
+                    logIndex,
+                    winIndex,
+
+                    playedAt:
+                        log.timestamp ??
+                        matchPlayer.matches.play_date?.toISOString() ??
+                        new Date(0).toISOString(),
+
+                    round: log.round ?? "",
+                    honba: toNumber(log.honba),
+                    isTsumo: log.is_tsumo === true,
+
+                    baseScore: toNumber(win.base_score),
+                    han: toNumber(win.han),
+                    fu:
+                        win.fu === null || win.fu === undefined
+                            ? null
+                            : toNumber(win.fu),
+
+                    doraTotal: toNumber(win.dora_total),
+                    yakumanCount: toNumber(win.yakuman_count),
+
+                    selectedYakuIds,
+                    yakuLabels: selectedYakuIds.map(
+                        (yakuId) => yakuLabelMap.get(yakuId) ?? yakuId,
+                    ),
+
+                    hand: win.hand,
+                });
             }
         }
 
@@ -610,7 +684,30 @@ export async function getMahjongPlayerProfile(
         }
     }
 
-    const yakuLabelMap = getYakuLabelMap();
+    const highlightHands = highlightHandCandidates
+        .sort((a, b) => {
+            if (b.yakumanCount !== a.yakumanCount) {
+                return b.yakumanCount - a.yakumanCount;
+            }
+
+            if (b.han !== a.han) {
+                return b.han - a.han;
+            }
+
+            if (b.baseScore !== a.baseScore) {
+                return b.baseScore - a.baseScore;
+            }
+
+            if ((b.fu ?? 0) !== (a.fu ?? 0)) {
+                return (b.fu ?? 0) - (a.fu ?? 0);
+            }
+
+            return (
+                new Date(b.playedAt).getTime() -
+                new Date(a.playedAt).getTime()
+            );
+        })
+        .slice(0, 3);
 
     const storedYakuCountEntries = Object.entries(
         specificStats.mahjong?.yaku_counts ?? {},
@@ -695,12 +792,15 @@ export async function getMahjongPlayerProfile(
             avatarEmoji: user.avatar_emoji,
             avatarImageUrl: getAvatarImageUrl(user.avatar_image_key),
         },
+
         equippedBadges: equippedBadgeItems,
         headline: getHeadline(detailByMode.all, detailByMode.all.totalGames),
         mmr: stat?.mmr ?? 1500,
         totalScore: stat?.accumulated_score ?? 0,
+
         style,
         recentRanks,
+
         rankRates: {
             rank1: detailByMode.all.rank1Rate,
             rank2: detailByMode.all.rank2Rate,
@@ -708,8 +808,10 @@ export async function getMahjongPlayerProfile(
             rank4: detailByMode.all.rank4Rate,
             tobi: detailByMode.all.tobiRate,
         },
+
         winGraph,
         detailByMode,
         yakuCounts,
+        highlightHands,
     };
 }

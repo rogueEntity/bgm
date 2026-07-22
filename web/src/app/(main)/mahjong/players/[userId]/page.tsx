@@ -9,6 +9,7 @@ import {
 import React from "react";
 import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
+import MahjongHighlightHands from "@/components/mahjong/MahjongHighlightHands";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,6 +52,8 @@ export default async function MahjongPlayerProfilePage({
             </section>
 
             <MahjongPlayerHero profile={profile} />
+
+            <MahjongHighlightHands hands={profile.highlightHands} />
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <MahjongStyleCard style={profile.style} />
