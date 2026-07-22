@@ -1594,7 +1594,7 @@ export default function ScoreForm({
     if (invalidHandInputWin) {
       alert(
           "패 입력 자동 계산을 완료할 수 없는 화료자가 있습니다.\n" +
-          "손패·화료패·부로·화료 상황을 확인해주세요.",
+          "손패·화료패·후로·화료 상황을 확인해주세요.",
       );
 
       return;
@@ -2638,7 +2638,7 @@ export default function ScoreForm({
                                   </p>
 
                                   <p className="mt-1 text-xs leading-relaxed text-foreground/55">
-                                    손패·화료패·부로·도라 표시패를 입력하면 역과 부수를
+                                    손패·화료패·후로·도라 표시패를 입력하면 역과 부수를
                                     자동으로 계산합니다.
                                   </p>
                                 </div>
