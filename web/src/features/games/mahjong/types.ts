@@ -80,6 +80,11 @@ export type MahjongRoundLog = {
     riichi_keys?: string[];
     riichi_declared_keys?: string[];
 
+    /**
+     * 대국 종료 시 남은 공탁 리치봉을 받은 작사.
+     */
+    riichi_stick_receiver_key?: string;
+
     wins?: MahjongWinLog[];
 
     score_deltas?: MahjongScoreMap;

@@ -9,6 +9,7 @@ import {
     createEmptyScoreMap,
     getRiichiStickReceiverKey,
     recalculateWins,
+    settleFinalRiichiSticks,
 } from "./win";
 
 import type {
@@ -386,14 +387,6 @@ export function applyMahjongRyuukyokuResult({
         isOyaTenpai = true;
     }
 
-    const scoreDeltas: MahjongScoreMap = {};
-    const resultScores: MahjongScoreMap = {};
-
-    Object.keys(players).forEach((key) => {
-        scoreDeltas[key] = players[key].score - initialScores[key];
-        resultScores[key] = players[key].score;
-    });
-
     const oyaKey = Object.keys(players).find(
         (key) => players[key].wind === "EAST",
     ) as string;
@@ -461,6 +454,32 @@ export function applyMahjongRyuukyokuResult({
         details.honba = currentHonba;
     }
 
+    /*
+     * 유국으로 대국이 종료됐다면 남은 공탁 리치봉을
+     * 최종 1위에게 전부 지급한다.
+     *
+     * 종료 여부 판단은 노텐 벌부 정산 후,
+     * 공탁 리치봉 지급 전 점수를 기준으로 한다.
+     */
+    const riichiStickReceiverKey =
+        details.status === "FINISHED"
+            ? settleFinalRiichiSticks({
+                details,
+            })
+            : null;
+
+    /*
+     * 최종 공탁금 지급까지 끝난 뒤 점수 변동을 계산해야
+     * 로그와 실제 players 점수가 동일하게 남는다.
+     */
+    const scoreDeltas: MahjongScoreMap = {};
+    const resultScores: MahjongScoreMap = {};
+
+    Object.keys(players).forEach((key) => {
+        scoreDeltas[key] = players[key].score - initialScores[key];
+        resultScores[key] = players[key].score;
+    });
+
     const nagashiManganWinnerKeys = isNagashiMangan
         ? Array.from(new Set(data.nagashi_mangan_winner_keys ?? []))
         : [];
@@ -473,9 +492,14 @@ export function applyMahjongRyuukyokuResult({
         ryuukyoku_type: data.type,
         is_final: details.status === "FINISHED",
         forced_end: details.finish_reason === "FORCE_FINISH",
-        tenpai_keys: isExhaustive || isNagashiMangan ? data.tenpai_keys : [],
+        tenpai_keys:
+            isExhaustive || isNagashiMangan
+                ? data.tenpai_keys
+                : [],
         nagashi_mangan_winner_keys: nagashiManganWinnerKeys,
         riichi_keys: data.current_riichi_keys,
+        riichi_stick_receiver_key:
+            riichiStickReceiverKey ?? undefined,
         score_deltas: scoreDeltas,
         result_scores: resultScores,
     });

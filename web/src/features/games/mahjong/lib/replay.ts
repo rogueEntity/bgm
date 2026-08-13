@@ -13,6 +13,7 @@ import {
     createEmptyScoreMap,
     getRiichiStickReceiverKey,
     recalculateWins,
+    settleFinalRiichiSticks,
 } from "./win";
 import { getPlayerKeyFromMatchPlayer } from "./stats";
 import type {
@@ -484,16 +485,6 @@ function applyRyuukyokuLogForReplay(
         isOyaTenpai = true;
     }
 
-    const scoreDeltas: MahjongScoreMap = {};
-    const resultScores: MahjongScoreMap = {};
-
-    Object.keys(players).forEach((key) => {
-        scoreDeltas[key] =
-            players[key].score - initialScores[key];
-
-        resultScores[key] = players[key].score;
-    });
-
     const oyaKey = Object.keys(players).find(
         (key) => players[key].wind === "EAST",
     );
@@ -592,6 +583,29 @@ function applyRyuukyokuLogForReplay(
         details.honba = currentHonba;
     }
 
+    const savedRiichiStickReceiverKey =
+        typeof sourceLog.riichi_stick_receiver_key === "string"
+            ? sourceLog.riichi_stick_receiver_key
+            : null;
+
+    const riichiStickReceiverKey =
+        details.status === "FINISHED"
+            ? settleFinalRiichiSticks({
+                details,
+                receiverKey: savedRiichiStickReceiverKey,
+            })
+            : null;
+
+    const scoreDeltas: MahjongScoreMap = {};
+    const resultScores: MahjongScoreMap = {};
+
+    Object.keys(players).forEach((key) => {
+        scoreDeltas[key] =
+            players[key].score - initialScores[key];
+
+        resultScores[key] = players[key].score;
+    });
+
     details.logs.push({
         ...sourceLog,
         type: "RYUUKYOKU",
@@ -619,6 +633,8 @@ function applyRyuukyokuLogForReplay(
             )
             : [],
         riichi_keys: riichiKeys,
+        riichi_stick_receiver_key:
+            riichiStickReceiverKey ?? undefined,
         score_deltas: scoreDeltas,
         result_scores: resultScores,
     });

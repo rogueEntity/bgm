@@ -7,6 +7,7 @@ import {
 import { getWindTurnDistance } from "./round";
 
 import type {
+    MahjongDetails,
     MahjongPlayerState,
     MahjongScoreMap,
     MahjongWinLog,
@@ -94,6 +95,65 @@ export function getRiichiStickReceiverKey({
     });
 
     return sortedWins[0].winner_key;
+}
+
+/**
+ * 대국 종료 시 남아 있는 공탁 리치봉을 최종 1위에게 지급한다.
+ *
+ * 동점인 경우 최초 자리 순서가 빠른 작사를 우선한다.
+ * initial_players의 키 순서는 대국 생성 당시
+ * 동가 → 남가 → 서가 → 북가 순서다.
+ */
+export function settleFinalRiichiSticks({
+                                            details,
+                                            receiverKey,
+                                        }: {
+    details: MahjongDetails;
+    receiverKey?: string | null;
+}) {
+    const riichiStickCount = Math.max(
+        0,
+        Math.trunc(Number(details.riichi_sticks || 0)),
+    );
+
+    if (riichiStickCount === 0) {
+        details.riichi_sticks = 0;
+        return null;
+    }
+
+    const players = details.players;
+
+    const orderedPlayerKeys = Object.keys(
+        details.initial_players &&
+        Object.keys(details.initial_players).length > 0
+            ? details.initial_players
+            : players,
+    ).filter((playerKey) => Boolean(players[playerKey]));
+
+    if (orderedPlayerKeys.length === 0) {
+        throw new Error("공탁 리치봉을 받을 작사를 찾을 수 없습니다.");
+    }
+
+    const resolvedReceiverKey =
+        receiverKey && players[receiverKey]
+            ? receiverKey
+            : orderedPlayerKeys.reduce((leaderKey, playerKey) => {
+                const leaderScore = players[leaderKey].score;
+                const playerScore = players[playerKey].score;
+
+                /*
+                 * 점수가 같으면 기존 leaderKey를 유지한다.
+                 * 따라서 최초 자리 순서가 빠른 작사가 우선된다.
+                 */
+                return playerScore > leaderScore
+                    ? playerKey
+                    : leaderKey;
+            });
+
+    players[resolvedReceiverKey].score += riichiStickCount * 1000;
+    details.riichi_sticks = 0;
+
+    return resolvedReceiverKey;
 }
 
 export function getYakumanCount(selectedYakuIds: string[]) {
