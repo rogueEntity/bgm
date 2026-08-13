@@ -1,11 +1,15 @@
 // web/src/features/games/mahjong/lib/win.ts
 import { NORMAL_YAKU, SITUATIONAL_YAKU } from "../constants/yaku";
-import { calculateMahjongScore } from "./score";
+import {
+    calculateMahjongScore,
+    type MahjongLimitName,
+} from "./score";
 import { getWindTurnDistance } from "./round";
 
 import type {
     MahjongPlayerState,
     MahjongScoreMap,
+    MahjongWinLog,
     ResolvedMahjongWinInput,
     RecalculatedMahjongWin,
     YakuLike,
@@ -24,6 +28,23 @@ const CHIITOITSU_YAKU_NAMES = new Set([
     "치토이츠",
     "칠대자",
 ]);
+
+const LIMIT_RANK: Record<MahjongLimitName, number> = {
+    일반: 0,
+    만관: 1,
+    하네만: 2,
+    배만: 3,
+    삼배만: 4,
+    역만: 5,
+    더블역만: 5,
+    트리플역만: 5,
+    수역만: 5,
+};
+
+type MahjongWinLimitInput = Pick<
+    MahjongWinLog,
+    "han" | "fu" | "selected_yaku_ids" | "yakuman_count"
+>;
 
 export function createEmptyScoreMap(
     players: Record<string, MahjongPlayerState>,
@@ -75,7 +96,7 @@ export function getRiichiStickReceiverKey({
     return sortedWins[0].winner_key;
 }
 
-function getYakumanCount(selectedYakuIds: string[]) {
+export function getYakumanCount(selectedYakuIds: string[]) {
     return selectedYakuIds.reduce((sum, id) => {
         const yaku = ALL_YAKU.find((item) => item.id === id);
 
@@ -85,6 +106,56 @@ function getYakumanCount(selectedYakuIds: string[]) {
 
         return sum + (yaku.yakumanMultiplier ?? 1);
     }, 0);
+}
+
+export function getMahjongWinLimitName(
+    win: MahjongWinLimitInput,
+): MahjongLimitName {
+    const selectedYakuIds = Array.isArray(win.selected_yaku_ids)
+        ? win.selected_yaku_ids
+        : [];
+
+    const storedYakumanCount =
+        typeof win.yakuman_count === "number" &&
+        Number.isFinite(win.yakuman_count)
+            ? Math.max(0, Math.trunc(win.yakuman_count))
+            : 0;
+
+    const selectedYakumanCount = getYakumanCount(selectedYakuIds);
+
+    // 저장된 값과 선택된 역에서 계산한 값은 같은 의미이므로
+    // 합산하지 않고 더 신뢰할 수 있는 큰 값을 사용한다.
+    const yakumanCount = Math.max(
+        storedYakumanCount,
+        selectedYakumanCount,
+    );
+
+    const han =
+        typeof win.han === "number" && Number.isFinite(win.han)
+            ? Math.max(1, Math.trunc(win.han))
+            : 1;
+
+    const fu =
+        typeof win.fu === "number" && Number.isFinite(win.fu)
+            ? win.fu
+            : 30;
+
+    return calculateMahjongScore({
+        han,
+        fu,
+        isDealer: false,
+        isTsumo: false,
+        yakumanCount,
+    }).limitName;
+}
+
+export function isMahjongWinAtLeast(
+    win: MahjongWinLimitInput,
+    minimum: "만관" | "하네만" | "배만" | "역만",
+) {
+    const limitName = getMahjongWinLimitName(win);
+
+    return LIMIT_RANK[limitName] >= LIMIT_RANK[minimum];
 }
 
 function isChiitoitsuWin(selectedYakuIds: string[]) {
@@ -183,6 +254,7 @@ export function recalculateWins({
             base_score: calculatedScore.totalScore,
             han,
             fu: effectiveFu,
+            yakuman_count: yakumanCount,
             limit_name: calculatedScore.limitName,
         };
     });

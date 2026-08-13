@@ -4,6 +4,7 @@ import { db } from "@/lib/prisma";
 
 import { AchievementDefinitions } from "../constants/achievement-definitions";
 import { MAHJONG_GAME_KEY } from "../constants";
+import { isMahjongWinAtLeast } from "./win";
 import type {
   MahjongDetails,
   MahjongRoundLog,
@@ -213,51 +214,20 @@ function getRankByScores(scores: Record<string, number>) {
   }, {});
 }
 
-function getBaseScore(win: MahjongWinLog) {
-  return win.base_score;
-}
-
 function isYakuman(win: MahjongWinLog) {
-  if ((win.yakuman_count ?? 0) > 0) return true;
-
-  const baseScore = getBaseScore(win);
-
-  if (baseScore >= 8000) return true;
-
-  return win.selected_yaku_ids.some((yakuId) => yakuId.includes("yakuman"));
+  return isMahjongWinAtLeast(win, "역만");
 }
 
 function isManganOrHigher(win: MahjongWinLog) {
-  if (isYakuman(win)) return true;
-
-  const baseScore = getBaseScore(win);
-
-  if (baseScore >= 2000) return true;
-
-  const han = win.han;
-  const fu = win.fu ?? 0;
-
-  return han >= 5 || (han === 4 && fu >= 40) || (han === 3 && fu >= 70);
+  return isMahjongWinAtLeast(win, "만관");
 }
 
 function isHanemanOrHigher(win: MahjongWinLog) {
-  if (isYakuman(win)) return true;
-
-  const baseScore = getBaseScore(win);
-
-  if (baseScore >= 3000) return true;
-
-  return win.han >= 6;
+  return isMahjongWinAtLeast(win, "하네만");
 }
 
 function isBaimanOrHigher(win: MahjongWinLog) {
-  if (isYakuman(win)) return true;
-
-  const baseScore = getBaseScore(win);
-
-  if (baseScore >= 4000) return true;
-
-  return win.han >= 8;
+  return isMahjongWinAtLeast(win, "배만");
 }
 
 function addYakuCounts(

@@ -8,6 +8,7 @@ import { AchievementDefinitions } from "../constants/achievement-definitions";
 import type { MahjongRoundLog, MahjongWinLog } from "../types";
 import { normalizeDetails } from "./details";
 import { MAHJONG_GAME_KEY } from "../constants";
+import { isMahjongWinAtLeast } from "./win";
 
 const USER_PLAYER_KEY_PREFIX = "user_";
 
@@ -31,19 +32,19 @@ const ROUND_NAME_MAP: Record<string, string> = {
 };
 
 const YAKUMAN_LABEL_MAP: Record<string, string> = {
-    kokushi_musou: "국사무쌍",
-    kokushi_musou_13_wait: "국사무쌍 13면대기",
-    suuankou: "사암각",
-    suuankou_tanki: "사암각 단기",
+    kokushi: "국사무쌍",
+    kokushi_13_wait: "국사무쌍 13면 대기",
+    suuankou: "스안커",
+    suuankou_tanki: "스안커 단기",
     daisangen: "대삼원",
-    shousuushii: "소사희",
-    daisuushii: "대사희",
+    shousuushi: "소사희",
+    daisuushi: "대사희",
     tsuuiisou: "자일색",
     ryuuiisou: "녹일색",
     chinroutou: "청노두",
-    chuuren_poutou: "구련보등",
-    junsei_chuuren_poutou: "순정구련보등",
-    suukantsu: "사깡쯔",
+    chuurenpoutou: "구련보등",
+    junsei_chuurenpoutou: "순정구련보등",
+    suukantsu: "스깡쯔",
     tenhou: "천화",
     chiihou: "지화",
 };
@@ -71,12 +72,7 @@ function getWins(log: MahjongRoundLog): MahjongWinLog[] {
 }
 
 function isYakuman(win: MahjongWinLog) {
-    if ((win.yakuman_count ?? 0) > 0) return true;
-    if (win.base_score >= 8000) return true;
-
-    return win.selected_yaku_ids.some((yakuId) => {
-        return yakuId.includes("yakuman") || YAKUMAN_LABEL_MAP[yakuId];
-    });
+    return isMahjongWinAtLeast(win, "역만");
 }
 
 function getYakumanLabel(selectedYakuIds: string[]) {
