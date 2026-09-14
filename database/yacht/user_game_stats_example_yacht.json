@@ -1,0 +1,15 @@
+{
+  "id": 3,
+  "user_id": "00000000-0000-0000-0000-000000000001",
+  "game_id": 3,
+  "play_count": 5,
+  "accumulated_score": 1100,
+  "average_rank": 1.8,
+  "mmr": 1500,
+  "specific_stats": {
+    "schema_version": 1,
+    "yacht": {
+      "best_score": 280
+    }
+  }
+}

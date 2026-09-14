@@ -1,6 +1,15 @@
 import type { MatchStatus } from "../shared/types";
 import type { YachtCategory } from "./constants";
 
+export type YachtSpecificStats = {
+  best_score: number;
+};
+
+export type YachtUserGameSpecificStats = {
+  schema_version: 1;
+  yacht: YachtSpecificStats;
+};
+
 export type YachtPlayer = {
   name: string;
   seat_order: number;

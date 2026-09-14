@@ -97,7 +97,7 @@ export default async function YachtDashboardPage() {
       </section>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {[
-          { icon: "🏆", label: "랭킹" },
+          { icon: "🏆", label: "랭킹", href: "/yacht/ranking" },
           { icon: "📜", label: "게임 기록", href: "/yacht/matches" },
           { icon: "🧑‍💼", label: "플레이어 정보" },
           { icon: "🎖️", label: "도전과제" },

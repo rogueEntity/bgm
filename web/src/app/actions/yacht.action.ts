@@ -18,6 +18,7 @@ import {
   isValidYachtScore,
   isYachtCategory,
 } from "@/features/games/yacht/scoring";
+import { lockYachtStats, syncYachtMatchUserStats } from "@/features/games/yacht/stats";
 import type { YachtMatchDetails } from "@/features/games/yacht/types";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 import { db } from "@/lib/prisma";
@@ -361,6 +362,7 @@ export async function completeYachtMatch(
   };
 
   await db.$transaction(async (tx) => {
+    await lockYachtStats(tx, match.game_id);
     const result = await tx.match_details.updateMany({
       where: { match_id: match.id, version: input.expectedVersion },
       data: {
@@ -396,10 +398,12 @@ export async function completeYachtMatch(
       previousScore = player.total;
       previousRank = rank;
     }
+    await syncYachtMatchUserStats(tx, match.game_id, match.id);
   });
 
   revalidatePath("/yacht");
   revalidatePath("/yacht/matches");
+  revalidatePath("/yacht/ranking");
   revalidatePath(`/yacht/play/${input.matchId}`);
   revalidatePath(`/yacht/detail/${input.matchId}`);
 
@@ -433,6 +437,7 @@ export async function deleteYachtMatch(matchId: number): Promise<void> {
   };
 
   await db.$transaction(async (tx) => {
+    await lockYachtStats(tx, match.game_id);
     await tx.match_details.update({
       where: { match_id: matchId },
       data: {
@@ -451,11 +456,13 @@ export async function deleteYachtMatch(matchId: number): Promise<void> {
       where: { match_id: matchId },
       data: { final_score: null, rank: null },
     });
+    await syncYachtMatchUserStats(tx, match.game_id, matchId);
   });
 
   revalidatePath("/");
   revalidatePath("/yacht");
   revalidatePath("/yacht/matches");
+  revalidatePath("/yacht/ranking");
   revalidatePath(`/yacht/play/${matchId}`);
   revalidatePath(`/yacht/detail/${matchId}`);
 }
