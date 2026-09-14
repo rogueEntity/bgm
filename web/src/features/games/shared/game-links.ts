@@ -26,5 +26,11 @@ export function getMatchHrefByGameKey(
             : `/tichu/detail/${matchId}`;
     }
 
+    if (gameKey === "yacht") {
+        return status === "PLAYING"
+            ? `/yacht/play/${matchId}`
+            : `/yacht/detail/${matchId}`;
+    }
+
     return null;
 }
