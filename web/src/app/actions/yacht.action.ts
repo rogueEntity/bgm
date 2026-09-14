@@ -404,6 +404,7 @@ export async function completeYachtMatch(
   revalidatePath("/yacht");
   revalidatePath("/yacht/matches");
   revalidatePath("/yacht/ranking");
+  revalidatePath("/yacht/players/[userId]", "page");
   revalidatePath(`/yacht/play/${input.matchId}`);
   revalidatePath(`/yacht/detail/${input.matchId}`);
 
@@ -463,6 +464,7 @@ export async function deleteYachtMatch(matchId: number): Promise<void> {
   revalidatePath("/yacht");
   revalidatePath("/yacht/matches");
   revalidatePath("/yacht/ranking");
+  revalidatePath("/yacht/players/[userId]", "page");
   revalidatePath(`/yacht/play/${matchId}`);
   revalidatePath(`/yacht/detail/${matchId}`);
 }
