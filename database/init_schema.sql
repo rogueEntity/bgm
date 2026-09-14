@@ -502,4 +502,12 @@ VALUES
         4,
         4,
         true
+    ),
+    (
+        'yacht',
+        '야찌 다이스',
+        'Yacht Dice',
+        1,
+        6,
+        true
     );
