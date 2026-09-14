@@ -168,6 +168,7 @@ export async function createYachtMatch(
   });
 
   revalidatePath("/yacht");
+  revalidatePath("/yacht/matches");
   redirect(`/yacht/play/${newMatch.id}`);
 }
 
@@ -241,6 +242,7 @@ export async function recordYachtScore(
   }
 
   revalidatePath("/yacht");
+  revalidatePath("/yacht/matches");
   revalidatePath(`/yacht/play/${input.matchId}`);
 }
 
@@ -325,6 +327,7 @@ export async function recordAdditionalYacht(
   }
 
   revalidatePath("/yacht");
+  revalidatePath("/yacht/matches");
   revalidatePath(`/yacht/play/${input.matchId}`);
 }
 
@@ -396,6 +399,7 @@ export async function completeYachtMatch(
   });
 
   revalidatePath("/yacht");
+  revalidatePath("/yacht/matches");
   revalidatePath(`/yacht/play/${input.matchId}`);
   revalidatePath(`/yacht/detail/${input.matchId}`);
 
@@ -451,6 +455,7 @@ export async function deleteYachtMatch(matchId: number): Promise<void> {
 
   revalidatePath("/");
   revalidatePath("/yacht");
+  revalidatePath("/yacht/matches");
   revalidatePath(`/yacht/play/${matchId}`);
   revalidatePath(`/yacht/detail/${matchId}`);
 }

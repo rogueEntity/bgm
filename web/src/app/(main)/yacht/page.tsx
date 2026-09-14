@@ -98,11 +98,21 @@ export default async function YachtDashboardPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {[
           { icon: "🏆", label: "랭킹" },
-          { icon: "📜", label: "게임 기록" },
+          { icon: "📜", label: "게임 기록", href: "/yacht/matches" },
           { icon: "🧑‍💼", label: "플레이어 정보" },
           { icon: "🎖️", label: "도전과제" },
           { icon: "⚔️", label: "라이벌" },
         ].map((menu) => (
+          menu.href ? (
+            <Link
+              key={menu.label}
+              href={menu.href}
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-foreground/10 bg-foreground/5 p-4 transition hover:bg-foreground/10"
+            >
+              <span aria-hidden="true" className="text-3xl">{menu.icon}</span>
+              <span className="text-sm font-bold">{menu.label}</span>
+            </Link>
+          ) : (
           <button
             key={menu.label}
             type="button"
@@ -113,6 +123,7 @@ export default async function YachtDashboardPage() {
             <span className="text-sm font-bold">{menu.label}</span>
             <span className="text-center text-xs font-semibold">준비 중</span>
           </button>
+          )
         ))}
       </div>
 
