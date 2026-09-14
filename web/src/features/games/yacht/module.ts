@@ -20,5 +20,6 @@ export const yachtModule = {
     dashboard: "/yacht",
     newMatch: "/yacht/new",
     matches: "/yacht/matches",
+    ranking: "/yacht/ranking",
   },
 } satisfies GameModule;
