@@ -77,7 +77,7 @@ export default async function YachtRankingPage({
                 <UserAvatar imageUrl={row.avatarImageUrl} emoji={row.avatarEmoji} name={row.nickname} size="md" className="mt-1 shrink-0 md:mt-0" />
                 <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{row.nickname}</p>
+                    <Link href={`/yacht/players/${row.userId}`} className="block truncate font-semibold hover:underline">{row.nickname}</Link>
                     <p className="mt-1 text-xs text-foreground/45">{row.playCount.toLocaleString("ko-KR")}전</p>
                   </div>
                   <div className="shrink-0 self-end text-right md:self-auto">
