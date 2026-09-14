@@ -101,7 +101,7 @@ export default async function YachtDashboardPage() {
           { icon: "📜", label: "게임 기록", href: "/yacht/matches" },
           { icon: "🧑‍💼", label: "플레이어 정보", href: `/yacht/players/${currentUser.id}` },
           { icon: "🎖️", label: "도전과제" },
-          { icon: "⚔️", label: "라이벌" },
+          { icon: "⚔️", label: "라이벌", href: "/yacht/rivals" },
         ].map((menu) => (
           menu.href ? (
             <Link
