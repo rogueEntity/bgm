@@ -6,7 +6,7 @@ WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl bash
 
 # 1. 의존성 설치
 FROM base AS deps
