@@ -171,7 +171,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
-    container_name: bgm-web
+    container_name: ${BGM_CONTAINER_NAME:-bgm-web}
     restart: unless-stopped
 
     environment:
@@ -205,6 +205,7 @@ Portainer Stack 또는 서버의 compose 환경변수에 아래 값을 설정합
 
 ```env
 BGM_PORT=3000
+BGM_CONTAINER_NAME=bgm-prd-bgm
 BGM_SERVICE_NAME=BGM
 
 BGM_DATABASE_URL=postgresql://USER:PASSWORD@host.docker.internal:DB_PORT/bgm
@@ -243,6 +244,12 @@ DB 컨테이너가 호스트에서 `5501:5432`로 열려 있다면 `BGM_DATABASE
 ```env
 BGM_DATABASE_URL=postgresql://USER:PASSWORD@host.docker.internal:5501/bgm
 ```
+
+컨테이너 이름은 `BGM_CONTAINER_NAME`으로 지정합니다. 미설정 또는 빈 값이면 `bgm-web`을 사용합니다.
+환경별로 `bgm-dev`, `bgm-prd-bgm`, `bgm-prd-anb` 등 서로 다른 이름을 설정하세요.
+같은 서버에 여러 환경을 배포하면 호스트 포트인 `BGM_PORT`도 서로 다르게 설정해야 합니다.
+아래 `docker exec`와 `docker logs` 예시의 `bgm-web`은 설정한 컨테이너 이름으로 바꿔 실행하세요.
+Compose 서비스 이름은 `bgm-web`이므로 `docker compose exec bgm-web ...`에서는 그대로 사용합니다.
 
 ### 3. Docker 이미지 빌드 및 실행
 

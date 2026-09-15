@@ -3,7 +3,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
-    container_name: bgm-web
+    container_name: ${BGM_CONTAINER_NAME:-bgm-dev}
     restart: unless-stopped
 
     environment:
