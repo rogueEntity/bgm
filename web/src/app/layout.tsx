@@ -1,6 +1,8 @@
 // web/src/app/layout.tsx
 
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { getServiceName } from "@/lib/site";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import React from "react";
@@ -18,33 +20,38 @@ const geistMono = Geist_Mono({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bgm.rogntt.net";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: "BGM | 보드게임 전적 관리",
-  description: "보드게임 스코어 트래킹 및 전적 관리 서비스",
-  openGraph: {
-    title: "BGM | 보드게임 전적 관리",
+export async function generateMetadata(): Promise<Metadata> {
+  await connection();
+  const serviceName = getServiceName();
+
+  return {
+    metadataBase: new URL(siteUrl),
+    title: `${serviceName} | 보드게임 전적 관리`,
     description: "보드게임 스코어 트래킹 및 전적 관리 서비스",
-    url: siteUrl,
-    siteName: "BGM",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "BGM 보드게임 전적 관리",
-      },
-    ],
-    locale: "ko_KR",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "BGM | 보드게임 전적 관리",
-    description: "보드게임 스코어 트래킹 및 전적 관리 서비스",
-    images: ["/og-image.png"],
-  },
-};
+    openGraph: {
+      title: `${serviceName} | 보드게임 전적 관리`,
+      description: "보드게임 스코어 트래킹 및 전적 관리 서비스",
+      url: siteUrl,
+      siteName: serviceName,
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: `${serviceName} 보드게임 전적 관리`,
+        },
+      ],
+      locale: "ko_KR",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${serviceName} | 보드게임 전적 관리`,
+      description: "보드게임 스코어 트래킹 및 전적 관리 서비스",
+      images: ["/og-image.png"],
+    },
+  };
+}
 
 export default function RootLayout({
                                      children,

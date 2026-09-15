@@ -6,6 +6,7 @@ import { getAvatarImageUrl } from "@/lib/avatar";
 import { db } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import ThemeSwitch from "@/components/ThemeSwitch";
+import { getServiceName } from "@/lib/site";
 
 function getProviderLabel(provider?: string | null) {
   switch (provider) {
@@ -65,7 +66,7 @@ export default async function MyPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">내 정보</h1>
           <p className="text-sm text-foreground/50">
-            BGM에서 사용하는 내 프로필 정보입니다.
+            {getServiceName()}에서 사용하는 내 프로필 정보입니다.
           </p>
         </div>
 
