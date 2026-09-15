@@ -8,6 +8,7 @@ import { getCurrentDbUser } from "@/lib/current-user";
 import UserAvatar from "@/components/common/UserAvatar";
 import { getAvatarImageUrl } from "@/lib/avatar";
 import {getEnabledGameModules} from "@/features/games/shared/enabled-games";
+import { getServiceName } from "@/lib/site";
 
 export default async function MainLayout({
   children,
@@ -45,7 +46,7 @@ export default async function MainLayout({
         <div className="flex md:flex-col items-center md:items-start justify-between mb-2 md:mb-10">
           <div className="px-2">
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter">
-              BGM
+              {getServiceName()}
             </h1>
             <p className="hidden md:block text-[10px] text-foreground/60 font-semibold tracking-widest uppercase mt-1">
               Boardgame Manager

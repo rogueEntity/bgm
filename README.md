@@ -57,6 +57,9 @@ npm ci
 `web/.env` 파일을 생성하고 아래 값을 설정합니다.
 
 ```env
+# Service
+SERVICE_NAME=BGM
+
 # Database
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/bgm
 
@@ -77,6 +80,25 @@ AUTH_KAKAO_SECRET=
 ```bash
 openssl rand -base64 32
 ```
+
+### 서비스명 커스텀
+
+로컬 개발에서는 `web/.env`에 원하는 서비스명을 설정합니다.
+
+```env
+SERVICE_NAME="우리 보드게임 모임"
+```
+
+Docker Compose / Portainer에서는 `BGM_SERVICE_NAME`을 설정합니다. 이 값은 컨테이너의 `SERVICE_NAME`으로 전달됩니다.
+
+```env
+BGM_SERVICE_NAME="우리 보드게임 모임"
+```
+
+설정하지 않거나 공백만 입력하면 기본값 `BGM`을 사용하며, 앞뒤 공백은 제거합니다.
+로그인 화면, 메뉴, 프로필 안내, 브라우저 제목과 Open Graph / Twitter 메타데이터에 적용됩니다.
+기존 이미지와 `Boardgame Manager` 설명 문구는 유지됩니다.
+변경 후 로컬 서버를 재시작하거나 Docker Compose / Portainer에서 환경변수를 반영해 컨테이너를 재생성하세요. 서비스명 변경만으로 이미지를 다시 빌드할 필요는 없습니다.
 
 ### 3. Prisma Client 생성
 
@@ -158,6 +180,8 @@ services:
 
       DATABASE_URL: ${BGM_DATABASE_URL}
 
+      SERVICE_NAME: ${BGM_SERVICE_NAME:-BGM}
+
       AUTH_SECRET: ${BGM_AUTH_SECRET}
       AUTH_URL: ${BGM_AUTH_URL}
       AUTH_TRUST_HOST: ${BGM_AUTH_TRUST_HOST}
@@ -181,6 +205,7 @@ Portainer Stack 또는 서버의 compose 환경변수에 아래 값을 설정합
 
 ```env
 BGM_PORT=3000
+BGM_SERVICE_NAME=BGM
 
 BGM_DATABASE_URL=postgresql://USER:PASSWORD@host.docker.internal:DB_PORT/bgm
 

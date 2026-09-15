@@ -3,8 +3,12 @@
 import { signIn } from "@/auth";
 import GoogleLoginForm from "@/components/auth/GoogleLoginForm";
 import ThemeSwitch from "@/components/ThemeSwitch";
+import { connection } from "next/server";
+import { getServiceName } from "@/lib/site";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+    await connection();
+    const serviceName = getServiceName();
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
             <div className="absolute right-4 top-4">
@@ -13,7 +17,7 @@ export default function LoginPage() {
 
             <div className="mb-10 text-center">
                 <h1 className="text-6xl font-black tracking-tighter text-foreground">
-                    BGM
+                    {serviceName}
                 </h1>
 
                 <p className="mt-1 text-sm font-semibold uppercase tracking-widest text-foreground/60">

@@ -5,6 +5,7 @@ import LogoutButton from "@/components/LogOutButton";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getCurrentDbUser } from "@/lib/current-user";
+import { getServiceName } from "@/lib/site";
 
 export default async function OnboardingPage() {
   const session = await auth();
@@ -25,7 +26,7 @@ export default async function OnboardingPage() {
         <section className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">프로필 설정</h1>
           <p className="text-sm text-foreground/60">
-            BGM에서 사용할 대표 이모지와 닉네임을 설정해 주세요.
+            {getServiceName()}에서 사용할 대표 이모지와 닉네임을 설정해 주세요.
           </p>
         </section>
 
