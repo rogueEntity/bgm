@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { getYachtEquippedBadgesByUserIds } from "@/app/actions/yacht-achievement.action";
+import YachtNicknameWithBadges from "@/components/yacht/YachtNicknameWithBadges";
 import { getYachtPlayerStats } from "@/app/actions/yacht-stats.action";
 import UserAvatar from "@/components/common/UserAvatar";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
@@ -15,13 +17,14 @@ export default async function YachtPlayerDetailPage({ params }: {
   const { userId } = await params;
   const player = await getYachtPlayerStats(userId);
   if (!player) notFound();
+  const badgesByUserId = await getYachtEquippedBadgesByUserIds([userId]);
 
   const metrics = [
     { label: "플레이 횟수", value: `${player.playCount}경기`, description: "완료한 전체 경기" },
     { label: "평균 점수", value: `${player.averageScore.toFixed(1)}점`, description: "상단 보너스 포함" },
     { label: "최고 점수", value: `${player.bestScore}점`, description: "개인 최고 기록" },
     { label: "우승률", value: player.winRate === null ? "—" : formatRate(player.winRate), description: `${player.competitivePlayCount}경기 중 ${player.winCount}회 우승 · 2인 이상` },
-    { label: "야찌 달성률", value: formatRate(player.yachtRate), description: `${player.yachtCount}회 · 야찌 칸 50점` },
+    { label: "야찌 달성률", value: formatRate(player.yachtRate), description: `${player.yachtCount}경기 · 추가 야찌 포함` },
     { label: "보너스 달성률", value: formatRate(player.bonusRate), description: `${player.bonusCount}회 · 상단 합계 63점 이상` },
   ];
   const chronologicalMatches = [...player.recentMatches].reverse();
@@ -35,6 +38,7 @@ export default async function YachtPlayerDetailPage({ params }: {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground/50">야찌 플레이어</p>
             <h1 className="mt-1 break-words text-2xl font-black sm:text-3xl">{player.nickname}</h1>
+            <YachtNicknameWithBadges nickname="" badges={badgesByUserId[userId] ?? []} className="mt-2 flex-wrap" />
             <p className="mt-2 text-sm font-semibold text-foreground/55">{player.playCount}경기</p>
           </div>
         </div>

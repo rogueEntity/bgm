@@ -21,5 +21,6 @@ export const yachtModule = {
     newMatch: "/yacht/new",
     matches: "/yacht/matches",
     ranking: "/yacht/ranking",
+    achievements: "/yacht/achievements",
   },
 } satisfies GameModule;

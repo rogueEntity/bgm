@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { getYachtEquippedBadgesByUserIds } from "@/app/actions/yacht-achievement.action";
+import YachtNicknameWithBadges from "@/components/yacht/YachtNicknameWithBadges";
 import { getYachtRankingPlayers } from "@/app/actions/yacht-stats.action";
 import UserAvatar from "@/components/common/UserAvatar";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
@@ -14,6 +16,7 @@ export default async function YachtRankingPage({
   assertGameEnabled(YACHT_GAME_KEY);
   const type = (await searchParams).type === "best" ? "best" : "average";
   const rows = createYachtRankedRows(await getYachtRankingPlayers(), type);
+  const badgesByUserId = await getYachtEquippedBadgesByUserIds(rows.map((row) => row.userId));
   const title = type === "average" ? "평균 점수 랭킹" : "최고 점수 랭킹";
 
   return (
@@ -77,7 +80,7 @@ export default async function YachtRankingPage({
                 <UserAvatar imageUrl={row.avatarImageUrl} emoji={row.avatarEmoji} name={row.nickname} size="md" className="mt-1 shrink-0 md:mt-0" />
                 <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
-                    <Link href={`/yacht/players/${row.userId}`} className="block truncate font-semibold hover:underline">{row.nickname}</Link>
+                    <Link href={`/yacht/players/${row.userId}`} className="block truncate font-semibold hover:underline"><YachtNicknameWithBadges nickname={row.nickname} badges={badgesByUserId[row.userId] ?? []} badgeSize="sm" className="flex-wrap" nameClassName="truncate" /></Link>
                     <p className="mt-1 text-xs text-foreground/45">{row.playCount.toLocaleString("ko-KR")}전</p>
                   </div>
                   <div className="shrink-0 self-end text-right md:self-auto">

@@ -1,5 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
+import { syncYachtAchievementsForUser } from "./achievements";
+
 import type { YachtSpecificStats, YachtUserGameSpecificStats } from "./types";
 
 export function parseYachtSpecificStats(value: unknown): YachtSpecificStats {
@@ -70,5 +72,6 @@ export async function syncYachtMatchUserStats(
       create: { user_id: userId, game_id: gameId, ...data },
       update: data,
     });
+    await syncYachtAchievementsForUser(tx, gameId, userId);
   }
 }
