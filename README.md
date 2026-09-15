@@ -218,7 +218,25 @@ BGM_AUTH_GOOGLE_SECRET=
 
 BGM_AUTH_KAKAO_ID=
 BGM_AUTH_KAKAO_SECRET=
+BGM_R2_KEY_PREFIX=bgm-prd-bgm
 ```
+
+### R2 이미지 경로 분리
+
+같은 R2 버킷을 사용하는 환경은 프리픽스로 이미지 저장 경로를 분리합니다.
+
+| 환경 | 환경변수 | 저장 경로 |
+| --- | --- | --- |
+| 로컬 개발 (`web/.env`) | `R2_KEY_PREFIX=bgm-dev` | `bgm-dev/avatars/{userId}.webp` |
+| BGM 운영 (Compose 환경변수) | `BGM_R2_KEY_PREFIX=bgm-prd-bgm` | `bgm-prd-bgm/avatars/{userId}.webp` |
+| ANB 운영 (Compose 환경변수) | `BGM_R2_KEY_PREFIX=bgm-prd-anb` | `bgm-prd-anb/avatars/{userId}.webp` |
+
+설정하지 않거나 빈 값이면 기존 `avatars/{userId}.webp` 경로를 사용합니다.
+프리픽스 앞뒤의 공백과 슬래시는 제거됩니다.
+`R2_PUBLIC_BASE_URL`은 프리픽스를 붙이지 않은 기존 버킷 공개 주소를 유지합니다.
+새 업로드부터 프리픽스를 포함한 경로를 DB에 저장하며, 기존 이미지는 저장된 경로로 계속 조회·삭제합니다.
+기존 파일은 자동 이동하거나 삭제하지 않으므로, 기존 이미지를 새 경로로 교체하면 이전 파일은 버킷에 남습니다.
+DB 스키마 변경이나 Prisma migration은 필요하지 않습니다.
 
 DB 컨테이너가 호스트에서 `5501:5432`로 열려 있다면 `BGM_DATABASE_URL`은 아래처럼 설정합니다.
 

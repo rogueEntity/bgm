@@ -89,5 +89,7 @@ export function normalizeR2Key(key: string) {
 }
 
 export function getAvatarImageKey(userId: string) {
-  return `avatars/${userId}.webp`;
+  const prefix = (process.env.R2_KEY_PREFIX ?? "").trim().replace(/^\/+|\/+$/g, "");
+  const key = `avatars/${userId}.webp`;
+  return prefix ? `${prefix}/${key}` : key;
 }
