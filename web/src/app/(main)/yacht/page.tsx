@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { getYachtEquippedBadgesByUserIds } from "@/app/actions/yacht-achievement.action";
+import YachtNicknameWithBadges from "@/components/yacht/YachtNicknameWithBadges";
 import UserAvatar from "@/components/common/UserAvatar";
 import { assertGameEnabled } from "@/features/games/shared/enabled-games";
 import { YACHT_GAME_KEY } from "@/features/games/yacht/constants";
@@ -26,6 +28,8 @@ export default async function YachtDashboardPage() {
     }),
     db.games.findUnique({ where: { key: YACHT_GAME_KEY }, select: { id: true } }),
   ]);
+
+  const badgesByUserId = await getYachtEquippedBadgesByUserIds([currentUser.id]);
 
   const activeMatch = game
     ? await db.matches.findFirst({
@@ -64,7 +68,7 @@ export default async function YachtDashboardPage() {
             />
             <div className="min-w-0">
               <p className="text-sm text-foreground/60">내 야찌 프로필</p>
-              <p className="mt-1 truncate text-xl font-black">{me.nickname}</p>
+              <YachtNicknameWithBadges nickname={me.nickname} badges={badgesByUserId[currentUser.id] ?? []} className="mt-1 flex-wrap text-xl font-black" nameClassName="truncate" />
             </div>
           </div>
         </section>
@@ -100,7 +104,7 @@ export default async function YachtDashboardPage() {
           { icon: "🏆", label: "랭킹", href: "/yacht/ranking" },
           { icon: "📜", label: "게임 기록", href: "/yacht/matches" },
           { icon: "🧑‍💼", label: "플레이어 정보", href: `/yacht/players/${currentUser.id}` },
-          { icon: "🎖️", label: "도전과제" },
+          { icon: "🎖️", label: "도전과제", href: "/yacht/achievements" },
           { icon: "⚔️", label: "라이벌", href: "/yacht/rivals" },
         ].map((menu) => (
           menu.href ? (

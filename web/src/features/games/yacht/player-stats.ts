@@ -1,3 +1,4 @@
+import { getYachtCount } from "./achievement-progress";
 import { YACHT_CATEGORIES } from "./constants";
 import { getYachtBonus } from "./scoring";
 import type { YachtPlayer } from "./types";
@@ -13,7 +14,7 @@ export function summarizeYachtPlayerMatches(matches: PlayerMatch[]) {
   const playCount = matches.length;
   const competitiveMatches = matches.filter((match) => match.playerCount >= 2);
   const winCount = competitiveMatches.filter((match) => match.rank === 1).length;
-  const yachtCount = matches.filter((match) => match.scores.YACHT === 50).length;
+  const yachtCount = matches.filter((match) => getYachtCount(match.scores.YACHT) > 0).length;
   const bonusCount = matches.filter((match) => getYachtBonus(match.scores) > 0).length;
   return {
     playCount,
