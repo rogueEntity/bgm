@@ -23,6 +23,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bgm.rogntt.net";
 export async function generateMetadata(): Promise<Metadata> {
   await connection();
   const serviceName = getServiceName();
+  const thumbnailUrl = process.env.SITE_THUMBNAIL_URL?.trim() || "/og-image.png";
 
   return {
     metadataBase: new URL(siteUrl),
@@ -35,7 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: serviceName,
       images: [
         {
-          url: "/og-image.png",
+          url: thumbnailUrl,
           width: 1200,
           height: 630,
           alt: `${serviceName} 보드게임 전적 관리`,
@@ -48,7 +49,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title: `${serviceName} | 보드게임 전적 관리`,
       description: "보드게임 스코어 트래킹 및 전적 관리 서비스",
-      images: ["/og-image.png"],
+      images: [thumbnailUrl],
     },
   };
 }
