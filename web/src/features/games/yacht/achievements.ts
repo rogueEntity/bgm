@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { YachtAchievementDefinitions } from "./achievement-definitions";
 import { getYachtAchievementProgress } from "./achievement-progress";
+import { buildYachtNewsEvents } from "./news";
 import type { YachtMatchDetails } from "./types";
 
 // Caller holds the Yacht game lock. Completion, deletion and equipment changes
@@ -17,7 +18,7 @@ export async function syncYachtAchievementsForUser(tx: Prisma.TransactionClient,
         match_details: { details: { path: ["status"], equals: "FINISHED" } },
       },
     },
-    select: { matches: { select: { match_details: { select: { details: true } } } } },
+    select: { matches: { select: { id: true, play_date: true, match_details: { select: { details: true } } } } },
   });
   const matches = rows.flatMap((row) => row.matches.match_details
     ? [row.matches.match_details.details as YachtMatchDetails] : []);
@@ -57,5 +58,11 @@ export async function syncYachtAchievementsForUser(tx: Prisma.TransactionClient,
       skipDuplicates: true,
     });
   }
+  const news = buildYachtNewsEvents(rows.flatMap((row) => row.matches.match_details ? [{
+    id: row.matches.id, playedAt: row.matches.play_date,
+    details: row.matches.match_details.details as YachtMatchDetails,
+  }] : []), userId);
+  await tx.yacht_news_events.deleteMany({ where: { user_id: userId } });
+  if (news.length) await tx.yacht_news_events.createMany({ data: news });
   return achievements;
 }
