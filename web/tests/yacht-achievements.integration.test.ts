@@ -33,6 +33,10 @@ test("database reconciliation is idempotent, rolls back, and revokes deleted-mat
       await syncYachtMatchUserStats(tx, game.id, match.id);
     });
     await sync();
+    const newsKeys = async () => (await db.yacht_news_events.findMany({ where: { user_id: userId }, orderBy: { event_key: "asc" } })).map((item) => item.event_key);
+    const originalNews = await newsKeys();
+    assert.equal(originalNews.length, 3); // rookie, first yacht, combined double/triple
+
     assert.equal(await db.yacht_user_achievements.count({ where: { user_id: userId } }), 30);
     const triple = await db.yacht_user_achievements.findUniqueOrThrow({ where: { user_id_achievement_id: { user_id: userId, achievement_id: "yacht_triple" } } });
     assert.equal(triple.completed, true);
@@ -40,6 +44,7 @@ test("database reconciliation is idempotent, rolls back, and revokes deleted-mat
     assert.equal(await db.yacht_user_badges.count({ where: { user_id: userId } }), 4); // rookie, first yacht, double, triple
     await db.yacht_user_equipped_badges.create({ data: { user_id: userId, badge_id: "badge_yacht_triple", slot: 1 } });
     await Promise.all([sync(), sync()]);
+    assert.deepEqual(await newsKeys(), originalNews);
     const repeated = await db.yacht_user_achievements.findUniqueOrThrow({ where: { user_id_achievement_id: { user_id: userId, achievement_id: "yacht_triple" } } });
     assert.equal(repeated.completed_at?.getTime(), triple.completed_at?.getTime());
     assert.equal(await db.yacht_user_badges.count({ where: { user_id: userId } }), 4);
@@ -50,6 +55,7 @@ test("database reconciliation is idempotent, rolls back, and revokes deleted-mat
       await syncYachtMatchUserStats(tx, game.id, match.id);
       throw new Error("test rollback");
     }), /test rollback/);
+    assert.deepEqual(await newsKeys(), originalNews);
     assert.equal(await db.yacht_user_badges.count({ where: { user_id: userId } }), 4);
     assert.equal(await db.yacht_user_equipped_badges.count({ where: { user_id: userId } }), 1);
     await db.$transaction(async (tx) => {
@@ -65,6 +71,7 @@ test("database reconciliation is idempotent, rolls back, and revokes deleted-mat
     assert.equal(await db.yacht_user_equipped_badges.count({ where: { user_id: userId } }), 0);
     const stats = await db.user_game_stats.findUniqueOrThrow({ where: { user_id_game_id: { user_id: userId, game_id: game.id } } });
     assert.equal(stats.play_count, 0);
+    assert.deepEqual(await newsKeys(), []);
     // Backfill reads historic completed matches without requiring a new completion.
     await db.match_players.updateMany({ where: { match_id: match.id }, data: { final_score: 150, rank: 1 } });
     await db.match_details.update({ where: { match_id: match.id }, data: { details: details as Prisma.InputJsonValue } });

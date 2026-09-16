@@ -29,6 +29,12 @@ export default async function YachtDashboardPage() {
     db.games.findUnique({ where: { key: YACHT_GAME_KEY }, select: { id: true } }),
   ]);
 
+  const recentNews = await db.yacht_news_events.findMany({
+    where: { matches: { deleted_at: null } },
+    orderBy: [{ occurred_at: "desc" }, { event_key: "asc" }],
+    take: 10,
+  });
+
   const badgesByUserId = await getYachtEquippedBadgesByUserIds([currentUser.id]);
 
   const activeMatch = game
@@ -138,9 +144,21 @@ export default async function YachtDashboardPage() {
             야찌 테이블의 새로운 기록과 소식을 전해드립니다.
           </p>
         </div>
-        <div className="rounded-2xl border border-dashed border-foreground/15 p-5 text-sm text-foreground/55">
-          최근 소식 기능은 준비 중입니다.
-        </div>
+        {recentNews.length ? (
+          <div className="space-y-3">
+            {recentNews.map((news) => (
+              <Link key={news.event_key} href={`/yacht/detail/${news.match_id}`}
+                className="block rounded-2xl border border-foreground/10 bg-background/60 p-4">
+                <p className="text-sm font-black">{news.title}</p>
+                <p className="mt-1 text-sm text-foreground/70">{news.message}</p>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-foreground/15 p-5 text-sm text-foreground/55">
+            아직 등록된 소식이 없습니다.
+          </div>
+        )}
       </section>
     </main>
   );
