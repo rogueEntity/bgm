@@ -107,11 +107,11 @@ export default async function YachtDashboardPage() {
       </section>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {[
-          { icon: "🏆", label: "랭킹", href: "/yacht/ranking" },
-          { icon: "📜", label: "게임 기록", href: "/yacht/matches" },
-          { icon: "🧑‍💼", label: "플레이어 정보", href: `/yacht/players/${currentUser.id}` },
-          { icon: "🎖️", label: "도전과제", href: "/yacht/achievements" },
-          { icon: "⚔️", label: "라이벌", href: "/yacht/rivals" },
+          { icon: "🏆", label: "랭킹", description: "플레이어들의 순위를 확인합니다.", href: "/yacht/ranking" },
+          { icon: "📜", label: "게임 기록", description: "완료된 게임과 진행 중인 게임을 확인합니다.", href: "/yacht/matches" },
+          { icon: "🧑‍💼", label: "플레이어 정보", description: "내 야찌 통계를 확인합니다.", href: `/yacht/players/${currentUser.id}` },
+          { icon: "🎖️", label: "도전과제", description: "달성한 기록을 확인합니다.", href: "/yacht/achievements" },
+          { icon: "⚔️", label: "라이벌", description: "라이벌과의 상대 전적을 확인합니다.", href: "/yacht/rivals" },
         ].map((menu) => (
           menu.href ? (
             <Link
@@ -121,6 +121,9 @@ export default async function YachtDashboardPage() {
             >
               <span aria-hidden="true" className="text-3xl">{menu.icon}</span>
               <span className="text-sm font-bold">{menu.label}</span>
+              <span className="text-center text-xs font-semibold text-foreground/45">
+                {menu.description}
+              </span>
             </Link>
           ) : (
           <button
