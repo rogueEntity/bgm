@@ -140,15 +140,6 @@ export default async function NoticeDetailPage({
           <Link href="/">홈으로</Link>
           {isAdmin && <Link href={`/admin/notices/${notice.id}/edit`}>공지 수정</Link>}
         </div>
-
-        {isAdmin && (
-          <Link
-            href={`/admin/notices/${notice.id}/edit`}
-            className="rounded-xl bg-foreground px-4 py-2 text-center text-sm font-semibold text-background hover:opacity-90 transition"
-          >
-            공지 수정
-          </Link>
-        )}
       </div>
     </div>
   );
