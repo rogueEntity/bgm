@@ -127,7 +127,7 @@ export default async function MainLayout({
       </aside>
 
       {/* 오른쪽 메인 콘텐츠 영역 (page.tsx가 여기에 렌더링 됨) */}
-      <main className="flex-1 p-6 md:p-10 flex flex-col">{children}</main>
+      <main className="min-w-0 flex-1 p-6 md:p-10 flex flex-col">{children}</main>
     </div>
   );
 }
