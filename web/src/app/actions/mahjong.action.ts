@@ -9,6 +9,7 @@ import { syncMahjongAchievementsForMatch } from "@/features/games/mahjong/lib/ac
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 import { MAHJONG_GAME_KEY } from "@/features/games/mahjong/constants";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
+import { fillEmptyPlayerNames } from "@/features/games/shared/guest-player-names";
 import type {
   GameMode,
   MahjongMatchListFilter,
@@ -80,7 +81,7 @@ export async function createMahjongMatch(
   }
 
   const newMatch = await createMahjongMatchRecord({
-    players,
+    players: await fillEmptyPlayerNames(players),
     startingScore,
     gameMode,
     createdBy: me.id,

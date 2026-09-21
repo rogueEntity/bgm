@@ -127,11 +127,6 @@ export default function NewTichuGameForm() {
             playerNames[field.key].trim(),
         ) as [string, string, string, string];
 
-        if (normalizedPlayerNames.some((name) => name.length === 0)) {
-            setErrorMessage("참가자 4명의 이름을 모두 입력해주세요.");
-            return;
-        }
-
         if (
             normalizedPlayerNames.some(
                 (name) => name.length > MAX_TICHU_PLAYER_NAME_LENGTH,
@@ -143,7 +138,8 @@ export default function NewTichuGameForm() {
             return;
         }
 
-        if (new Set(normalizedPlayerNames).size !== normalizedPlayerNames.length) {
+        const enteredNames = normalizedPlayerNames.filter(Boolean);
+        if (new Set(enteredNames).size !== enteredNames.length) {
             setErrorMessage("참가자 이름은 모두 달라야 합니다.");
             return;
         }
