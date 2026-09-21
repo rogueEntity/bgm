@@ -274,7 +274,7 @@ export default async function TichuDetailPage({
     const canUndo = logs.length > 0;
 
     return (
-        <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-[44rem] w-full min-w-0 max-w-[900px] flex-col gap-3 md:h-[calc(100dvh-5rem)]">
+        <div className="mx-auto flex w-full min-w-0 max-w-[900px] flex-col gap-3 md:h-[calc(100dvh-5rem)] md:min-h-[44rem]">
             <header className="shrink-0 rounded-3xl border border-foreground/10 bg-foreground/[0.03] px-3 py-3 shadow-sm lg:px-6">
                 <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -374,7 +374,7 @@ export default async function TichuDetailPage({
                 teamBName={getTeamName(details, "TEAM_B")}
             />
 
-            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-foreground/10 bg-background shadow-sm">
+            <section className="flex h-48 min-h-0 flex-none flex-col rounded-3xl border border-foreground/10 bg-background shadow-sm md:h-auto md:flex-1">
                 <h3 className="border-b border-foreground/10 px-4 py-2 text-sm font-black">
                     라운드 기록
                 </h3>
