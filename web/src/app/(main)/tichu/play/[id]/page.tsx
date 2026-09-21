@@ -122,17 +122,17 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     const canUndo = (details.logs?.length ?? 0) > 0;
 
     return (
-        <div className="flex h-[calc(100dvh-9rem)] min-h-[44rem] w-full min-w-0 flex-col gap-3 md:h-[calc(100dvh-5rem)]">
+        <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-[44rem] w-full min-w-0 max-w-[900px] flex-col gap-3 md:h-[calc(100dvh-5rem)]">
             <div className="shrink-0">
-                <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] px-3 py-3 shadow-sm sm:px-6">
+                <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] px-3 py-3 shadow-sm lg:px-6">
                     <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                             <p className="text-sm font-black text-blue-500">Tichu</p>
-                            <div className="mt-1 flex items-center gap-1 whitespace-nowrap sm:gap-3">
-                                <h2 className="text-lg leading-tight font-black tracking-tight sm:text-3xl">
+                            <div className="mt-1 flex items-center gap-1 whitespace-nowrap lg:gap-3">
+                                <h2 className="text-lg leading-tight font-black tracking-tight lg:text-3xl">
                                     티츄 게임 기록
                                 </h2>
-                                <div className="text-xs leading-3 text-foreground/60 sm:text-sm sm:leading-[1.125rem]">
+                                <div className="text-xs leading-3 text-foreground/60 lg:text-sm lg:leading-[1.125rem]">
                                     <p>{details.current_round ?? 1}라운드</p>
                                     <p>목표 {details.target_score ?? 1000}점</p>
                                 </div>
