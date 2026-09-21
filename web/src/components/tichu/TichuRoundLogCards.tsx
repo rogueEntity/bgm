@@ -47,6 +47,7 @@ type TichuDetails = {
 
 type TichuRoundLogCardsProps = {
     details: TichuDetails;
+    compact?: boolean;
 };
 
 const TEAM_LABEL_MAP: Record<TichuTeamKey, string> = {
@@ -232,6 +233,7 @@ function TichuCallBadges({
 
 export default function TichuRoundLogCards({
                                                details,
+                                               compact = false,
                                            }: TichuRoundLogCardsProps) {
     const logs = (details.logs ?? [])
         .map(getTichuRoundLog)
@@ -242,7 +244,7 @@ export default function TichuRoundLogCards({
 
     if (logs.length === 0) {
         return (
-            <section className="rounded-3xl border border-dashed border-foreground/15 bg-foreground/[0.02] p-6 text-center">
+            <section className={`rounded-3xl border border-dashed border-foreground/15 bg-foreground/[0.02] text-center ${compact ? "p-3" : "p-6"}`}>
                 <p className="font-black">아직 기록된 라운드가 없습니다.</p>
                 <p className="mt-2 text-sm text-foreground/50">
                     라운드를 기록하면 이곳에 이전 라운드 기록이 표시됩니다.
@@ -256,14 +258,15 @@ export default function TichuRoundLogCards({
 
     return (
         <section className="space-y-4">
-            <div>
-                <h3 className="text-lg font-black">라운드 기록</h3>
-                <p className="mt-1 text-sm text-foreground/50">
-                    최근 라운드가 위쪽에 표시됩니다.
-                </p>
-            </div>
-
-            <div className="space-y-3">
+            {!compact ? (
+                <div>
+                    <h3 className="text-lg font-black">라운드 기록</h3>
+                    <p className="mt-1 text-sm text-foreground/50">
+                        최근 라운드가 위쪽에 표시됩니다.
+                    </p>
+                </div>
+            ) : null}
+            <div className={compact ? "space-y-2" : "space-y-3"}>
                 {logs.map((log) => {
                     const createdAt = formatCreatedAt(log.created_at);
                     const firstOutPlayerName = getPlayerName(
@@ -277,6 +280,69 @@ export default function TichuRoundLogCards({
                     const oneTwoTeamName = log.one_two_team_key
                         ? getTeamName(details, log.one_two_team_key)
                         : null;
+
+                    if (compact) {
+                        const calls = [
+                            ...(log.small_tichu_calls ?? []).map((call) => ({
+                                ...call,
+                                label: "스티",
+                            })),
+                            ...(log.large_tichu_calls ?? []).map((call) => ({
+                                ...call,
+                                label: "라티",
+                            })),
+                        ];
+
+                        return (
+                            <article
+                                key={`${log.round}-${log.created_at ?? ""}`}
+                                className="rounded-xl border border-foreground/10 bg-background px-3 py-2"
+                            >
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                                    <h4 className="text-sm font-black">{log.round ?? "-"}라운드</h4>
+                                    <span className="font-bold text-foreground/60">
+                                        1등 {firstOutPlayerName}
+                                        {firstOutTeamName ? ` · ${firstOutTeamName}` : ""}
+                                    </span>
+                                    {oneTwoTeamName ? (
+                                        <span className="font-black text-blue-500">{oneTwoTeamName} 원투</span>
+                                    ) : null}
+                                    {createdAt ? (
+                                        <span className="text-foreground/40">{createdAt}</span>
+                                    ) : null}
+                                </div>
+
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-bold">
+                                    <span>{teamAName} {formatScore(log.score_deltas?.TEAM_A)} <span className="text-foreground/40">(누적 {formatPlainScore(log.total_scores?.TEAM_A)})</span></span>
+                                    <span>{teamBName} {formatScore(log.score_deltas?.TEAM_B)} <span className="text-foreground/40">(누적 {formatPlainScore(log.total_scores?.TEAM_B)})</span></span>
+                                    <span className="text-foreground/50">
+                                        {oneTwoTeamName
+                                            ? "카드 점수 없음"
+                                            : `카드 ${teamAName} ${formatPlainScore(log.team_a_card_score)} · ${teamBName} ${formatPlainScore(log.team_b_card_score)}`}
+                                    </span>
+                                </div>
+
+                                {calls.length > 0 ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {calls.map((call) => {
+                                            const teamName = getPlayerTeamName(details, call.player_key);
+
+                                            return (
+                                                <span
+                                                    key={`${call.label}-${call.player_key}-${call.result}`}
+                                                    className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${getResultClassName(call.result)}`}
+                                                >
+                                                    {call.label} {getPlayerName(details, call.player_key)}
+                                                    {teamName ? ` · ${teamName}` : ""}
+                                                    {` · ${getResultLabel(call.result)} ${formatScore(call.score_delta)}`}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                ) : null}
+                            </article>
+                        );
+                    }
 
                     return (
                         <article

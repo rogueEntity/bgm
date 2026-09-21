@@ -12,7 +12,7 @@ type PlayerKey = "PLAYER_1" | "PLAYER_2" | "PLAYER_3" | "PLAYER_4";
 type PlayerStatus = "idle" | "checking" | "member" | "guest";
 
 const MAX_TICHU_PLAYER_NAME_LENGTH = 20;
-const MAX_TICHU_TEAM_NAME_LENGTH = 20;
+const MAX_TICHU_TEAM_NAME_LENGTH = 6;
 
 const PLAYER_FIELDS: {
     key: PlayerKey;
