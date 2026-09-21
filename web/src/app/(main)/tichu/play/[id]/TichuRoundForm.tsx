@@ -63,22 +63,6 @@ function togglePlayerKey(playerKeys: string[], playerKey: string) {
   return [...playerKeys, playerKey];
 }
 
-function getPlayerTeamName(
-    player: TichuPlayerState,
-    teamAName: string,
-    teamBName: string,
-) {
-  if (player.team_key === "TEAM_A") {
-    return teamAName;
-  }
-
-  if (player.team_key === "TEAM_B") {
-    return teamBName;
-  }
-
-  return "소속 팀 없음";
-}
-
 export default function TichuRoundForm({
                                          matchId,
                                          expectedVersion,
@@ -118,6 +102,18 @@ export default function TichuRoundForm({
 
   const isOneTwo = oneTwoTeamKey !== "NONE";
 
+  const changeCardScore = (teamKey: TichuTeamKey, nextScore: number) => {
+    const score = Math.max(-25, Math.min(125, nextScore));
+
+    setTeamACardScore(String(teamKey === "TEAM_A" ? score : 100 - score));
+    setTeamBCardScore(String(teamKey === "TEAM_B" ? score : 100 - score));
+  };
+
+  const handleFirstOutChange = (playerKey: string) => {
+    setFirstOutPlayerKey((current) => current === playerKey ? "NONE" : playerKey);
+    setErrorMessage(null);
+  };
+
   const resetForm = () => {
     setOneTwoTeamKey("NONE");
     setTeamACardScore("50");
@@ -154,9 +150,7 @@ export default function TichuRoundForm({
     );
 
     setLargeTichuPlayerKeys((prev) => {
-      return prev.filter(
-          (currentPlayerKey) => currentPlayerKey !== playerKey,
-      );
+      return prev.filter((currentPlayerKey) => currentPlayerKey !== playerKey);
     });
   };
 
@@ -166,9 +160,7 @@ export default function TichuRoundForm({
     );
 
     setSmallTichuPlayerKeys((prev) => {
-      return prev.filter(
-          (currentPlayerKey) => currentPlayerKey !== playerKey,
-      );
+      return prev.filter((currentPlayerKey) => currentPlayerKey !== playerKey);
     });
   };
 
@@ -258,309 +250,142 @@ export default function TichuRoundForm({
   };
 
   return (
-      <section className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-        <div className="mb-5">
-          <h3 className="text-lg font-black">
-            {details.current_round ?? 1}라운드 기록
-          </h3>
+    <section className="shrink-0 rounded-3xl border border-foreground/10 bg-background p-2 shadow-lg sm:p-3">
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+        {([
+          ["TEAM_A", teamAName, teamACardScore],
+          ["TEAM_B", teamBName, teamBCardScore],
+        ] as const).map(([teamKey, teamName, cardScore]) => {
+          const isWinningTeam = oneTwoTeamKey === teamKey;
+          const displayScore = isOneTwo ? (isWinningTeam ? 200 : 0) : Number(cardScore);
 
-          <p className="mt-1 text-sm text-foreground/50">
-            카드 점수, 1등 플레이어, 스몰/라지 티츄 선언, 원투
-            여부를 입력해주세요.
-          </p>
-        </div>
-
-        <div className="space-y-5">
-          <div>
-            <p className="mb-2 text-sm font-bold text-foreground/70">
-              원투 여부
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                {
-                  value: "NONE",
-                  label: "원투 없음",
-                },
-                {
-                  value: "TEAM_A",
-                  label: `${teamAName} 원투`,
-                },
-                {
-                  value: "TEAM_B",
-                  label: `${teamBName} 원투`,
-                },
-              ].map((option) => {
-                const optionValue = option.value as
-                    | "NONE"
-                    | TichuTeamKey;
-
-                const isSelected = oneTwoTeamKey === optionValue;
-
-                return (
-                    <button
-                        key={option.value}
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => {
-                          handleOneTwoTeamChange(optionValue);
-                        }}
-                        className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                            isSelected
-                                ? "border-blue-500 bg-blue-500 text-white"
-                                : "border-foreground/10 bg-foreground/[0.03] text-foreground/70 hover:border-blue-500/40"
-                        }`}
-                    >
-                      {option.label}
-                    </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div
-              className={`grid gap-4 transition sm:grid-cols-2 ${
-                  isOneTwo ? "opacity-50" : "opacity-100"
-              }`}
-          >
-            <label className="space-y-2">
-            <span className="text-sm font-bold text-foreground/70">
-              {teamAName} 카드 점수
-            </span>
-
-              <input
-                  value={teamACardScore}
-                  onChange={(event) =>
-                      setTeamACardScore(event.target.value)
-                  }
-                  disabled={isPending || isOneTwo}
-                  inputMode="numeric"
-                  className="w-full rounded-2xl border border-foreground/10 bg-background px-4 py-3 text-sm outline-none transition focus:border-blue-500/50 disabled:cursor-not-allowed disabled:bg-foreground/[0.03]"
-                  placeholder="예: 70"
-              />
-            </label>
-
-            <label className="space-y-2">
-            <span className="text-sm font-bold text-foreground/70">
-              {teamBName} 카드 점수
-            </span>
-
-              <input
-                  value={teamBCardScore}
-                  onChange={(event) =>
-                      setTeamBCardScore(event.target.value)
-                  }
-                  disabled={isPending || isOneTwo}
-                  inputMode="numeric"
-                  className="w-full rounded-2xl border border-foreground/10 bg-background px-4 py-3 text-sm outline-none transition focus:border-blue-500/50 disabled:cursor-not-allowed disabled:bg-foreground/[0.03]"
-                  placeholder="예: 30"
-              />
-            </label>
-
-            {isOneTwo ? (
-                <p className="text-xs font-bold text-foreground/45 sm:col-span-2">
-                  원투를 선택하면 카드 점수는 저장하지 않고, 원투 팀
-                  +200점 / 상대 팀 0점으로 자동 처리됩니다.
-                </p>
-            ) : null}
-          </div>
-
-          <div className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4">
-            <p className="text-sm font-black">1등 플레이어</p>
-
-            <p className="mt-1 text-xs font-bold text-foreground/45">
-              {isOneTwo
-                  ? "원투를 선택한 팀의 플레이어만 1등으로 선택할 수 있습니다."
-                  : "스몰/라지 티츄 성공 여부는 1등 플레이어 기준으로 자동 판정됩니다."}
-            </p>
-
-            <select
-                value={firstOutPlayerKey}
-                onChange={(event) => {
-                  setFirstOutPlayerKey(event.target.value);
-                  setErrorMessage(null);
-                }}
-                disabled={isPending}
-                className="mt-3 w-full rounded-2xl border border-foreground/10 bg-background px-4 py-3 text-sm outline-none transition focus:border-blue-500/50"
-            >
-              <option value="NONE">1등 플레이어 선택</option>
-
-              {players.map(([playerKey, player]) => {
-                const isDisabled =
-                    oneTwoTeamKey !== "NONE" &&
-                    player.team_key !== oneTwoTeamKey;
-
-                return (
-                    <option
-                        key={playerKey}
-                        value={playerKey}
-                        disabled={isDisabled}
-                    >
-                      {player.name ?? "이름 없음"} ·{" "}
-                      {getPlayerTeamName(
-                          player,
-                          teamAName,
-                          teamBName,
-                      )}
-                    </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4">
-              <p className="text-sm font-black">
-                스몰 티츄 선언자
-              </p>
-
-              <p className="mt-1 text-xs font-bold text-foreground/45">
-                성공 +100점, 실패 -100점
-              </p>
-
-              <div className="mt-3 space-y-2">
-                {players.map(([playerKey, player]) => {
-                  const checked =
-                      smallTichuPlayerKeys.includes(playerKey);
-
-                  const disabled =
-                      isPending ||
-                      largeTichuPlayerKeys.includes(playerKey);
-
-                  return (
-                      <label
-                          key={playerKey}
-                          className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-                              checked
-                                  ? "border-blue-500 bg-blue-500/10 text-blue-500"
-                                  : "border-foreground/10 bg-background text-foreground/70"
-                          } ${
-                              disabled
-                                  ? "cursor-not-allowed opacity-50"
-                                  : "cursor-pointer"
-                          }`}
-                      >
-                    <span>
-                      {player.name ?? "이름 없음"}
-
-                      <span className="ml-2 text-xs text-foreground/40">
-                        {getPlayerTeamName(
-                            player,
-                            teamAName,
-                            teamBName,
-                        )}
-                      </span>
-                    </span>
-
-                        <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={disabled}
-                            onChange={() =>
-                                handleToggleSmallTichu(playerKey)
-                            }
-                            className="h-4 w-4"
-                        />
-                      </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4">
-              <p className="text-sm font-black">
-                라지 티츄 선언자
-              </p>
-
-              <p className="mt-1 text-xs font-bold text-foreground/45">
-                성공 +200점, 실패 -200점
-              </p>
-
-              <div className="mt-3 space-y-2">
-                {players.map(([playerKey, player]) => {
-                  const checked =
-                      largeTichuPlayerKeys.includes(playerKey);
-
-                  const disabled =
-                      isPending ||
-                      smallTichuPlayerKeys.includes(playerKey);
-
-                  return (
-                      <label
-                          key={playerKey}
-                          className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-                              checked
-                                  ? "border-blue-500 bg-blue-500/10 text-blue-500"
-                                  : "border-foreground/10 bg-background text-foreground/70"
-                          } ${
-                              disabled
-                                  ? "cursor-not-allowed opacity-50"
-                                  : "cursor-pointer"
-                          }`}
-                      >
-                    <span>
-                      {player.name ?? "이름 없음"}
-
-                      <span className="ml-2 text-xs text-foreground/40">
-                        {getPlayerTeamName(
-                            player,
-                            teamAName,
-                            teamBName,
-                        )}
-                      </span>
-                    </span>
-
-                        <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={disabled}
-                            onChange={() =>
-                                handleToggleLargeTichu(playerKey)
-                            }
-                            className="h-4 w-4"
-                        />
-                      </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {errorMessage ? (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-bold text-red-500">
-                {errorMessage}
-              </div>
-          ) : null}
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-red-500">
-              <input
-                  type="checkbox"
-                  checked={isForceFinish}
+          return (
+            <div key={teamKey} className="min-w-0 rounded-xl border border-foreground/10 p-1.5 sm:p-2">
+              <div className="flex items-center gap-1">
+                <p className="min-w-0 flex-1 truncate text-xs font-black sm:text-sm" title={teamName}>{teamName}</p>
+                <p className="shrink-0 text-lg font-black sm:text-xl">{displayScore}</p>
+                <button
+                  type="button"
                   disabled={isPending}
-                  onChange={(event) =>
-                      setIsForceFinish(event.target.checked)
-                  }
-                  className="h-4 w-4 accent-red-500"
-              />
+                  onClick={() => handleOneTwoTeamChange(isWinningTeam ? "NONE" : teamKey)}
+                  aria-pressed={isWinningTeam}
+                  className={`shrink-0 rounded-lg border px-1.5 py-0.5 text-[11px] font-bold transition ${isWinningTeam
+                    ? "border-blue-500 bg-blue-500 text-white"
+                    : "border-foreground/10 text-foreground/60 hover:border-blue-500/40"}`}
+                >
+                  원투
+                </button>
+              </div>
 
-              기록 후 게임 강제 종료하기
-            </label>
+              <div className="mt-1 space-y-0.5">
+                {players
+                  .filter(([, player]) => player.team_key === teamKey)
+                  .map(([playerKey, player]) => {
+                    const isFirstOut = firstOutPlayerKey === playerKey;
+                    const isSmall = smallTichuPlayerKeys.includes(playerKey);
+                    const isLarge = largeTichuPlayerKeys.includes(playerKey);
 
-            <button
-                type="button"
-                disabled={isPending}
-                onClick={handleSubmit}
-                className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isPending
-                  ? "기록 중..."
-                  : isForceFinish
-                      ? "기록하고 종료하기"
-                      : "라운드 기록하기"}
-            </button>
-          </div>
+                    return (
+                      <div key={playerKey} className="flex min-w-0 items-center gap-1 rounded-lg bg-foreground/[0.03] px-1.5 py-1">
+                        <p className="min-w-0 flex-1 truncate text-[11px] font-bold sm:text-xs" title={player.name ?? "이름 없음"}>
+                          {player.name ?? "이름 없음"}
+                        </p>
+                        <div className="flex shrink-0 gap-0.5">
+                          {([
+                            ["라티", isLarge, () => handleToggleLargeTichu(playerKey)],
+                            ["스티", isSmall, () => handleToggleSmallTichu(playerKey)],
+                            ["1등", isFirstOut, () => handleFirstOutChange(playerKey)],
+                          ] as const).map(([label, selected, onClick]) => (
+                            <button
+                              key={label}
+                              type="button"
+                              disabled={isPending || (label === "1등" && isOneTwo && !isWinningTeam)}
+                              onClick={onClick}
+                              aria-pressed={selected}
+                              aria-label={`${player.name ?? "이름 없음"} ${label}`}
+                              className={`rounded-md border px-1 py-0.5 text-[10px] font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${selected
+                                ? "border-blue-500 bg-blue-500 text-white"
+                                : "border-foreground/10 text-foreground/60 hover:border-blue-500/40"}`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={`mt-1.5 rounded-xl border border-foreground/10 px-2 py-1 ${isOneTwo ? "opacity-50" : ""}`}>
+        <div className="flex items-center justify-between gap-1.5">
+          <button
+            type="button"
+            disabled={isPending || isOneTwo || Number(teamACardScore) <= -25}
+            onClick={() => changeCardScore("TEAM_A", Number(teamACardScore) - 5)}
+            aria-label={`${teamAName} 카드 점수 5점 감소`}
+            className="h-7 w-7 shrink-0 rounded-lg border border-foreground/10 text-lg font-bold disabled:opacity-40"
+          >
+            −
+          </button>
+          <input
+            type="range"
+            min="-25"
+            max="125"
+            step="5"
+            value={teamACardScore}
+            disabled={isPending || isOneTwo}
+            onChange={(event) => changeCardScore("TEAM_A", Number(event.target.value))}
+            aria-label={`${teamAName} 카드 점수`}
+            className="min-w-0 flex-1 accent-blue-600"
+          />
+          <button
+            type="button"
+            disabled={isPending || isOneTwo || Number(teamACardScore) >= 125}
+            onClick={() => changeCardScore("TEAM_A", Number(teamACardScore) + 5)}
+            aria-label={`${teamAName} 카드 점수 5점 증가`}
+            className="h-7 w-7 shrink-0 rounded-lg border border-foreground/10 text-lg font-bold disabled:opacity-40"
+          >
+            +
+          </button>
         </div>
-      </section>
+        <p className="text-center text-[11px] text-foreground/50">
+          {isOneTwo
+            ? "원투 팀 +200점 / 상대 팀 0점 · 카드 점수 미적용"
+            : `카드 점수 · ${teamAName} ${teamACardScore} / ${teamBName} ${teamBCardScore}`}
+        </p>
+      </div>
+
+      {errorMessage ? (
+        <p role="alert" className="mt-2 rounded-xl bg-red-500/10 p-2 text-xs font-bold text-red-500">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      <div className="mt-1.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-background">
+        <label className="flex items-center gap-1.5 text-xs font-bold text-red-500">
+          <input
+            type="checkbox"
+            checked={isForceFinish}
+            disabled={isPending}
+            onChange={(event) => setIsForceFinish(event.target.checked)}
+            className="h-4 w-4 accent-red-500"
+          />
+          기록 후 종료
+        </label>
+        <span className="text-xs font-black">{details.current_round ?? 1}라운드</span>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={handleSubmit}
+          className="justify-self-end rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-black text-white transition hover:bg-blue-700 disabled:opacity-60"
+        >
+          {isPending ? "기록 중..." : isForceFinish ? "기록하고 종료" : "라운드 기록"}
+        </button>
+      </div>
+    </section>
   );
 }

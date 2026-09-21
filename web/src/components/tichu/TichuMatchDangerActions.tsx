@@ -12,6 +12,8 @@ type TichuMatchDangerActionsProps = {
     redirectAfterDelete?: string;
     showUndo?: boolean;
     showDelete?: boolean;
+    undoLabel?: string;
+    vertical?: boolean;
 };
 
 export default function TichuMatchDangerActions({
@@ -21,6 +23,8 @@ export default function TichuMatchDangerActions({
                                                     redirectAfterDelete = "/tichu/matches",
                                                     showUndo = true,
                                                     showDelete = true,
+                                                    undoLabel = "마지막 기록 되돌리기",
+                                                    vertical = false,
                                                 }: Readonly<TichuMatchDangerActionsProps>) {
     const [isPending, setIsPending] = useState(false);
 
@@ -81,15 +85,15 @@ export default function TichuMatchDangerActions({
     };
 
     return (
-        <div className="flex flex-wrap gap-2">
+        <div className={vertical ? "flex flex-col gap-1" : "flex flex-wrap gap-2"}>
             {showUndo ? (
                 <button
                     type="button"
                     onClick={handleUndo}
                     disabled={isPending || !canUndo}
-                    className="rounded-xl border border-foreground/10 bg-foreground/[0.03] px-3 py-2 text-xs font-bold text-foreground/60 transition hover:border-orange-500/40 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    className={`rounded-xl border border-foreground/10 bg-foreground/[0.03] px-3 text-xs font-bold text-foreground/60 transition hover:border-orange-500/40 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40 ${vertical ? "py-1" : "py-2"}`}
                 >
-                    마지막 기록 되돌리기
+                    {undoLabel}
                 </button>
             ) : null}
 
@@ -98,7 +102,7 @@ export default function TichuMatchDangerActions({
                     type="button"
                     onClick={handleDelete}
                     disabled={isPending}
-                    className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-500 transition hover:border-red-500/50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className={`rounded-xl border border-red-500/20 bg-red-500/10 px-3 text-xs font-bold text-red-500 transition hover:border-red-500/50 disabled:cursor-not-allowed disabled:opacity-40 ${vertical ? "py-1" : "py-2"}`}
                 >
                     게임 삭제
                 </button>

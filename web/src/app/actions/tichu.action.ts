@@ -50,7 +50,7 @@ type CurrentTichuManager = NonNullable<
 >;
 
 const MAX_TICHU_PLAYER_NAME_LENGTH = 20;
-const MAX_TICHU_TEAM_NAME_LENGTH = 20;
+const MAX_TICHU_TEAM_NAME_LENGTH = 6;
 
 function isRecord(value: unknown): value is JsonRecord {
     return (

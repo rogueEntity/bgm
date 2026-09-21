@@ -96,30 +96,6 @@ function getTeamScore(details: TichuDetails, teamKey: TichuTeamKey) {
     return details.teams?.[teamKey]?.score ?? 0;
 }
 
-function getPlayerName(details: TichuDetails, playerKey: string | undefined) {
-    if (!playerKey) {
-        return "알 수 없음";
-    }
-
-    return details.players?.[playerKey]?.name ?? playerKey;
-}
-
-function getPlayerTeamName(
-    playerTeamKey: TichuTeamKey | undefined,
-    teamAName: string,
-    teamBName: string,
-) {
-    if (playerTeamKey === "TEAM_A") {
-        return teamAName;
-    }
-
-    if (playerTeamKey === "TEAM_B") {
-        return teamBName;
-    }
-
-    return "소속 팀 없음";
-}
-
 function formatFinishedAt(value: string | null | undefined) {
     if (!value) {
         return null;
@@ -218,13 +194,121 @@ function getTeamCardClassName(
     teamKey: TichuTeamKey,
     winnerTeamKey: TichuTeamKey | null,
 ) {
-    const baseClassName = "rounded-3xl border p-5 shadow-sm";
+    const baseClassName = "min-w-0 rounded-3xl border px-3 py-2 shadow-sm sm:px-4 sm:py-3";
 
     if (teamKey === winnerTeamKey) {
         return `${baseClassName} border-blue-500/30 bg-blue-500/10`;
     }
 
     return `${baseClassName} border-foreground/10 bg-background`;
+}
+
+function TichuScoreTrendChart({
+    logs,
+    teamAName,
+    teamBName,
+}: Readonly<{
+    logs: TichuRoundLog[];
+    teamAName: string;
+    teamBName: string;
+}>) {
+    const sortedLogs = [...logs].sort((a, b) => (a.round ?? 0) - (b.round ?? 0));
+    const snapshots = sortedLogs.reduce(
+        (currentSnapshots, log) => {
+            const previous = currentSnapshots[currentSnapshots.length - 1];
+
+            return [...currentSnapshots, {
+                label: `${log.round ?? "-"}라운드`,
+                teamAScore: log.total_scores?.TEAM_A ?? previous.teamAScore + (log.score_deltas?.TEAM_A ?? 0),
+                teamBScore: log.total_scores?.TEAM_B ?? previous.teamBScore + (log.score_deltas?.TEAM_B ?? 0),
+            }];
+        },
+        [{ label: "시작", teamAScore: 0, teamBScore: 0 }],
+    );
+
+    if (sortedLogs.length === 0) {
+        return (
+            <section className="shrink-0 rounded-3xl border border-foreground/10 bg-background p-3 shadow-sm">
+                <h3 className="text-sm font-black">팀별 점수 그래프</h3>
+                <p className="mt-2 text-xs text-foreground/50">점수 변동 기록이 없습니다.</p>
+            </section>
+        );
+    }
+
+    const scores = snapshots.flatMap(({ teamAScore: a, teamBScore: b }) => [a, b]);
+    const minScore = Math.min(...scores);
+    const maxScore = Math.max(...scores);
+    const scorePadding = Math.max(50, Math.ceil((maxScore - minScore) / 10 / 50) * 50);
+    const chartMin = Math.floor((minScore - scorePadding) / 50) * 50;
+    const chartMax = Math.ceil((maxScore + scorePadding) / 50) * 50;
+    const width = Math.max(360, 80 + (snapshots.length - 1) * 40);
+    const height = 75;
+    const padding = { top: 8, right: 12, bottom: 18, left: 45 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const getX = (index: number) => padding.left + (index / (snapshots.length - 1)) * plotWidth;
+    const getY = (score: number) => padding.top + ((chartMax - score) / (chartMax - chartMin)) * plotHeight;
+    const teams = [
+        { name: teamAName, color: "#2563eb", scoreKey: "teamAScore" },
+        { name: teamBName, color: "#ef4444", scoreKey: "teamBScore" },
+    ] as const;
+
+    return (
+        <section className="shrink-0 rounded-3xl border border-foreground/10 bg-background p-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <h3 className="text-sm font-black">팀별 점수 그래프</h3>
+                {teams.map((team) => (
+                    <span key={team.scoreKey} className="flex items-center gap-1 text-xs font-bold">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color }} />
+                        {team.name}
+                    </span>
+                ))}
+            </div>
+            <div className="mt-1 overflow-x-auto">
+                <svg
+                    viewBox={`0 0 ${width} ${height}`}
+                    className="mx-auto h-auto w-full max-w-[480px]"
+                    style={{ minWidth: width }}
+                    role="img"
+                    aria-label="라운드별 팀 점수 변화 그래프"
+                >
+                    {[chartMax, (chartMax + chartMin) / 2, chartMin].map((tick) => {
+                        const y = getY(tick);
+
+                        return (
+                            <g key={tick}>
+                                <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="currentColor" strokeOpacity={0.1} />
+                                <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize={9} fill="currentColor" opacity={0.55}>
+                                    {Math.round(tick).toLocaleString()}
+                                </text>
+                            </g>
+                        );
+                    })}
+                    {teams.map((team) => (
+                        <g key={team.scoreKey}>
+                            <polyline
+                                fill="none"
+                                stroke={team.color}
+                                strokeWidth={2.5}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                points={snapshots.map((snapshot, index) => `${getX(index)},${getY(snapshot[team.scoreKey])}`).join(" ")}
+                            />
+                            {snapshots.map((snapshot, index) => (
+                                <circle key={index} cx={getX(index)} cy={getY(snapshot[team.scoreKey])} r={3} fill={team.color}>
+                                    <title>{`${team.name} · ${snapshot.label} · ${snapshot[team.scoreKey].toLocaleString()}점`}</title>
+                                </circle>
+                            ))}
+                        </g>
+                    ))}
+                    <text x={padding.left} y={height - 7} fontSize={9} fill="currentColor" opacity={0.55}>시작</text>
+                    <text x={width - padding.right} y={height - 7} textAnchor="end" fontSize={9} fill="currentColor" opacity={0.55}>
+                        {snapshots[snapshots.length - 1].label}
+                    </text>
+                </svg>
+            </div>
+        </section>
+    );
 }
 
 export default async function TichuDetailPage({
@@ -271,8 +355,6 @@ export default async function TichuDetailPage({
         redirect(`/tichu/play/${matchId}`);
     }
 
-    const teamAName = getTeamName(details, "TEAM_A");
-    const teamBName = getTeamName(details, "TEAM_B");
     const teamAScore = getTeamScore(details, "TEAM_A");
     const teamBScore = getTeamScore(details, "TEAM_B");
     const winnerTeamKey = getWinnerTeamKey(details, teamAScore, teamBScore);
@@ -299,144 +381,114 @@ export default async function TichuDetailPage({
     const canUndo = logs.length > 0;
 
     return (
-        <div className="mx-auto max-w-4xl space-y-6">
-            <div>
-                <Link
-                    href="/tichu/matches"
-                    className="mb-4 inline-flex text-sm font-semibold text-foreground/60 transition hover:text-foreground"
-                >
-                    ← 게임 기록으로
-                </Link>
-
-                <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-6 shadow-sm">
-                    <p className="text-sm font-black text-blue-500">Tichu</p>
-
-                    <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <h2 className="text-3xl font-black tracking-tight">
+        <div className="flex h-[calc(100dvh-9rem)] min-h-[44rem] w-full min-w-0 flex-col gap-3 md:h-[calc(100dvh-5rem)]">
+            <header className="shrink-0 rounded-3xl border border-foreground/10 bg-foreground/[0.03] px-3 py-3 shadow-sm sm:px-6">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-3">
+                            <p className="text-sm font-black text-blue-500">Tichu</p>
+                            <Link
+                                href="/tichu/matches"
+                                className="text-xs font-semibold text-foreground/50 transition hover:text-foreground"
+                            >
+                                ← 게임 기록으로
+                            </Link>
+                        </div>
+                        <div className="mt-1 flex items-center gap-1 whitespace-nowrap sm:gap-3">
+                            <h2 className="text-lg leading-tight font-black tracking-tight sm:text-3xl">
                                 티츄 게임 결과
                             </h2>
-                            <p className="mt-2 text-sm text-foreground/60">
-                                {logs.length.toLocaleString()}라운드 진행 · 목표{" "}
-                                {details.target_score ?? 1000}점
-                                {finishedAt ? ` · ${finishedAt} 종료` : ""}
-                            </p>
+                            <div className="text-xs leading-3 text-foreground/60 sm:text-sm sm:leading-[1.125rem]">
+                                <p>{logs.length.toLocaleString()}라운드</p>
+                                <p>목표 {details.target_score ?? 1000}점</p>
+                            </div>
                         </div>
-
-                        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-left sm:text-right">
-                            <p className="text-xs font-black text-blue-500">승리 팀</p>
-                            <p className="mt-1 text-xl font-black">{winnerTeamName}</p>
-                        </div>
+                        <p className="mt-1 text-xs font-bold text-foreground/50">
+                            승리 {winnerTeamName}
+                            {finishedAt ? ` · ${finishedAt} 종료` : ""}
+                        </p>
                     </div>
+                    <TichuMatchDangerActions
+                        matchId={matchId}
+                        canManage={canManage}
+                        canUndo={canUndo}
+                        redirectAfterDelete="/tichu/matches"
+                        undoLabel="기록 되돌리기"
+                        vertical
+                    />
                 </div>
-            </div>
+            </header>
 
-            <TichuMatchDangerActions matchId={matchId}
-                canManage={canManage}
-                canUndo={canUndo}
-                redirectAfterDelete="/tichu/matches"
-            />
+            <section className="grid shrink-0 grid-cols-2 gap-3 sm:gap-4">
+                {(["TEAM_A", "TEAM_B"] as const).map((teamKey) => {
+                    const teamName = getTeamName(details, teamKey);
+                    const teamScore = getTeamScore(details, teamKey);
 
-            <section className="grid gap-4 sm:grid-cols-2">
-                <div className={getTeamCardClassName("TEAM_A", winnerTeamKey)}>
-                    <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-foreground/50">{teamAName}</p>
-
-                        {winnerTeamKey === "TEAM_A" ? (
-                            <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-500">
-                                WIN
-                            </span>
-                        ) : null}
-                    </div>
-
-                    <p className="mt-2 text-4xl font-black">
-                        {teamAScore.toLocaleString()}
-                    </p>
-                </div>
-
-                <div className={getTeamCardClassName("TEAM_B", winnerTeamKey)}>
-                    <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-foreground/50">{teamBName}</p>
-
-                        {winnerTeamKey === "TEAM_B" ? (
-                            <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-500">
-                                WIN
-                            </span>
-                        ) : null}
-                    </div>
-
-                    <p className="mt-2 text-4xl font-black">
-                        {teamBScore.toLocaleString()}
-                    </p>
-                </div>
-            </section>
-
-            <section className="grid gap-4 sm:grid-cols-4">
-                <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-xs font-black text-foreground/45">라운드</p>
-                    <p className="mt-2 text-2xl font-black">
-                        {logs.length.toLocaleString()}
-                    </p>
-                </div>
-
-                <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-xs font-black text-foreground/45">원투</p>
-                    <p className="mt-2 text-2xl font-black">
-                        {callStats.oneTwoCount.toLocaleString()}회
-                    </p>
-                </div>
-
-                <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-xs font-black text-foreground/45">스몰 티츄</p>
-                    <p className="mt-2 text-2xl font-black">
-                        {callStats.smallSuccess.toLocaleString()}/
-                        {callStats.smallCalled.toLocaleString()}
-                    </p>
-                </div>
-
-                <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-xs font-black text-foreground/45">라지 티츄</p>
-                    <p className="mt-2 text-2xl font-black">
-                        {callStats.largeSuccess.toLocaleString()}/
-                        {callStats.largeCalled.toLocaleString()}
-                    </p>
-                </div>
-            </section>
-
-            <section className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                <h3 className="text-lg font-black">참가자</h3>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {players.map(([playerKey, player]) => {
-                        const userId = getUserIdFromTichuPlayerKey(playerKey);
-                        const teamName = getPlayerTeamName(
-                            player.team_key,
-                            teamAName,
-                            teamBName,
-                        );
-
-                        return (
-                            <div key={playerKey} className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4">
-                                <p className="text-xs font-bold text-foreground/40">
+                    return (
+                        <div key={teamKey} className={getTeamCardClassName(teamKey, winnerTeamKey)}>
+                            <div className="flex items-baseline justify-between gap-2 text-lg sm:text-xl">
+                                <p className="min-w-0 truncate font-bold text-foreground/50" title={teamName}>
                                     {teamName}
                                 </p>
-                                <div className="mt-1 text-lg font-black">
-                                    {userId ? (
-                                        <TichuNicknameWithBadges
-                                            nickname={getPlayerName(details, playerKey)}
-                                            badges={equippedBadgesByUserId[userId] ?? []}
-                                        />
-                                    ) : (
-                                        <span>{getPlayerName(details, playerKey)}</span>
-                                    )}
-                                </div>
+                                <p className="shrink-0 font-black">{teamScore.toLocaleString()}</p>
                             </div>
-                        );
-                    })}
-                </div>
+                            <div className="mt-2 space-y-0.5 border-t border-foreground/10 pt-2">
+                                {players
+                                    .filter(([, player]) => player.team_key === teamKey)
+                                    .map(([playerKey, player]) => {
+                                        const userId = getUserIdFromTichuPlayerKey(playerKey);
+
+                                        return (
+                                            <div key={playerKey} className="min-w-0 text-xs font-bold sm:text-sm">
+                                                {userId ? (
+                                                    <TichuNicknameWithBadges
+                                                        nickname={player.name ?? "이름 없음"}
+                                                        badges={equippedBadgesByUserId[userId] ?? []}
+                                                        badgeSize="sm"
+                                                        nameClassName="truncate"
+                                                    />
+                                                ) : (
+                                                    <span className="block truncate">
+                                                        {player.name ?? "이름 없음"}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </div>
+                    );
+                })}
             </section>
 
-            <TichuRoundLogCards details={details} />
+            <section className="grid shrink-0 grid-cols-4 gap-1.5 sm:gap-3">
+                {[
+                    ["라운드", logs.length.toLocaleString()],
+                    ["원투", `${callStats.oneTwoCount.toLocaleString()}회`],
+                    ["스티", `${callStats.smallSuccess.toLocaleString()}/${callStats.smallCalled.toLocaleString()}`],
+                    ["라티", `${callStats.largeSuccess.toLocaleString()}/${callStats.largeCalled.toLocaleString()}`],
+                ].map(([label, value]) => (
+                    <div key={label} className="min-w-0 rounded-xl border border-foreground/10 bg-background px-2 py-1.5 shadow-sm sm:px-3">
+                        <p className="text-[11px] font-bold text-foreground/45">{label}</p>
+                        <p className="truncate text-sm font-black" title={value}>{value}</p>
+                    </div>
+                ))}
+            </section>
+
+            <TichuScoreTrendChart
+                logs={logs}
+                teamAName={getTeamName(details, "TEAM_A")}
+                teamBName={getTeamName(details, "TEAM_B")}
+            />
+
+            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-foreground/10 bg-background shadow-sm">
+                <h3 className="border-b border-foreground/10 px-4 py-2 text-sm font-black">
+                    라운드 기록
+                </h3>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+                    <TichuRoundLogCards details={details} compact />
+                </div>
+            </section>
         </div>
     );
 }

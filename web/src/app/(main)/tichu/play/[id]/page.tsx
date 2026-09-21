@@ -48,22 +48,6 @@ type TichuDetails = {
     >;
 };
 
-function getPlayerTeamName(
-    teamKey: TichuTeamKey | undefined,
-    teamAName: string,
-    teamBName: string,
-) {
-    if (teamKey === "TEAM_A") {
-        return teamAName;
-    }
-
-    if (teamKey === "TEAM_B") {
-        return teamBName;
-    }
-
-    return "소속 팀 없음";
-}
-
 function getUserIdFromTichuPlayerKey(playerKey: string) {
     if (!playerKey.startsWith("user_")) {
         return null;
@@ -138,76 +122,85 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     const canUndo = (details.logs?.length ?? 0) > 0;
 
     return (
-        <div className="mx-auto max-w-4xl space-y-6">
-            <div>
-                <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] p-6 shadow-sm">
-                    <p className="text-sm font-black text-blue-500">Tichu</p>
-                    <h2 className="mt-1 text-3xl font-black tracking-tight">
-                        티츄 게임 기록
-                    </h2>
-                    <p className="mt-2 text-sm text-foreground/60">
-                        {details.current_round ?? 1}라운드 · 목표{" "}
-                        {details.target_score ?? 1000}점
-                    </p>
+        <div className="flex h-[calc(100dvh-9rem)] min-h-[44rem] w-full min-w-0 flex-col gap-3 md:h-[calc(100dvh-5rem)]">
+            <div className="shrink-0">
+                <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] px-3 py-3 shadow-sm sm:px-6">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                            <p className="text-sm font-black text-blue-500">Tichu</p>
+                            <div className="mt-1 flex items-center gap-1 whitespace-nowrap sm:gap-3">
+                                <h2 className="text-lg leading-tight font-black tracking-tight sm:text-3xl">
+                                    티츄 게임 기록
+                                </h2>
+                                <div className="text-xs leading-3 text-foreground/60 sm:text-sm sm:leading-[1.125rem]">
+                                    <p>{details.current_round ?? 1}라운드</p>
+                                    <p>목표 {details.target_score ?? 1000}점</p>
+                                </div>
+                            </div>
+                        </div>
+                        <TichuMatchDangerActions
+                            matchId={matchId}
+                            canManage={canManage}
+                            canUndo={canUndo}
+                            redirectAfterDelete="/tichu/matches"
+                            undoLabel="기록 되돌리기"
+                            vertical
+                        />
+                    </div>
                 </div>
             </div>
 
-            <TichuMatchDangerActions
-                matchId={matchId}
-                canManage={canManage}
-                canUndo={canUndo}
-                redirectAfterDelete="/tichu/matches"
-            />
+            <section className="grid shrink-0 grid-cols-2 gap-3 sm:gap-4">
+                {([
+                    ["TEAM_A", teamAName, teamAScore],
+                    ["TEAM_B", teamBName, teamBScore],
+                ] as const).map(([teamKey, teamName, teamScore]) => (
+                    <div
+                        key={teamKey}
+                        className="min-w-0 rounded-3xl border border-foreground/10 bg-background px-3 py-2 shadow-sm sm:px-4 sm:py-3"
+                    >
+                        <div className="flex items-baseline justify-between gap-2 text-lg sm:text-xl">
+                            <p className="min-w-0 truncate font-bold text-foreground/50" title={teamName}>
+                                {teamName}
+                            </p>
+                            <p className="shrink-0 font-black">
+                                {teamScore.toLocaleString()}
+                            </p>
+                        </div>
+                        <div className="mt-2 space-y-0.5 border-t border-foreground/10 pt-2">
+                            {players
+                                .filter(([, player]) => player.team_key === teamKey)
+                                .map(([playerKey, player]) => {
+                                    const userId = getUserIdFromTichuPlayerKey(playerKey);
 
-            <section className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-sm font-bold text-foreground/50">{teamAName}</p>
-                    <p className="mt-2 text-4xl font-black">
-                        {teamAScore.toLocaleString()}
-                    </p>
-                </div>
-
-                <div className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                    <p className="text-sm font-bold text-foreground/50">{teamBName}</p>
-                    <p className="mt-2 text-4xl font-black">
-                        {teamBScore.toLocaleString()}
-                    </p>
-                </div>
+                                    return (
+                                        <div key={playerKey} className="min-w-0 text-xs font-bold sm:text-sm">
+                                            {userId ? (
+                                                <TichuNicknameWithBadges
+                                                    nickname={player.name ?? "이름 없음"}
+                                                    badges={equippedBadgesByUserId[userId] ?? []}
+                                                    badgeSize="sm"
+                                                    nameClassName="truncate"
+                                                />
+                                            ) : (
+                                                <span className="block truncate">
+                                                    {player.name ?? "이름 없음"}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    </div>
+                ))}
             </section>
 
-            <section className="rounded-3xl border border-foreground/10 bg-background p-5 shadow-sm">
-                <h3 className="text-lg font-black">참가자</h3>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {players.map(([playerKey, player]) => {
-                        const userId = getUserIdFromTichuPlayerKey(playerKey);
-                        const teamName = getPlayerTeamName(
-                            player.team_key,
-                            teamAName,
-                            teamBName,
-                        );
-
-                        return (
-                            <div
-                                key={playerKey}
-                                className="rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4"
-                            >
-                                <p className="text-xs font-bold text-foreground/40">
-                                    {teamName}
-                                </p>
-                                <div className="mt-1 text-lg font-black">
-                                    {userId ? (
-                                        <TichuNicknameWithBadges
-                                            nickname={player.name ?? "이름 없음"}
-                                            badges={equippedBadgesByUserId[userId] ?? []}
-                                        />
-                                    ) : (
-                                        <span>{player.name ?? "이름 없음"}</span>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
+            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-foreground/10 bg-background shadow-sm">
+                <h3 className="border-b border-foreground/10 px-4 py-2 text-sm font-black">
+                    라운드 기록
+                </h3>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+                    <TichuRoundLogCards details={details} compact />
                 </div>
             </section>
 
@@ -218,8 +211,6 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                     details={details}
                 />
             ) : null}
-
-            <TichuRoundLogCards details={details} />
         </div>
     );
 }
