@@ -19,6 +19,7 @@ import type {
     TichuTeamKey,
 } from "@/features/games/tichu/types";
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
+import { fillEmptyPlayerNames } from "@/features/games/shared/guest-player-names";
 import { getCurrentUserWithAdmin } from "@/lib/admin";
 import {syncTichuAchievementNewsEvents, syncTichuNewsEventsForMatch} from "@/features/games/tichu/news";
 import { db } from "@/lib/prisma";
@@ -567,7 +568,7 @@ export async function createTichuMatch(
     }
 
     const playerNames = validateTichuPlayerNames(
-        input.playerNames,
+        await fillEmptyPlayerNames(input.playerNames),
     );
 
     const teamAName =

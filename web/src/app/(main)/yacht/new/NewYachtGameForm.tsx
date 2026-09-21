@@ -80,11 +80,8 @@ export default function NewYachtGameForm() {
   const handleSubmit = () => {
     setErrorMessage(null);
     const names = playerNames.map((name) => name.trim());
-    if (names.some((name) => !name)) {
-      setErrorMessage("모든 참가자의 이름을 입력해주세요.");
-      return;
-    }
-    if (new Set(names).size !== names.length) {
+    const enteredNames = names.filter(Boolean);
+    if (new Set(enteredNames).size !== enteredNames.length) {
       setErrorMessage("참가자 이름은 모두 달라야 합니다.");
       return;
     }

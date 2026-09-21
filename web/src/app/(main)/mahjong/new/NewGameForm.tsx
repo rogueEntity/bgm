@@ -40,11 +40,6 @@ export default function NewGameForm() {
 
         const playerNames = players.map((player) => player.trim());
 
-        if (playerNames.some((playerName) => playerName === "")) {
-            alert("4명의 작사 이름을 모두 입력해주세요.");
-            return;
-        }
-
         if (
             playerNames.some(
                 (playerName) => playerName.length > MAX_NICKNAME_LENGTH,
@@ -54,7 +49,8 @@ export default function NewGameForm() {
             return;
         }
 
-        if (new Set(playerNames).size !== 4) {
+        const enteredNames = playerNames.filter(Boolean);
+        if (new Set(enteredNames).size !== enteredNames.length) {
             alert("작사 이름은 모두 달라야 합니다.");
             return;
         }

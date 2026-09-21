@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { assertGameEnabledForAction } from "@/features/games/shared/enabled-games";
+import { fillEmptyPlayerNames } from "@/features/games/shared/guest-player-names";
 import {
   YACHT_CATEGORIES,
   YACHT_GAME_KEY,
@@ -92,7 +93,7 @@ export async function createYachtMatch(
   const currentUser = await getCurrentUserWithAdmin();
   if (!currentUser) throw new Error("로그인이 필요합니다.");
 
-  const playerNames = validatePlayerNames(input.playerNames);
+  const playerNames = validatePlayerNames(await fillEmptyPlayerNames(input.playerNames));
   const game = await db.games.findUnique({
     where: { key: YACHT_GAME_KEY },
     select: { id: true },
