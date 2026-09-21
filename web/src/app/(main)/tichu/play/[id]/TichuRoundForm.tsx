@@ -232,6 +232,11 @@ export default function TichuRoundForm({
           return;
         }
 
+        const roundLogScroll = globalThis.document.getElementById("tichu-round-log-scroll");
+        if (roundLogScroll) {
+          roundLogScroll.scrollTop = 0;
+        }
+
         router.refresh();
         globalThis.scrollTo({
           top: 0,

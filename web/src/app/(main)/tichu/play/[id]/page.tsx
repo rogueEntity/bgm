@@ -122,7 +122,7 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
     const canUndo = (details.logs?.length ?? 0) > 0;
 
     return (
-        <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-[44rem] w-full min-w-0 max-w-[900px] flex-col gap-3 md:h-[calc(100dvh-5rem)]">
+        <div className="mx-auto flex w-full min-w-0 max-w-[900px] flex-col gap-3 md:h-[calc(100dvh-5rem)] md:min-h-[44rem]">
             <div className="shrink-0">
                 <div className="rounded-3xl border border-foreground/10 bg-foreground/[0.03] px-3 py-3 shadow-sm lg:px-6">
                     <div className="flex items-center justify-between gap-2">
@@ -195,11 +195,11 @@ export default async function TichuPlayPage({ params }: TichuPlayPageProps) {
                 ))}
             </section>
 
-            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-foreground/10 bg-background shadow-sm">
+            <section className="flex h-48 min-h-0 flex-none flex-col rounded-3xl border border-foreground/10 bg-background shadow-sm md:h-auto md:flex-1">
                 <h3 className="border-b border-foreground/10 px-4 py-2 text-sm font-black">
                     라운드 기록
                 </h3>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+                <div id="tichu-round-log-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
                     <TichuRoundLogCards details={details} compact />
                 </div>
             </section>
